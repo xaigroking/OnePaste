@@ -1,6 +1,11 @@
 //! 条目信封：服务端可见字段是**逐字段列出**的，其余全部在密文里。
-//! 服务端可见：`v`（版本）、`id`（对象标识）、`created_at` / `updated_at`（排序与游标）、
-//! `size`（密文字节数，用于配额校验）、`blob_id`（可选，清理大对象）、`sealed`（密文本体）。
+//! 服务端可见字段：
+//! - `v`：版本号，当前为 1，不认识就拒绝
+//! - `id`：UUIDv7，由客户端生成，只允许 `[A-Za-z0-9_-]`，长度不超过 64
+//! - `created_at` / `updated_at`：秒级时间戳，`updated_at ≥ created_at`
+//! - `size`：必须等于 `sealed` 解码后的字节数
+//! - `blob_id`（可选）：字符集规则同 `id`
+//! - `sealed`：base64(`nonce(24) ‖ 密文 ‖ 标签(16)`)，算法 XChaCha20-Poly1305
 //! 内容、标题、预览、标签、来源应用、设备名、文件名一律在 `sealed` 内。
 
 use crate::crypto::{self, aad, Key, NONCE_LEN, TAG_LEN};
