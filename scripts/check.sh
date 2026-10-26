@@ -53,7 +53,7 @@ if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && [ -
   cargo metadata --format-version 1 2>/dev/null | python3 -c '
 import sys, json
 d = json.load(sys.stdin)
-allow = {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom"}
+allow = {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2"}
 for p in d["packages"]:
     if p["name"] == "onepaste-core":
         extra = sorted({x["name"] for x in p["dependencies"]} - allow)

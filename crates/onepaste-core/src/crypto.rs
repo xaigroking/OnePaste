@@ -99,6 +99,7 @@ pub fn derive_auth_token(pass: &str, server_salt: &[u8], params: &KdfParams) -> 
 /// AAD 上下文：把密文绑定到用途与标识，防止被换位。
 pub mod aad {
     pub const MKWRAP: &[u8] = b"onepaste/mkwrap/v1";
+    pub const MKCHECK: &[u8] = b"onepaste/mkcheck/v1";
     pub fn item(id: &str) -> Vec<u8> {
         format!("onepaste/item/v1:{id}").into_bytes()
     }
