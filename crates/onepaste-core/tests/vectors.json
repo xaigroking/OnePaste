@@ -1,0 +1,24 @@
+{
+  "argon2id": {
+    "password": "correct horse battery staple",
+    "salt_b64": "QkJCQkJCQkJCQkJCQkJCQg==",
+    "m_kib": 8192,
+    "t": 3,
+    "p": 1,
+    "kek_b64": "ah4aeEzmC2+JwRVn+qXLxpwafD35/mh5c/eYn8m73Ew="
+  },
+  "aead_item": {
+    "key_b64": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+    "nonce_b64": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJ",
+    "aad": "onepaste/item/v1:uid-1",
+    "plaintext_b64": "5L2g5aW977yMT25lUGFzdGU=",
+    "sealed_b64": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJWs9Cb9kXlt54XWZZOBJ0n08kvm5kgN4RzsStvxYdw+6f"
+  },
+  "mk_wrap": {
+    "kek_b64": "ah4aeEzmC2+JwRVn+qXLxpwafD35/mh5c/eYn8m73Ew=",
+    "nonce_b64": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJ",
+    "aad": "onepaste/mkwrap/v1",
+    "mk_b64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "wrapped_b64": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJ2aBKZuE4UajscEBOyMG4Y/27emFZSW+Bp8ZavJcdjFJ/0yCvVWpeBgBjt5No6acp"
+  }
+}

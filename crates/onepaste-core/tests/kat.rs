@@ -1,0 +1,43 @@
+//! 已知答案向量。向量由 `tools/gen_vectors.py` 用**独立的参考实现**
+//! （libargon2 / libsodium）生成；这里断言 Rust 实现与之逐字节一致。
+
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use onepaste_core::crypto::{self, aad, KdfParams, Key};
+use serde_json::Value;
+
+fn vectors() -> Value {
+    serde_json::from_str(include_str!("vectors.json")).unwrap()
+}
+fn b(v: &Value) -> Vec<u8> {
+    B64.decode(v.as_str().unwrap()).unwrap()
+}
+
+#[test]
+fn argon2id_matches_reference() {
+    let v = &vectors()["argon2id"];
+    let p = KdfParams { m_kib: v["m_kib"].as_u64().unwrap() as u32, t: v["t"].as_u64().unwrap() as u32, p: v["p"].as_u64().unwrap() as u32 };
+    let kek = crypto::derive_key(v["password"].as_str().unwrap(), &b(&v["salt_b64"]), &p).unwrap();
+    assert_eq!(kek.as_bytes().as_slice(), b(&v["kek_b64"]).as_slice());
+}
+
+#[test]
+fn item_aead_matches_reference() {
+    let v = &vectors()["aead_item"];
+    let key = Key::from_bytes(b(&v["key_b64"]).try_into().unwrap());
+    let nonce: [u8; 24] = b(&v["nonce_b64"]).try_into().unwrap();
+    let sealed = crypto::seal_with_nonce(&key, v["aad"].as_str().unwrap().as_bytes(), &b(&v["plaintext_b64"]), &nonce).unwrap();
+    assert_eq!(sealed, b(&v["sealed_b64"]));
+    assert_eq!(aad::item("uid-1"), v["aad"].as_str().unwrap().as_bytes(), "AAD 构造与向量一致");
+    let opened = crypto::open(&key, v["aad"].as_str().unwrap().as_bytes(), &b(&v["sealed_b64"])).unwrap();
+    assert_eq!(opened, b(&v["plaintext_b64"]));
+}
+
+#[test]
+fn mk_wrap_matches_reference() {
+    let v = &vectors()["mk_wrap"];
+    let kek = Key::from_bytes(b(&v["kek_b64"]).try_into().unwrap());
+    let nonce: [u8; 24] = b(&v["nonce_b64"]).try_into().unwrap();
+    let wrapped = crypto::seal_with_nonce(&kek, aad::MKWRAP, &b(&v["mk_b64"]), &nonce).unwrap();
+    assert_eq!(wrapped, b(&v["wrapped_b64"]));
+    assert_eq!(aad::MKWRAP, v["aad"].as_str().unwrap().as_bytes());
+}
