@@ -19,6 +19,12 @@ jobs:
           rustup default stable
       - name: 仓库卡口与测试
         run: CI=true bash scripts/check.sh
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 接口规格 lint
+        run: npx --yes @redocly/cli@2.57.0 lint api/openapi.yaml
 
   test:
     strategy:
