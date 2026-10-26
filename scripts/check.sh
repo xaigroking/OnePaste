@@ -36,8 +36,8 @@ root = set(d.get("workspace_members", []))
 bad = re.compile(r"(?<![A-Za-z])(A?GPL|LGPL|SSPL|BUSL|CC-BY-NC)", re.I)
 fail = 0
 for p in d["packages"]:
-    # 本仓库自己的 crate（工作区成员，或被其他工程以路径引用的）不检查
-    if p["id"] in root or p.get("source") is None: continue
+    # 只跳过本仓库自己的包：工作区成员、名字以 onepaste 开头的包、桌面工程自己的包
+    if p["id"] in root or p["name"].startswith("onepaste") or p["name"] == "onepaste-desktop": continue
     lic = p.get("license") or ""
     # 允许 "MIT OR GPL-2.0" 这类“任选其一”：只要有一个选项不含禁用项即可
     options = [o for o in re.split(r"\s+OR\s+|/", lic) if o.strip()]
@@ -105,11 +105,13 @@ extra_md=$(find . \( "${prune[@]}" \) -prune -o -type f -name '*.md' -not -path 
 bad_paths=$(find . \( "${prune[@]}" \) -prune -o \( -type d \( -name docs -o -name design \) -o -type f \( -name 'AGENTS*' -o -name 'COMMERCIAL*' -o -name 'LICENSE*' \) \) -print)
 [ -z "$bad_paths" ] || { say "FAIL 不允许出现 docs/、design/、AGENTS*、COMMERCIAL*、LICENSE*:"; say "$bad_paths"; fail=1; }
 # 12b) 内容：已跟踪与未忽略的文本文件（跳过本脚本与根目录 README.md）
-deny='\bINV-[0-9]|\bADR-[0-9]|docs/|dev\.forgejo\.lan|nebula-devsering|doc-onepaste|SPDX-License-Identifier|\b(claude|anthropic|openai|chatgpt|gpt-?[0-9]|codex|copilot|gemini)\b'
+# 正则放在共用文件里，release-check.sh 也读它
+. scripts/lib/deny-patterns.sh
+deny="$DENY_REGEX"
 if git rev-parse --git-dir >/dev/null 2>&1; then
   while IFS= read -r -d '' f; do
     [ -f "$f" ] || continue
-    case "$f" in scripts/check.sh|README.md) continue;; esac
+    case "$f" in scripts/check.sh|scripts/lib/deny-patterns.sh|README.md) continue;; esac
     if hits=$(grep -InE -i -- "$deny" "$f"); then
       say "FAIL 出现内网信息、许可证声明或 AI 名称: $f"; say "$hits"; fail=1
     fi
