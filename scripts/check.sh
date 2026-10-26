@@ -36,7 +36,8 @@ root = set(d.get("workspace_members", []))
 bad = re.compile(r"(?<![A-Za-z])(A?GPL|LGPL|SSPL|BUSL|CC-BY-NC)", re.I)
 fail = 0
 for p in d["packages"]:
-    if p["id"] in root: continue
+    # 本仓库自己的 crate（工作区成员，或被其他工程以路径引用的）不检查
+    if p["id"] in root or p.get("source") is None: continue
     lic = p.get("license") or ""
     # 允许 "MIT OR GPL-2.0" 这类“任选其一”：只要有一个选项不含禁用项即可
     options = [o for o in re.split(r"\s+OR\s+|/", lic) if o.strip()]
@@ -82,7 +83,7 @@ else
 fi
 
 # 11) 语言卡口：各层只允许使用约定的语言
-prune=( -name target -o -name node_modules -o -name .git )
+prune=( -name target -o -name node_modules -o -name dist -o -name .git )
 if find . \( "${prune[@]}" \) -prune -o -type f -name '*.py' -not -path './tools/*' -print | grep -q .; then
   say "FAIL .py 文件只能放在 tools/ 下:"; find . \( "${prune[@]}" \) -prune -o -type f -name '*.py' -not -path './tools/*' -print >&2; fail=1
 fi

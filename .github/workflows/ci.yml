@@ -43,3 +43,65 @@ jobs:
       - name: vaultcore 测试
         working-directory: spikes/vaultcore
         run: cargo test --release
+
+  desktop:
+    name: desktop (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifact: apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+            run_unit_tests: true
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+            artifact: apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            run_unit_tests: true
+          - name: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: dmg
+            artifact: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            run_unit_tests: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 安装 Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - name: 安装前端依赖
+        working-directory: apps/desktop
+        run: npm ci
+      - name: 前端依赖许可证检查
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          npx --no-install license-checker-rseidelsohn --summary | tee licenses.txt
+          npx --no-install license-checker-rseidelsohn --failOn "GPL;GPL-1.0;GPL-2.0;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0;GPL-3.0-only;GPL-3.0-or-later;AGPL;AGPL-1.0;AGPL-3.0;AGPL-3.0-only;AGPL-3.0-or-later;LGPL;LGPL-2.0;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;BUSL-1.1" > /dev/null
+          if grep -Ei '(^|[^A-Za-z])(A?GPL|LGPL|SSPL|BUSL)' licenses.txt; then
+            echo "FAIL 前端依赖里出现了被禁止的许可证"; exit 1
+          fi
+      - name: 桌面端单元测试
+        if: matrix.run_unit_tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --target ${{ matrix.target }}
+      - name: 构建安装包
+        working-directory: apps/desktop
+        run: npx --no-install tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: onepaste-desktop-${{ matrix.name }}
+          path: ${{ matrix.artifact }}
+          retention-days: 14
+          if-no-files-found: error

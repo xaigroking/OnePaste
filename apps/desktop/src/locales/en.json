@@ -1,0 +1,52 @@
+{
+  "app": { "title": "OnePaste desktop spike" },
+  "hotkey": {
+    "hint": "Press {{keys}} to bring up this window",
+    "busy": "Hotkey is already in use"
+  },
+  "recents": {
+    "title": "Recent items (in memory only, up to 20)",
+    "empty": "Nothing yet. Copy some text or take a screenshot.",
+    "image": "Image {{width}}×{{height}}",
+    "clickHint": "Click an item to put it back on the clipboard"
+  },
+  "secure": {
+    "title": "Secure storage test",
+    "write": "Write test key",
+    "read": "Read",
+    "delete": "Delete",
+    "ok": "Success",
+    "fail": "Failed: {{code}}"
+  },
+  "log": {
+    "title": "Event log",
+    "empty": "No events yet.",
+    "started": "App started",
+    "wake": "System woke from sleep",
+    "network_online": "Network connected",
+    "network_offline": "Network disconnected",
+    "hotkey_registered": "Hotkey registered",
+    "hotkey_busy": "Hotkey registration failed (in use)",
+    "sensitive_skipped": "Skipped: sensitive marker"
+  },
+  "status": {
+    "label": "Tray status: {{state}}",
+    "synced": "Synced",
+    "syncing": "Syncing",
+    "offline": "Offline",
+    "error": "Error"
+  },
+  "diagnostics": {
+    "copy": "Copy diagnostics",
+    "copied": "Diagnostics copied",
+    "failed": "Copy failed: {{code}}"
+  },
+  "tray": {
+    "open": "Open window",
+    "toggle": "Switch status (for testing)",
+    "diagnostics": "Copy diagnostics",
+    "quit": "Quit",
+    "statusLine": "Status: {state}",
+    "tooltip": "OnePaste · {state}"
+  }
+}

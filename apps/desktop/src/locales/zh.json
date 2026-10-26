@@ -1,0 +1,52 @@
+{
+  "app": { "title": "OnePaste 桌面验证" },
+  "hotkey": {
+    "hint": "按 {{keys}} 呼出本窗口",
+    "busy": "热键被占用"
+  },
+  "recents": {
+    "title": "最近记录（仅在内存中，最多 20 条）",
+    "empty": "还没有记录。复制一段文字或截一张图试试。",
+    "image": "图片 {{width}}×{{height}}",
+    "clickHint": "点击一条可写回剪贴板"
+  },
+  "secure": {
+    "title": "安全存储测试",
+    "write": "写入测试密钥",
+    "read": "读取",
+    "delete": "删除",
+    "ok": "成功",
+    "fail": "失败：{{code}}"
+  },
+  "log": {
+    "title": "事件日志",
+    "empty": "还没有事件。",
+    "started": "应用已启动",
+    "wake": "系统从睡眠中唤醒",
+    "network_online": "网络已连接",
+    "network_offline": "网络已断开",
+    "hotkey_registered": "热键注册成功",
+    "hotkey_busy": "热键注册失败（被占用）",
+    "sensitive_skipped": "已跳过：敏感标记"
+  },
+  "status": {
+    "label": "托盘状态：{{state}}",
+    "synced": "已同步",
+    "syncing": "同步中",
+    "offline": "离线",
+    "error": "出错"
+  },
+  "diagnostics": {
+    "copy": "复制诊断信息",
+    "copied": "诊断信息已复制",
+    "failed": "复制失败：{{code}}"
+  },
+  "tray": {
+    "open": "打开窗口",
+    "toggle": "切换状态（验证用）",
+    "diagnostics": "复制诊断信息",
+    "quit": "退出",
+    "statusLine": "状态：{state}",
+    "tooltip": "OnePaste · {state}"
+  }
+}
