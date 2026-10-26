@@ -1,0 +1,122 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 发布前检查
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 取回附注 tag
+        run: git fetch --force origin "+refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+      - name: 检查
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/release-check.sh "$GITHUB_REF_NAME"
+
+  build:
+    name: 构建 (${{ matrix.name }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifact: apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+            artifact: apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          - name: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: dmg
+            artifact: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 安装 Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - name: 安装前端依赖
+        working-directory: apps/desktop
+        run: npm ci
+      - name: 构建安装包
+        working-directory: apps/desktop
+        env:
+          ONEPASTE_BUILD_TAG: ${{ github.ref_name }}
+        run: npx --no-install tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: 暂存产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: ${{ matrix.artifact }}
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: 发布 Pre-release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 取回附注 tag
+        run: git fetch --force origin "+refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: staged
+          merge-multiple: true
+      - name: 生成校验和、发布说明并发布
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(python3 -c 'import json;print(json.load(open("apps/desktop/src-tauri/tauri.conf.json"))["version"])')
+          win="OnePaste_${version}_x64-setup.exe"
+          arm="OnePaste_${version}_aarch64.dmg"
+          intel="OnePaste_${version}_x64.dmg"
+          mkdir -p out
+          for f in "$win" "$arm" "$intel"; do
+            test -f "staged/$f" || { echo "缺少产物: $f"; ls -R staged; exit 1; }
+            cp "staged/$f" out/
+          done
+          (cd out && sha256sum "$win" "$arm" "$intel" > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          git for-each-ref --format='%(contents)' "refs/tags/${GITHUB_REF_NAME}" > notes.md
+          {
+            echo
+            echo "## 下载 / Downloads"
+            echo
+            echo "| 平台 Platform | 架构 Architecture | 文件 File |"
+            echo "|---|---|---|"
+            echo "| Windows | x64 | $win |"
+            echo "| macOS | Apple 芯片 (Apple silicon) | $arm |"
+            echo "| macOS | Intel | $intel |"
+          } >> notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --prerelease \
+            --title "OnePaste $GITHUB_REF_NAME" --notes-file notes.md \
+            "out/$win" "out/$arm" "out/$intel" out/SHA256SUMS.txt

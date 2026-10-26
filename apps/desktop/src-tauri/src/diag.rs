@@ -29,6 +29,8 @@ fn line(e: &LogEntry) -> String {
 pub fn build(state: &Inner, os_version: &str) -> String {
     let mut out = String::new();
     out.push_str(&format!("app_version: {}\n", env!("CARGO_PKG_VERSION")));
+    // 发布构建时由 CI 注入，用来区分同一个版本号的不同预发布
+    out.push_str(&format!("build_tag: {}\n", option_env!("ONEPASTE_BUILD_TAG").unwrap_or("none")));
     out.push_str(&format!("os: {os_version}\n"));
     out.push_str(&format!("arch: {}\n", std::env::consts::ARCH));
     out.push_str(&format!("tray_state: {}\n", state.tray.key()));
@@ -65,6 +67,7 @@ mod tests {
         assert_eq!(text.lines().filter(|l| l.contains(" wake ")).count(), 20);
         assert!(text.contains("n29") && !text.contains("n9\n") && !text.contains("n0\n"));
         assert!(text.contains("os: TestOS 1.0") && text.contains("tray_state: synced"));
+        assert!(text.contains("build_tag: "));
         assert!(!text.contains("super-secret"));
     }
 }
