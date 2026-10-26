@@ -1,4 +1,4 @@
-//! macOS 睡眠唤醒：`NSWorkspaceDidWakeNotification`。通知在主线程的运行循环里送达。
+//! macOS wake from sleep: `NSWorkspaceDidWakeNotification`. The notification is delivered in the main thread run loop.
 
 use crate::error::PlatformError;
 use block2::RcBlock;
@@ -13,7 +13,7 @@ pub(crate) struct Watcher {
     observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 }
 
-// 通知中心是线程安全的；观察者只在 Drop 里用来取消注册。
+// The notification center is thread safe; the observer is only used to unregister in Drop.
 unsafe impl Send for Watcher {}
 unsafe impl Sync for Watcher {}
 

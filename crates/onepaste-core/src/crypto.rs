@@ -1,6 +1,6 @@
-//! 密码学原语封装：Argon2id 派生、XChaCha20-Poly1305 AEAD、AAD 上下文绑定。
-//! 规则：随机主密钥加密全部数据；口令只派生 KEK 用来包装主密钥；
-//! 不同用途的密文用不同的 AAD 上下文，互相不可替换。
+//! Cryptographic primitives: Argon2id derivation, XChaCha20-Poly1305 AEAD and AAD context binding.
+//! Rules: a random master key encrypts all data; the passphrase only derives a KEK that wraps the master key;
+//! ciphertexts for different purposes use different AAD contexts and cannot be swapped.
 
 use crate::error::Error;
 use argon2::{Algorithm, Argon2, Params, Version};
@@ -17,7 +17,7 @@ pub const NONCE_LEN: usize = 24;
 pub const TAG_LEN: usize = 16;
 pub const MIN_SALT_LEN: usize = 16;
 
-/// 32 字节密钥；丢弃时清零；`Debug` 不泄漏内容；比较为常量时间。
+/// A 32-byte key: zeroed on drop, `Debug` does not leak contents, comparison is constant time.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct Key([u8; KEY_LEN]);
 
@@ -52,7 +52,7 @@ impl PartialEq for Key {
 }
 impl Eq for Key {}
 
-/// Argon2id 参数；随密钥参数保存，可升级；低于下限一律拒绝（防降级）。
+/// Argon2id parameters: stored with the key record and upgradable; anything below the floor is rejected (downgrade protection).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KdfParams {
     pub m_kib: u32,
@@ -61,9 +61,9 @@ pub struct KdfParams {
 }
 
 impl KdfParams {
-    /// 下限：8 MiB / 1 轮 / 1 并行（仅为防降级；生产默认值见 `DEFAULT`）。
+    /// Floor: 8 MiB / 1 pass / 1 lane (downgrade protection only; see `DEFAULT` for the production default).
     pub const MIN: KdfParams = KdfParams { m_kib: 8 * 1024, t: 1, p: 1 };
-    /// 默认：64 MiB / 3 轮 / 1 并行。浏览器耗时未实测，如过慢需重新评估参数。
+    /// Default: 64 MiB / 3 passes / 1 lane. Browser timing is not measured yet; re-evaluate if it is too slow.
     pub const DEFAULT: KdfParams = KdfParams { m_kib: 64 * 1024, t: 3, p: 1 };
 
     pub fn validate(&self) -> Result<(), Error> {
@@ -74,7 +74,7 @@ impl KdfParams {
     }
 }
 
-/// 口令 → 32 字节密钥（Argon2id v1.3）。
+/// Passphrase to a 32-byte key (Argon2id v1.3).
 pub fn derive_key(pass: &str, salt: &[u8], params: &KdfParams) -> Result<Key, Error> {
     params.validate()?;
     if salt.len() < MIN_SALT_LEN {
@@ -91,12 +91,12 @@ pub fn derive_key(pass: &str, salt: &[u8], params: &KdfParams) -> Result<Key, Er
     Ok(key)
 }
 
-/// 自建认证令牌：与 KEK **独立**的一次 Argon2 运算，盐由**服务端下发**，使认证令牌与加密密钥互不相干。
+/// Self-hosted auth token: an Argon2 run **independent** of the KEK, with a salt **issued by the server**, so the token and the encryption key are unrelated.
 pub fn derive_auth_token(pass: &str, server_salt: &[u8], params: &KdfParams) -> Result<Key, Error> {
     derive_key(pass, server_salt, params)
 }
 
-/// AAD 上下文：把密文绑定到用途与标识，防止被换位。
+/// AAD contexts: bind a ciphertext to its purpose and identifier so it cannot be moved elsewhere.
 pub mod aad {
     pub const MKWRAP: &[u8] = b"onepaste/mkwrap/v1";
     pub const MKCHECK: &[u8] = b"onepaste/mkcheck/v1";
@@ -108,14 +108,14 @@ pub mod aad {
     }
 }
 
-/// 加密，返回 `nonce(24) || 密文 || 标签(16)`。每次随机 nonce。
+/// Encrypts and returns `nonce(24) || ciphertext || tag(16)`. The nonce is random every time.
 pub fn seal(key: &Key, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, Error> {
     let mut nonce = [0u8; NONCE_LEN];
     OsRng.try_fill_bytes(&mut nonce).map_err(|_| Error::Rng)?;
     seal_with_nonce(key, aad, plaintext, &nonce)
 }
 
-/// 固定 nonce 加密：**仅用于已知答案测试**。重复使用 nonce 会彻底破坏安全性。
+/// Encrypts with a fixed nonce: **for known-answer tests only**. Reusing a nonce destroys security.
 #[doc(hidden)]
 pub fn seal_with_nonce(
     key: &Key,
@@ -133,7 +133,7 @@ pub fn seal_with_nonce(
     Ok(out)
 }
 
-/// 解密 `seal` 的输出；任何失败（密钥、AAD、篡改、截断）都返回同一个错误，不泄漏原因。
+/// Decrypts the output of `seal`; any failure (key, AAD, tampering, truncation) returns the same error and does not reveal the cause.
 pub fn open(key: &Key, aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>, Error> {
     if sealed.len() < NONCE_LEN + TAG_LEN {
         return Err(Error::DecryptFailed);

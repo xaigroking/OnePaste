@@ -1,4 +1,4 @@
-//! Windows 和 macOS 上的真实平台集成测试：剪贴板、安全存储、事件监听。
+//! Integration tests against the real platform on Windows and macOS: clipboard, secure storage and event watchers.
 #![cfg(any(windows, target_os = "macos"))]
 
 use onepaste_platform::clipboard::{self, Content, Event, Image, Monitor, WriteOptions};
@@ -9,7 +9,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-/// 剪贴板是全局资源，涉及剪贴板的测试必须串行。
+/// The clipboard is a global resource, so tests that touch it must run one at a time.
 static CLIPBOARD_LOCK: Mutex<()> = Mutex::new(());
 
 fn lock() -> MutexGuard<'static, ()> {
@@ -26,7 +26,7 @@ fn start_monitor() -> (Monitor, Receiver<Event>) {
     (monitor, rx)
 }
 
-/// 在限定时间内等一个满足条件的事件。
+/// Waits for an event that satisfies the predicate within the time limit.
 fn wait_for(rx: &Receiver<Event>, timeout: Duration, pred: impl Fn(&Event) -> bool) -> Option<Event> {
     let deadline = Instant::now() + timeout;
     while let Some(left) = deadline.checked_duration_since(Instant::now()) {
@@ -57,7 +57,7 @@ const WAIT: Duration = Duration::from_secs(8);
 #[test]
 fn text_write_then_read_back() {
     let _g = lock();
-    let text = "第一行 héllo\n第二行 \u{1F600}".to_string();
+    let text = "\u{7b2c}\u{4e00}\u{884c} h\u{e9}llo\n\u{7b2c}\u{4e8c}\u{884c} \u{1F600}".to_string();
     clipboard::write(&Content::Text(text.clone())).unwrap();
     let snap = clipboard::read().unwrap();
     assert_eq!(snap.content, Some(Content::Text(text)));

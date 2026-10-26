@@ -1,65 +1,65 @@
 openapi: 3.1.0
 info:
-  title: OnePaste 同步服务接口
+  title: OnePaste sync service API
   version: "1"
   description: |
-    自建同步服务的接口契约。服务端只保存密文和必要的元数据，口令与主密钥永远不会发给服务端。
+    Contract of the self-hosted sync service. The server stores only ciphertext and the metadata it needs; the passphrase and the master key are never sent to the server.
 
-    ## 通用约定
-    - 只走 HTTPS，不提供明文 HTTP。基础路径是 `/v1`，请求和响应都是 JSON（`GET /events` 除外）。
-    - 请求和响应都带头 `OnePaste-Proto: 1`。服务端不支持客户端的版本时返回 400 `unsupported_version`，并附上 `min`、`max`。
-    - 每个响应都带头 `X-Request-Id`。
-    - 错误响应体统一为 `{"code": "<稳定错误码>", "request_id": "..."}`，可以附结构化字段；不带自然语言文案，文案由客户端本地化。
-    - 写请求（PUT、POST、DELETE）必须带 `Idempotency-Key` 头。同一个 key 加同样的请求体，至少 24 小时内返回同样的响应；同一个 key 加不同的请求体，返回 422 `idempotency_conflict`。
-    - 服务端不得记录请求体和响应体；日志只写方法、路径、状态码、`request_id`、耗时。
-    - 限速：`register`、`invite` 每个 IP 每分钟 10 次；认证失败每个 IP 每分钟 20 次，失败越多退避越久。超限返回 429 `rate_limited`，带 `Retry-After` 头。
+    ## General conventions
+    - HTTPS only; plain HTTP is not offered. The base path is `/v1`, and requests and responses are JSON (except `GET /events`).
+    - Requests and responses carry the header `OnePaste-Proto: 1`. If the server does not support the client version it returns 400 `unsupported_version` with `min` and `max`.
+    - Every response carries the header `X-Request-Id`.
+    - Error bodies are always `{"code": "<stable error code>", "request_id": "..."}` and may carry structured fields. They contain no natural-language text; clients localize the wording.
+    - Write requests (PUT, POST, DELETE) must carry an `Idempotency-Key` header. The same key with the same body returns the same response for at least 24 hours; the same key with a different body returns 422 `idempotency_conflict`.
+    - The server must not log request or response bodies; logs contain only method, path, status, `request_id` and latency.
+    - Rate limits: `register` and `invite` allow 10 requests per IP per minute; failed authentication allows 20 per IP per minute, with longer back-off the more failures there are. Exceeding a limit returns 429 `rate_limited` with a `Retry-After` header.
 
-    ## 认证
-    - 设备令牌：`Authorization: Bearer <device_token>`。令牌是 32 字节随机数，用 base64url 编码，不带填充；服务端只存它的 SHA-256。
-    - 令牌无效或设备已撤销：返回 401 `unauthorized`。
-    - 口令不发给服务端，服务端不保存任何由口令派生出来的验证值，加密后的主密钥记录除外。
+    ## Authentication
+    - Device token: `Authorization: Bearer <device_token>`. The token is 32 random bytes encoded as base64url without padding; the server stores only its SHA-256.
+    - An invalid token or a revoked device returns 401 `unauthorized`.
+    - The passphrase is never sent to the server, and the server stores no verification value derived from it, apart from the encrypted master key record.
 
-    ## 连接码与注册凭据
-    - 连接码格式：`onepaste1:` 加上 base64url（不带填充）编码的 UTF-8 JSON `{"u":"https://主机:端口","fp":"<服务端证书 SPKI 的 SHA-256，base64url>","t":"<注册凭据>"}`。
-    - 注册凭据是 32 字节随机数，用 base64url 编码；服务端只存它的 SHA-256。只能用一次，24 小时后过期。
-    - 服务端首次启动且库里还没有任何设备时，生成一个注册凭据，把完整的连接码打印到标准输出。子命令 `onepaste-server connect-code` 重新生成一个连接码，同时作废之前还没用掉的注册凭据。不设管理员账号，也没有默认密码。
+    ## Connection code and registration credential
+    - Connection code format: `onepaste1:` followed by base64url (no padding) of the UTF-8 JSON `{"u":"https://host:port","fp":"<SHA-256 of the server certificate SPKI, base64url>","t":"<registration credential>"}`.
+    - A registration credential is 32 random bytes encoded as base64url; the server stores only its SHA-256. It can be used once and expires after 24 hours.
+    - On first start, when the database has no device yet, the server generates a registration credential and prints the full connection code to standard output. The subcommand `onepaste-server connect-code` generates a new connection code and invalidates registration credentials that are still unused. There is no admin account and no default password.
 
-    ## 首台设备的流程
-    1. 粘贴连接码。
-    2. 本地设置口令、生成主密钥。
-    3. `POST /devices/register`。
-    4. `PUT /vault/keyparams`，`base_version` 为 0。
+    ## First device flow
+    1. Paste the connection code.
+    2. Set the passphrase and generate the master key locally.
+    3. `POST /devices/register`.
+    4. `PUT /vault/keyparams` with `base_version` 0.
 
-    ## 新设备的流程
-    1. 粘贴连接码。
-    2. `POST /devices/register`。
-    3. `GET /vault/keyparams`。
-    4. 本地用口令解开主密钥。
+    ## New device flow
+    1. Paste the connection code.
+    2. `POST /devices/register`.
+    3. `GET /vault/keyparams`.
+    4. Unlock the master key locally with the passphrase.
 
-    ## 版本与冲突
-    - 服务端为整个库维护一个全局递增的序号 `seq`；每接受一次写入，就把 `seq` 加 1 分配给这条记录。
-    - 条目写入的 `base_seq` 必须等于该条目当前的 `seq`，新条目填 0；不相等返回 409 `stale`，响应里附上当前条目。
-    - 条目的正文创建后不再修改；可以改的只有收藏、置顶、备注、标签，它们都在 `sealed` 里面，修改时整条重新 `PUT`。
-    - 客户端收到 `stale` 时：取最新版本，解密，把用户这次想做的那一处改动重新套用到最新版本上，带上新的 `base_seq` 重试。最多重试 3 次，仍然失败就把冲突显示给用户。
-    - 任何地方都不得用 `created_at`、`updated_at` 或设备时钟判断新旧，时间字段只用于显示。
+    ## Versions and conflicts
+    - The server keeps one global, increasing sequence number `seq` for the whole vault; every accepted write increments it and assigns the new value to the record.
+    - The `base_seq` of an item write must equal the current `seq` of that item (0 for a new item); otherwise the server returns 409 `stale` with the current item attached.
+    - The body of an item is never modified after creation; only favorite, pinned, note and tags can change, and they live inside `sealed`, so a change re-`PUT`s the whole item.
+    - On `stale` the client fetches the latest version, decrypts it, re-applies the one change the user wanted on top of it and retries with the new `base_seq`. It retries at most 3 times and then shows the conflict to the user.
+    - Nothing may use `created_at`, `updated_at` or a device clock to decide which version is newer; time fields are for display only.
 
-    ## 墓碑
-    - 墓碑保留 90 天，之后服务端可以清理。游标比保留期更早时，拉取返回 410 `cursor_expired`，客户端从 `after=0` 全量重拉。
+    ## Tombstones
+    - Tombstones are kept for 90 days, after which the server may purge them. A cursor older than the retention window gets 410 `cursor_expired` on pull, and the client re-pulls everything from `after=0`.
 
-    ## 变更通知
-    - 通知只是提示。客户端收到通知、重新连上、睡眠唤醒、网络切换之后，都按游标拉一次；数据一律以拉取结果为准。
+    ## Change notifications
+    - A notification is only a hint. After a notification, a reconnect, a wake from sleep or a network switch the client pulls once by cursor; the pull result is always the source of truth.
 
-    ## 防回滚（客户端规则）
-    - 客户端记下自己见过的最大 `seq`。服务端返回的最新 `seq` 比它小，说明服务端被回滚：报本地错误 `server_rollback`，暂停同步，托盘显示「出错」。
-    - 同一个条目，不接受 `seq` 比本地记录更小的版本。
+    ## Rollback protection (client rule)
+    - The client remembers the largest `seq` it has seen. If the latest `seq` returned by the server is smaller, the server was rolled back: report the local error `server_rollback`, pause syncing and show the error state in the tray.
+    - For one item, never accept a version whose `seq` is smaller than the local record.
 
-    ## 客户端本地错误码
-    下面两个错误码只在客户端本地产生，不出现在 HTTP 响应里。
-    - `server_rollback`：服务端返回的 `seq` 比客户端见过的更小。
-    - `decrypt_failed`：密文无法解密。
+    ## Client-local error codes
+    The two error codes below are produced only on the client and never appear in HTTP responses.
+    - `server_rollback`: the `seq` returned by the server is smaller than the client has seen.
+    - `decrypt_failed`: the ciphertext cannot be decrypted.
 
-    ## 错误码与 HTTP 状态
-    | 错误码 | HTTP 状态 |
+    ## Error codes and HTTP status
+    | Error code | HTTP status |
     |---|---|
     | `invalid_argument` | 400 |
     | `unsupported_version` | 400 |
@@ -85,13 +85,13 @@ servers:
 
 tags:
   - name: devices
-    description: 设备注册、邀请、列表与撤销。
+    description: Device registration, invitation, listing and revocation.
   - name: vault
-    description: 加密后的主密钥记录。
+    description: The encrypted master key record.
   - name: items
-    description: 条目的写入与按游标拉取。
+    description: Writing items and pulling them by cursor.
   - name: events
-    description: 变更通知。
+    description: Change notifications.
 
 security:
   - deviceToken: []
@@ -101,8 +101,8 @@ paths:
     post:
       tags: [devices]
       operationId: registerDevice
-      summary: 用注册凭据注册设备
-      description: 注册凭据无效、过期或已用过，返回 401 `registration_invalid`。
+      summary: Register a device with a registration credential
+      description: An invalid, expired or already used registration credential returns 401 `registration_invalid`.
       security: []
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
@@ -115,7 +115,7 @@ paths:
               $ref: "#/components/schemas/RegisterRequest"
       responses:
         "200":
-          description: 注册成功。
+          description: Registration succeeded.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -140,14 +140,14 @@ paths:
     post:
       tags: [devices]
       operationId: inviteDevice
-      summary: 生成新的注册凭据
-      description: 客户端用自己已知的 `u`、`fp` 和返回的 `reg_token` 拼出连接码，交给新设备。
+      summary: Create a new registration credential
+      description: The client builds a connection code from the `u` and `fp` it already knows plus the returned `reg_token` and hands it to the new device.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
-          description: 新的注册凭据。
+          description: The new registration credential.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -172,12 +172,12 @@ paths:
     get:
       tags: [devices]
       operationId: listDevices
-      summary: 设备列表
+      summary: List devices
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
       responses:
         "200":
-          description: 全部设备，包含已撤销的。
+          description: All devices, including revoked ones.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -202,20 +202,20 @@ paths:
     delete:
       tags: [devices]
       operationId: revokeDevice
-      summary: 撤销设备
-      description: 立即生效。可以撤销自己。
+      summary: Revoke a device
+      description: Takes effect immediately. A device may revoke itself.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: id
           in: path
           required: true
-          description: 设备标识，即注册时的 `device_id`。
+          description: Device identifier, the `device_id` used at registration.
           schema:
             $ref: "#/components/schemas/Id"
       responses:
         "204":
-          description: 已撤销。
+          description: Revoked.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -238,13 +238,13 @@ paths:
     get:
       tags: [vault]
       operationId: getKeyParams
-      summary: 取密钥参数记录
-      description: 记录原样返回，另附 `version`。还没有记录时返回 404 `vault_empty`。
+      summary: Get the key parameter record
+      description: Returns the record as stored plus `version`. If there is no record yet it returns 404 `vault_empty`.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
       responses:
         "200":
-          description: 密钥参数记录与当前版本。
+          description: The key parameter record and its current version.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -267,10 +267,10 @@ paths:
     put:
       tags: [vault]
       operationId: putKeyParams
-      summary: 写密钥参数记录
+      summary: Write the key parameter record
       description: |
-        首次创建时 `base_version` 为 0；改口令或用恢复套件重置时，`base_version` 填当前的 `version`。
-        不一致返回 409 `stale`，响应里附上当前记录。
+        `base_version` is 0 on first creation; when changing the passphrase or resetting it with the recovery kit it is the current `version`.
+        A mismatch returns 409 `stale` with the current record attached.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -282,7 +282,7 @@ paths:
               $ref: "#/components/schemas/PutKeyParamsRequest"
       responses:
         "200":
-          description: 已写入，返回新的版本。
+          description: Written; returns the new version.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -309,19 +309,19 @@ paths:
     put:
       tags: [items]
       operationId: putItem
-      summary: 新建、修改或删除条目
+      summary: Create, update or delete an item
       description: |
-        请求体二选一：`{base_seq, envelope}` 新建或修改；`{base_seq, deleted: true}` 删除。
-        删除后服务端只保留 `id`、`seq`、`deleted_at`，密文被删掉。
-        `size` 不超过 8 MiB，请求体不超过 12 MiB，超出返回 413 `too_large`。
-        信封不合法返回 400 `malformed_envelope`。
+        The body is one of: `{base_seq, envelope}` to create or update, or `{base_seq, deleted: true}` to delete.
+        After a delete the server keeps only `id`, `seq` and `deleted_at`; the ciphertext is removed.
+        `size` may not exceed 8 MiB and the request body may not exceed 12 MiB; exceeding either returns 413 `too_large`.
+        An invalid envelope returns 400 `malformed_envelope`.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: id
           in: path
           required: true
-          description: 条目标识，必须和信封里的 `id` 相同。
+          description: Item identifier; must equal the `id` inside the envelope.
           schema:
             $ref: "#/components/schemas/Id"
       requestBody:
@@ -334,7 +334,7 @@ paths:
                 - $ref: "#/components/schemas/ItemDelete"
       responses:
         "200":
-          description: 已接受，返回分配给该条目的 `seq`。
+          description: Accepted; returns the `seq` assigned to the item.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -363,16 +363,16 @@ paths:
     get:
       tags: [items]
       operationId: listItems
-      summary: 按游标拉取条目
+      summary: Pull items by cursor
       description: |
-        按 `seq` 升序返回 `seq` 大于 `after` 的条目。
-        `after` 比墓碑保留期更早时返回 410 `cursor_expired`。
+        Returns the items whose `seq` is greater than `after`, in ascending `seq` order.
+        An `after` older than the tombstone retention window returns 410 `cursor_expired`.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - name: after
           in: query
           required: false
-          description: 游标，只返回 `seq` 大于它的条目；默认 0。
+          description: Cursor; only items with a `seq` greater than it are returned. Defaults to 0.
           schema:
             type: integer
             format: int64
@@ -381,7 +381,7 @@ paths:
         - name: limit
           in: query
           required: false
-          description: 本页最多返回的条目数。
+          description: Maximum number of items on this page.
           schema:
             type: integer
             minimum: 1
@@ -389,7 +389,7 @@ paths:
             default: 200
       responses:
         "200":
-          description: 一页条目。
+          description: One page of items.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -414,14 +414,14 @@ paths:
     get:
       tags: [events]
       operationId: streamEvents
-      summary: 订阅变更通知（SSE）
+      summary: Subscribe to change notifications (SSE)
       description: |
-        有新写入时推送一条事件，`data` 是 `{"seq": <最新 seq>}`。每 25 秒发一次心跳注释。
+        Pushes an event on every new write; `data` is `{"seq": <latest seq>}`. A heartbeat comment is sent every 25 seconds.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
       responses:
         "200":
-          description: 事件流。
+          description: The event stream.
           headers:
             OnePaste-Proto:
               $ref: "#/components/headers/OnePasteProto"
@@ -448,22 +448,22 @@ components:
     deviceToken:
       type: http
       scheme: bearer
-      description: 设备令牌，32 字节随机数的 base64url 编码，不带填充。
+      description: "Device token: 32 random bytes encoded as base64url without padding."
 
   headers:
     OnePasteProto:
-      description: 协议版本，当前为 1。
+      description: Protocol version, currently 1.
       required: true
       schema:
         type: string
         enum: ["1"]
     RequestId:
-      description: 本次请求的标识。
+      description: Identifier of this request.
       required: true
       schema:
         type: string
     RetryAfter:
-      description: 多少秒之后可以重试。
+      description: Number of seconds to wait before retrying.
       required: true
       schema:
         type: integer
@@ -474,7 +474,7 @@ components:
       name: OnePaste-Proto
       in: header
       required: true
-      description: 客户端使用的协议版本，当前为 1。
+      description: Protocol version used by the client, currently 1.
       schema:
         type: string
         enum: ["1"]
@@ -482,7 +482,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: 客户端为这次写请求生成的唯一值。
+      description: A unique value generated by the client for this write request.
       schema:
         type: string
         minLength: 1
@@ -490,7 +490,7 @@ components:
 
   responses:
     BadRequest:
-      description: 错误码为 `invalid_argument`、`unsupported_version` 或 `malformed_envelope`。
+      description: The error code is `invalid_argument`, `unsupported_version` or `malformed_envelope`.
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -501,7 +501,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     Unauthorized:
-      description: 错误码为 `unauthorized`：令牌无效或设备已撤销。
+      description: "The error code is `unauthorized`: invalid token or revoked device."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -512,7 +512,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     RegistrationInvalid:
-      description: 错误码为 `registration_invalid`：注册凭据无效、过期或已用过。
+      description: "The error code is `registration_invalid`: the registration credential is invalid, expired or already used."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -523,7 +523,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     NotFound:
-      description: 错误码为 `not_found`。
+      description: The error code is `not_found`.
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -534,7 +534,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     VaultEmpty:
-      description: 错误码为 `vault_empty`：还没有密钥参数记录。
+      description: "The error code is `vault_empty`: there is no key parameter record yet."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -545,7 +545,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     Stale:
-      description: 错误码为 `stale`：`base_seq` 或 `base_version` 与当前值不一致。条目写入附 `current_item`，密钥参数写入附 `current_keyparams`。
+      description: "The error code is `stale`: `base_seq` or `base_version` differs from the current value. Item writes attach `current_item`; key parameter writes attach `current_keyparams`."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -556,7 +556,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     CursorExpired:
-      description: 错误码为 `cursor_expired`：游标比墓碑保留期更早，客户端从 `after=0` 全量重拉。
+      description: "The error code is `cursor_expired`: the cursor is older than the tombstone retention window, so the client re-pulls from `after=0`."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -567,7 +567,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     TooLarge:
-      description: 错误码为 `too_large`：`size` 超过 8 MiB 或请求体超过 12 MiB。
+      description: "The error code is `too_large`: `size` exceeds 8 MiB or the request body exceeds 12 MiB."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -578,7 +578,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     IdempotencyConflict:
-      description: 错误码为 `idempotency_conflict`：同一个 `Idempotency-Key` 对应了不同的请求体。
+      description: "The error code is `idempotency_conflict`: the same `Idempotency-Key` was used with a different body."
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -589,7 +589,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     RateLimited:
-      description: 错误码为 `rate_limited`。
+      description: The error code is `rate_limited`.
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -602,7 +602,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     Internal:
-      description: 错误码为 `internal`。
+      description: The error code is `internal`.
       headers:
         OnePaste-Proto:
           $ref: "#/components/headers/OnePasteProto"
@@ -616,7 +616,7 @@ components:
   schemas:
     ErrorCode:
       type: string
-      description: 稳定错误码，只增不改。
+      description: Stable error code; codes may be added but never changed.
       enum:
         - invalid_argument
         - unsupported_version
@@ -634,20 +634,20 @@ components:
 
     Error:
       type: object
-      description: 统一的错误响应体，不含自然语言文案。
+      description: The uniform error body; it contains no natural-language text.
       required: [code, request_id]
       properties:
         code:
           $ref: "#/components/schemas/ErrorCode"
         request_id:
           type: string
-          description: 本次请求的标识，与响应头 `X-Request-Id` 相同。
+          description: Identifier of this request, equal to the response header `X-Request-Id`.
         min:
           type: integer
-          description: 服务端支持的最低协议版本，`unsupported_version` 时附上。
+          description: Lowest protocol version the server supports; attached with `unsupported_version`.
         max:
           type: integer
-          description: 服务端支持的最高协议版本，`unsupported_version` 时附上。
+          description: Highest protocol version the server supports; attached with `unsupported_version`.
         current_item:
           $ref: "#/components/schemas/ItemRecord"
         current_keyparams:
@@ -655,18 +655,18 @@ components:
 
     Id:
       type: string
-      description: 标识，只允许 `[A-Za-z0-9_-]`，长度不超过 64。设备和条目的标识由客户端生成，为 UUIDv7。
+      description: "Identifier: only `[A-Za-z0-9_-]`, at most 64 characters. Device and item identifiers are generated by the client as UUIDv7."
       pattern: "^[A-Za-z0-9_-]{1,64}$"
 
     Base64:
       type: string
-      description: 标准 base64 编码。
+      description: Standard base64 encoding.
       contentEncoding: base64
 
     Timestamp:
       type: integer
       format: int64
-      description: 秒级时间戳，只用于显示和排序，不用来判断新旧。
+      description: Timestamp in seconds, used only for display and ordering, never to decide which version is newer.
 
     RegisterRequest:
       type: object
@@ -674,13 +674,13 @@ components:
       properties:
         reg_token:
           type: string
-          description: 注册凭据，32 字节随机数的 base64url 编码。
+          description: "Registration credential: 32 random bytes encoded as base64url."
         device_id:
           $ref: "#/components/schemas/Id"
         sealed_name:
           allOf:
             - $ref: "#/components/schemas/Base64"
-          description: 用主密钥加密的设备名，AAD 为 `onepaste/device/v1:<device_id>`。
+          description: Device name encrypted with the master key; the AAD is `onepaste/device/v1:<device_id>`.
 
     RegisterResponse:
       type: object
@@ -688,7 +688,7 @@ components:
       properties:
         device_token:
           type: string
-          description: 设备令牌，32 字节随机数的 base64url 编码，不带填充。
+          description: "Device token: 32 random bytes encoded as base64url without padding."
 
     InviteResponse:
       type: object
@@ -696,7 +696,7 @@ components:
       properties:
         reg_token:
           type: string
-          description: 新的注册凭据，只能用一次。
+          description: The new registration credential; it can be used once.
         expires_at:
           $ref: "#/components/schemas/Timestamp"
 
@@ -711,57 +711,57 @@ components:
         created_at:
           $ref: "#/components/schemas/Timestamp"
         last_seen_at:
-          description: 最近一次认证成功的时间；从未使用过为 null。
+          description: Time of the last successful authentication; null if never used.
           oneOf:
             - $ref: "#/components/schemas/Timestamp"
             - type: "null"
         revoked:
           type: boolean
-          description: 设备是否已被撤销。
+          description: Whether the device has been revoked.
 
     KdfParams:
       type: object
-      description: Argon2id 参数。
+      description: Argon2id parameters.
       required: [m_kib, t, p]
       properties:
         m_kib:
           type: integer
           minimum: 8192
-          description: 内存，单位 KiB。
+          description: Memory in KiB.
         t:
           type: integer
           minimum: 1
-          description: 迭代轮数。
+          description: Number of passes.
         p:
           type: integer
           minimum: 1
-          description: 并行度。
+          description: Degree of parallelism.
 
     KeyParamsRecord:
       type: object
-      description: 密钥参数记录。
+      description: The key parameter record.
       required: [v, salt, kdf, wrapped_mk]
       properties:
         v:
           type: integer
-          description: 记录格式版本，当前为 1。
+          description: Record format version, currently 1.
         salt:
           allOf:
             - $ref: "#/components/schemas/Base64"
-          description: 口令派生用的盐。
+          description: Salt used for passphrase derivation.
         kdf:
           $ref: "#/components/schemas/KdfParams"
         wrapped_mk:
           allOf:
             - $ref: "#/components/schemas/Base64"
-          description: 被口令派生密钥包装的主密钥。
+          description: The master key wrapped by the passphrase-derived key.
         mk_check:
           allOf:
             - $ref: "#/components/schemas/Base64"
-          description: 主密钥校验值，用来确认手上的主密钥属于这个库；旧记录没有这个字段。
+          description: Master key check value, used to confirm that a master key in hand belongs to this vault; old records do not have this field.
 
     KeyParamsView:
-      description: 密钥参数记录加上服务端维护的版本。
+      description: The key parameter record plus the version maintained by the server.
       allOf:
         - $ref: "#/components/schemas/KeyParamsRecord"
         - type: object
@@ -771,7 +771,7 @@ components:
               type: integer
               format: int64
               minimum: 1
-              description: 记录当前的版本，每次成功写入加 1。
+              description: Current version of the record; incremented on every successful write.
 
     PutKeyParamsRequest:
       type: object
@@ -783,7 +783,7 @@ components:
           type: integer
           format: int64
           minimum: 0
-          description: 客户端所基于的 `version`；首次创建为 0。
+          description: The `version` the client based its change on; 0 for first creation.
 
     PutKeyParamsResponse:
       type: object
@@ -793,17 +793,17 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: 写入后的版本。
+          description: Version after the write.
 
     Envelope:
       type: object
-      description: 条目信封。服务端只能看到这些字段，其余内容都在 `sealed` 里面。
+      description: The item envelope. The server can see only these fields; everything else is inside `sealed`.
       required: [v, id, created_at, updated_at, size, sealed]
       properties:
         v:
           type: integer
           minimum: 1
-          description: 信封版本，当前为 1，不认识就拒绝。
+          description: Envelope version, currently 1; unknown versions are rejected.
         id:
           $ref: "#/components/schemas/Id"
         created_at:
@@ -811,50 +811,50 @@ components:
         updated_at:
           allOf:
             - $ref: "#/components/schemas/Timestamp"
-          description: 不得小于 `created_at`。
+          description: Must not be smaller than `created_at`.
         size:
           type: integer
           format: int64
           minimum: 0
           maximum: 8388608
-          description: 必须等于 `sealed` 解码后的字节数。
+          description: Must equal the byte length of the decoded `sealed`.
         blob_id:
           allOf:
             - $ref: "#/components/schemas/Id"
-          description: 可选，对应的大对象标识。
+          description: Optional identifier of the associated blob.
         sealed:
           type: string
           contentEncoding: base64
           maxLength: 11184812
-          description: base64（`nonce(24) ‖ 密文 ‖ 标签(16)`），算法 XChaCha20-Poly1305。
+          description: base64 of `nonce(24) || ciphertext || tag(16)`, algorithm XChaCha20-Poly1305.
 
     ItemUpsert:
       type: object
-      description: 新建或修改。
+      description: Create or update.
       required: [base_seq, envelope]
       properties:
         base_seq:
           type: integer
           format: int64
           minimum: 0
-          description: 该条目当前的 `seq`；新条目为 0。
+          description: The current `seq` of the item; 0 for a new item.
         envelope:
           $ref: "#/components/schemas/Envelope"
 
     ItemDelete:
       type: object
-      description: 删除，不带信封。
+      description: Delete; carries no envelope.
       required: [base_seq, deleted]
       properties:
         base_seq:
           type: integer
           format: int64
           minimum: 0
-          description: 该条目当前的 `seq`。
+          description: The current `seq` of the item.
         deleted:
           type: boolean
           const: true
-          description: 固定为 true。
+          description: Always true.
 
     PutItemResponse:
       type: object
@@ -864,7 +864,7 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: 分配给该条目的 `seq`。
+          description: The `seq` assigned to the item.
 
     ItemRecord:
       type: object
@@ -876,14 +876,14 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: 该条目最近一次写入分配到的序号。
+          description: Sequence number assigned to the latest write of the item.
         deleted:
           type: boolean
-          description: 是否已删除。
+          description: Whether the item is deleted.
         envelope:
           allOf:
             - $ref: "#/components/schemas/Envelope"
-          description: 未删除时才有。
+          description: Present only if the item is not deleted.
 
     ItemPage:
       type: object
@@ -891,17 +891,17 @@ components:
       properties:
         items:
           type: array
-          description: 按 `seq` 升序排列。
+          description: In ascending `seq` order.
           items:
             $ref: "#/components/schemas/ItemRecord"
         next_after:
           type: integer
           format: int64
           minimum: 0
-          description: 下一页请求用的 `after`。
+          description: The `after` value for the next page request.
         has_more:
           type: boolean
-          description: 后面是否还有条目。
+          description: Whether more items follow.
 
     ChangeEvent:
       type: object
@@ -911,4 +911,4 @@ components:
           type: integer
           format: int64
           minimum: 0
-          description: 当前最新的 `seq`。
+          description: The current latest `seq`.

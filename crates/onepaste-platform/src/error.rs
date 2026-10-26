@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// 错误信息只含稳定的分类和系统错误码，不含剪贴板内容或密钥。
+/// Error messages contain only a stable category and system error codes, never clipboard content or keys.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum PlatformError {
     #[error("not supported on this platform")]
@@ -18,7 +18,7 @@ pub enum PlatformError {
 }
 
 impl PlatformError {
-    /// 稳定、可显示的错误码。
+    /// A stable, displayable error code.
     pub fn code(&self) -> String {
         match self {
             PlatformError::Unsupported => "unsupported".into(),

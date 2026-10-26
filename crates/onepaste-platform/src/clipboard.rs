@@ -1,6 +1,6 @@
-//! 剪贴板：读取、写入（带防回环标记）和变化监听。
+//! Clipboard: reading, writing (with an origin marker against feedback loops) and change monitoring.
 //!
-//! 带敏感标记的内容只报告「已跳过」，**不读取内容**。
+//! Content that carries a sensitive marker is only reported as "skipped"; its **content is never read**.
 
 use crate::error::PlatformError;
 
@@ -13,7 +13,7 @@ use crate::win::clipboard as imp;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Image {
-    /// PNG 文件字节。
+    /// PNG file bytes.
     pub png: Vec<u8>,
     pub width: u32,
     pub height: u32,
@@ -25,7 +25,7 @@ pub enum Content {
     Image(Image),
 }
 
-// 内容不进 Debug 输出。
+// Content never appears in Debug output.
 impl core::fmt::Debug for Content {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -35,7 +35,7 @@ impl core::fmt::Debug for Content {
     }
 }
 
-/// 剪贴板当前状态。带敏感标记时 `content` 恒为 `None`。
+/// Current clipboard state. `content` is always `None` when a sensitive marker is present.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Snapshot {
     pub content: Option<Content>,
@@ -45,9 +45,9 @@ pub struct Snapshot {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WriteOptions {
-    /// 写入防回环标记（默认写入）。
+    /// Write the origin marker (on by default).
     pub origin_marker: bool,
-    /// 额外写入敏感标记。仅供测试：模拟密码管理器。
+    /// Also write a sensitive marker. For tests only: simulates a password manager.
     pub sensitive_marker: bool,
 }
 
@@ -59,31 +59,31 @@ impl Default for WriteOptions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
-    /// 别的程序复制了新内容。
+    /// Another program copied new content.
     Captured(Content),
-    /// 带敏感标记，没有读取内容。
+    /// Carries a sensitive marker; the content was not read.
     SkippedSensitive,
-    /// 本程序自己写入的，防回环跳过。
+    /// Written by this program itself; skipped to avoid a feedback loop.
     SkippedSelf,
 }
 
-/// 读取当前剪贴板。
+/// Reads the current clipboard.
 pub fn read() -> Result<Snapshot, PlatformError> {
     imp::read()
 }
 
-/// 写入剪贴板，同时写防回环标记。
+/// Writes the clipboard together with the origin marker.
 pub fn write(content: &Content) -> Result<(), PlatformError> {
     imp::write(content, WriteOptions::default())
 }
 
-/// 按选项写入。`sensitive_marker` 和关闭 `origin_marker` 只用于测试。
+/// Writes with explicit options. `sensitive_marker` and turning `origin_marker` off are for tests only.
 #[doc(hidden)]
 pub fn write_with(content: &Content, opts: WriteOptions) -> Result<(), PlatformError> {
     imp::write(content, opts)
 }
 
-/// 把一次剪贴板状态变化归类成事件；没有可采集内容时返回 `None`。
+/// Classifies one clipboard change into an event; returns `None` when there is nothing to capture.
 #[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) fn classify(s: Snapshot) -> Option<Event> {
     if s.sensitive {
@@ -95,7 +95,7 @@ pub(crate) fn classify(s: Snapshot) -> Option<Event> {
     }
 }
 
-/// 剪贴板变化监听。丢弃即停止。
+/// Clipboard change monitor. Dropping it stops it.
 pub struct Monitor {
     _inner: imp::Monitor,
 }

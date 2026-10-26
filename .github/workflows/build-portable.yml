@@ -1,0 +1,137 @@
+name: build-portable
+
+# Builds the portable desktop packages: a zip with a single OnePaste.exe for Windows and a
+# universal OnePaste.app zip for macOS. Nothing is installed and no administrator rights are needed.
+on:
+  workflow_call:
+    inputs:
+      label:
+        description: Label used in the file names, such as a release tag
+        type: string
+        required: true
+      build_tag:
+        description: Build tag shown in the diagnostics text (empty for ordinary CI builds)
+        type: string
+        required: false
+        default: ""
+      retention_days:
+        description: How long the built zip files are kept
+        type: number
+        required: false
+        default: 14
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: windows-x64
+    runs-on: windows-latest
+    env:
+      LABEL: ${{ inputs.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target x86_64-pc-windows-msvc
+          rustup default stable
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Build the executable (no installer)
+        working-directory: apps/desktop
+        env:
+          ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
+        run: npx --no-install tauri build --target x86_64-pc-windows-msvc --no-bundle
+      - name: Package the portable zip and check the manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="OnePaste-${LABEL}-windows-x64"
+          mkdir -p "dist/$name"
+          cp apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/onepaste-desktop.exe "dist/$name/OnePaste.exe"
+          python tools/check_exe_manifest.py "dist/$name/OnePaste.exe"
+          python tools/make_zip.py "dist/$name" "dist/$name-portable.zip"
+          rm -rf "dist/$name"
+          ls -l dist
+      - name: Smoke test (unzip, start, stay alive for 10 seconds)
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist -Filter *-portable.zip | Select-Object -First 1
+          Expand-Archive -Path $zip.FullName -DestinationPath smoke
+          $exe = Get-ChildItem smoke -Recurse -Filter OnePaste.exe | Select-Object -First 1
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) {
+            Write-Error "The program exited early with code $($p.ExitCode)"
+            exit 1
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "The program was still running after 10 seconds"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-windows-x64
+          path: dist/*-portable.zip
+          retention-days: ${{ inputs.retention_days }}
+          if-no-files-found: error
+
+  macos-universal:
+    name: macos-universal
+    runs-on: macos-latest
+    env:
+      LABEL: ${{ inputs.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-darwin --target x86_64-apple-darwin
+          rustup default stable
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Build the universal app bundle (no dmg)
+        working-directory: apps/desktop
+        env:
+          ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
+        run: npx --no-install tauri build --target universal-apple-darwin --bundles app
+      - name: Check architectures, package with ditto and verify the signature
+        run: |
+          set -euo pipefail
+          app="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/OnePaste.app"
+          exe_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+          archs=$(lipo -archs "$app/Contents/MacOS/$exe_name")
+          echo "architectures: $archs"
+          case "$archs" in *x86_64*) ;; *) echo "FAIL: x86_64 is missing"; exit 1;; esac
+          case "$archs" in *arm64*) ;; *) echo "FAIL: arm64 is missing"; exit 1;; esac
+          mkdir -p dist
+          zip="dist/OnePaste-${LABEL}-macos-universal-portable.zip"
+          ditto -c -k --keepParent "$app" "$zip"
+          rm -rf smoke && mkdir smoke
+          ditto -x -k "$zip" smoke
+          codesign --verify --deep --strict --verbose=2 smoke/OnePaste.app
+          ls -l dist
+      - name: Smoke test (unzip, start, stay alive for 10 seconds)
+        run: |
+          set -uo pipefail
+          exe_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' smoke/OnePaste.app/Contents/Info.plist)
+          "smoke/OnePaste.app/Contents/MacOS/$exe_name" > smoke.log 2>&1 &
+          pid=$!
+          sleep 10
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "FAIL: the program exited early"; cat smoke.log; exit 1
+          fi
+          kill "$pid"
+          echo "The program was still running after 10 seconds"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-macos-universal
+          path: dist/*-portable.zip
+          retention-days: ${{ inputs.retention_days }}
+          if-no-files-found: error

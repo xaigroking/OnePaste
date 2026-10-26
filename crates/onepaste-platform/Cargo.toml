@@ -1,6 +1,6 @@
 [package]
 name = "onepaste-platform"
-description = "剪贴板监听与读写、系统安全存储、睡眠唤醒与网络变化事件的平台适配"
+description = "Platform adapters: clipboard monitoring and access, system secure storage, wake-from-sleep and network change events"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

@@ -1,4 +1,4 @@
-//! macOS 网络变化：`NWPathMonitor`（Network.framework 的 C 接口）。
+//! macOS network changes: `NWPathMonitor` (the C interface of Network.framework).
 
 use crate::error::PlatformError;
 use crate::network::NetworkState;
@@ -28,7 +28,7 @@ pub(crate) struct Watcher {
     queue: *mut c_void,
 }
 
-// 两个句柄只在 Drop 里取消和释放。
+// The two handles are only cancelled and released in Drop.
 unsafe impl Send for Watcher {}
 unsafe impl Sync for Watcher {}
 

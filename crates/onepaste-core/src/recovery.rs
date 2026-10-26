@@ -1,9 +1,9 @@
-//! 恢复套件：把主密钥 MK 编码成人能抄写的字符串，口令丢失时是唯一的救回手段。
+//! Recovery kit: encodes the master key (MK) as a string a person can copy down; it is the only way back if the passphrase is lost.
 //!
-//! 字节布局（35 字节）：`版本(1，固定 0x01) ‖ MK(32) ‖ 校验(2)`；
-//! 校验 = `SHA-256("onepaste/recovery/v1" ‖ 版本 ‖ MK)` 的前 2 个字节。
-//! 编码：35 字节按大端位流每 5 位一个 Crockford Base32 字符，共 56 个；
-//! 显示时大写、每 4 个一组、用 `-` 连接。
+//! Byte layout (35 bytes): `version(1, fixed 0x01) || MK(32) || check(2)`;
+//! check = the first 2 bytes of `SHA-256("onepaste/recovery/v1" || version || MK)`.
+//! Encoding: the 35 bytes are read as a big-endian bit stream, 5 bits per Crockford Base32 character, 56 characters in total;
+//! shown in upper case, in groups of 4 joined by `-`.
 
 use crate::base32;
 use crate::crypto::{Key, KEY_LEN};
@@ -25,7 +25,7 @@ fn checksum(version: u8, mk: &[u8]) -> [u8; 2] {
     [d[0], d[1]]
 }
 
-/// 把 MK 编码为恢复套件（`XXXX-XXXX-…`，14 组）。
+/// Encodes the MK as a recovery kit (`XXXX-XXXX-...`, 14 groups).
 pub fn encode(mk: &Key) -> String {
     let mut buf = [0u8; KIT_BYTES];
     buf[0] = KIT_VERSION;
@@ -37,7 +37,7 @@ pub fn encode(mk: &Key) -> String {
     base32::group4(&text)
 }
 
-/// 解码恢复套件。容错：不区分大小写，忽略 `-`、空格和换行，`O`→`0`，`I`/`L`→`1`。
+/// Decodes a recovery kit. Tolerant input: case-insensitive, ignores `-`, spaces and newlines, `O` maps to `0`, `I`/`L` map to `1`.
 pub fn decode(kit: &str) -> Result<Key, Error> {
     let mut vals = [0u8; KIT_CHARS];
     let mut n = 0usize;
@@ -70,7 +70,7 @@ pub fn decode(kit: &str) -> Result<Key, Error> {
     }
     vals.zeroize();
 
-    // 先验校验再看版本：随机错抄一律是“无效”，只有校验通过而版本不认识才是“版本不支持”。
+    // Check the checksum before the version: a random miscopy is always "invalid"; only a valid checksum with an unknown version is "unsupported version".
     let result = if buf[1 + KEY_LEN..] != checksum(buf[0], &buf[1..1 + KEY_LEN]) {
         Err(Error::InvalidRecoveryKit)
     } else if buf[0] != KIT_VERSION {
@@ -144,7 +144,7 @@ mod tests {
         assert_eq!(decode(&KIT_SEQ.to_lowercase()).unwrap(), want);
         assert_eq!(decode(&KIT_SEQ.replace('-', "")).unwrap(), want);
         assert_eq!(decode(&KIT_SEQ.replace('-', " \n ")).unwrap(), want);
-        // 把所有 `0` 写成 `O`、所有 `1` 写成 `l`
+        // Write every `0` as `O` and every `1` as `l`
         assert_eq!(decode(&KIT_SEQ.replace('0', "O").replace('1', "l")).unwrap(), want);
         assert_eq!(decode(&KIT_SEQ.replace('1', "I")).unwrap(), want);
     }

@@ -1,5 +1,5 @@
-//! 系统安全存储（Windows 凭据管理器 / macOS 钥匙串）里保存 32 字节密钥。
-//! 读出的值不会被记录到任何日志或错误信息里。
+//! Keeps a 32-byte secret in the system secure store (Windows Credential Manager / macOS Keychain).
+//! Values read back are never written to any log or error message.
 
 use crate::error::PlatformError;
 
@@ -20,7 +20,7 @@ fn map_err(e: keyring::Error) -> PlatformError {
     }
 }
 
-/// 写入（覆盖）。
+/// Writes (overwrites).
 pub fn write(account: &str, secret: &[u8; SECRET_LEN]) -> Result<(), PlatformError> {
     #[cfg(any(windows, target_os = "macos"))]
     {
@@ -33,7 +33,7 @@ pub fn write(account: &str, secret: &[u8; SECRET_LEN]) -> Result<(), PlatformErr
     }
 }
 
-/// 读取；不存在返回 `NotFound`。
+/// Reads; returns `NotFound` if absent.
 pub fn read(account: &str) -> Result<[u8; SECRET_LEN], PlatformError> {
     #[cfg(any(windows, target_os = "macos"))]
     {
@@ -47,7 +47,7 @@ pub fn read(account: &str) -> Result<[u8; SECRET_LEN], PlatformError> {
     }
 }
 
-/// 删除；不存在返回 `NotFound`。
+/// Deletes; returns `NotFound` if absent.
 pub fn delete(account: &str) -> Result<(), PlatformError> {
     #[cfg(any(windows, target_os = "macos"))]
     {

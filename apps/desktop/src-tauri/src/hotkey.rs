@@ -1,4 +1,4 @@
-//! 全局热键：Windows 为 Ctrl+Alt+V，macOS 为 ⌃⌥V（即 Control+Option+V）。
+//! Global hotkey: Ctrl+Alt+V on Windows, ⌃⌥V (Control+Option+V) on macOS.
 
 use crate::state::{AppState, HotkeyState};
 use crate::tray;

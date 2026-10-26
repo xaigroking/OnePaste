@@ -1,4 +1,4 @@
-//! macOS 实现。
+//! macOS implementation.
 
 pub(crate) mod clipboard;
 pub(crate) mod network;

@@ -7,7 +7,7 @@ export type HotkeyState = "registered" | "busy" | "unknown";
 export interface RecentItem {
   id: number;
   kind: "text" | "image";
-  /** 文本的第一行；图片为空串。 */
+  /** First line of the text; empty for images. */
   preview: string;
   width: number;
   height: number;
@@ -20,12 +20,22 @@ export interface LogEntry {
   detail: string | null;
 }
 
+export type LanguagePreference = "system" | "zh" | "en";
+
+export interface LanguageState {
+  preference: LanguagePreference;
+  /** The language the UI actually uses. */
+  effective: "zh" | "en";
+  /** The raw system locale, if it could be read. */
+  systemLocale: string | null;
+}
+
 export interface SecureResult {
   ok: boolean;
   code: string;
 }
 
-/** 托盘文案：由界面层的 i18next 提供，Rust 端不含任何可见文字。 */
+/** Tray texts: supplied by the UI layer through i18next; the Rust side contains no visible text. */
 export interface TrayTexts {
   open: string;
   toggle: string;
@@ -48,9 +58,11 @@ export const api = {
   setTexts: (texts: TrayTexts) => invoke<void>("set_texts", { texts }),
   secure: (action: "write" | "read" | "delete") => invoke<SecureResult>("secure_action", { action }),
   copyDiagnostics: () => invoke<SecureResult>("copy_diagnostics"),
+  languageState: () => invoke<LanguageState>("get_language_state"),
+  setLanguage: (preference: LanguagePreference) => invoke<LanguageState>("set_language", { preference }),
 };
 
-/** Rust 端状态有变化时通知界面重新拉取。 */
+/** Notifies the UI to fetch again when the Rust-side state changed. */
 export function onChanged(handler: () => void): Promise<() => void> {
   return listen("onepaste://changed", handler);
 }

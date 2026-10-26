@@ -1,4 +1,4 @@
-//! Windows 剪贴板：`AddClipboardFormatListener` 监听，原生格式读写。
+//! Windows clipboard: `AddClipboardFormatListener` for monitoring, native formats for reading and writing.
 
 use super::window::{os_err, wide, MessageWindow};
 use crate::clipboard::{classify, Content, Event, Image, Snapshot, WriteOptions};
@@ -31,7 +31,7 @@ fn available(format: u32) -> bool {
     format != 0 && unsafe { IsClipboardFormatAvailable(format).is_ok() }
 }
 
-/// 剪贴板可能被别的程序短暂占用，重试几次。
+/// Another program may hold the clipboard briefly, so retry a few times.
 struct Opened;
 
 impl Opened {
@@ -54,7 +54,7 @@ impl Drop for Opened {
     }
 }
 
-/// 必须在剪贴板已打开时调用。
+/// Must be called while the clipboard is open.
 fn get_bytes(format: u32) -> Option<Vec<u8>> {
     unsafe {
         let h = GetClipboardData(format).ok()?;
@@ -70,7 +70,7 @@ fn get_bytes(format: u32) -> Option<Vec<u8>> {
     }
 }
 
-/// 必须在剪贴板已打开时调用。
+/// Must be called while the clipboard is open.
 fn set_bytes(format: u32, data: &[u8]) -> Result<(), PlatformError> {
     unsafe {
         let g = GlobalAlloc(GMEM_MOVEABLE, data.len().max(1)).map_err(os_err)?;
@@ -81,7 +81,7 @@ fn set_bytes(format: u32, data: &[u8]) -> Result<(), PlatformError> {
         }
         std::ptr::copy_nonoverlapping(data.as_ptr(), p as *mut u8, data.len());
         let _ = GlobalUnlock(g);
-        // 成功后内存归系统所有；失败才需要自己释放。
+        // After success the memory belongs to the system; it only needs freeing on failure.
         if let Err(e) = SetClipboardData(format, Some(HANDLE(g.0 as *mut c_void))) {
             let _ = GlobalFree(Some(g));
             return Err(os_err(e));
@@ -167,7 +167,7 @@ fn le_u32(b: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_le_bytes(b.get(at..at + 4)?.try_into().ok()?))
 }
 
-/// 只支持 24 位和 32 位的 `BI_RGB` / `BI_BITFIELDS` 位图；其他格式返回 `None`。
+/// Supports only 24-bit and 32-bit `BI_RGB` / `BI_BITFIELDS` bitmaps; other formats return `None`.
 fn dib_to_png(dib: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
     let header = le_u32(dib, 0)? as usize;
     if header < 40 {
@@ -184,7 +184,7 @@ fn dib_to_png(dib: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
     let (w, h) = (width as usize, height.unsigned_abs() as usize);
     let mut offset = header;
     if compression == 3 && header == 40 {
-        offset += 12; // 三个颜色掩码
+        offset += 12; // the three color masks
     }
     let stride = (w * usize::from(bits) + 31) / 32 * 4;
     let pixels = dib.get(offset..offset.checked_add(stride.checked_mul(h)?)?)?;
@@ -198,7 +198,7 @@ fn dib_to_png(dib: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
             rgba.extend_from_slice(&[px[2], px[1], px[0], a]);
         }
     }
-    // 很多程序写 32 位位图时不填透明度（全 0），这种情况按不透明处理。
+    // Many programs leave the alpha channel at 0 in 32-bit bitmaps; treat that case as opaque.
     if bytes_pp == 4 && rgba.chunks_exact(4).all(|p| p[3] == 0) {
         for p in rgba.chunks_exact_mut(4) {
             p[3] = 255;
@@ -215,7 +215,7 @@ fn dib_to_png(dib: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
     Some((out, w as u32, h as u32))
 }
 
-/// PNG → 32 位自底向上的 `BI_RGB` 位图（`CF_DIB`）。
+/// PNG to a 32-bit bottom-up `BI_RGB` bitmap (`CF_DIB`).
 fn png_to_dib(png_bytes: &[u8]) -> Result<Vec<u8>, PlatformError> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(png_bytes));
     dec.set_transformations(png::Transformations::normalize_to_color8());
@@ -239,7 +239,7 @@ fn png_to_dib(png_bytes: &[u8]) -> Result<Vec<u8>, PlatformError> {
     out.extend_from_slice(&32u16.to_le_bytes());
     out.extend_from_slice(&0u32.to_le_bytes()); // BI_RGB
     out.extend_from_slice(&((w * h * 4) as u32).to_le_bytes());
-    out.extend_from_slice(&[0u8; 16]); // 分辨率、调色板
+    out.extend_from_slice(&[0u8; 16]); // resolution and palette fields
     for y in (0..h).rev() {
         for p in &rgba[y * w..(y + 1) * w] {
             out.extend_from_slice(&[p[2], p[1], p[0], p[3]]);
@@ -248,7 +248,7 @@ fn png_to_dib(png_bytes: &[u8]) -> Result<Vec<u8>, PlatformError> {
     Ok(out)
 }
 
-// ---- 监听 ----
+// ---- Monitoring ----
 
 pub(crate) struct Monitor {
     _win: MessageWindow,

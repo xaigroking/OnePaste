@@ -1,14 +1,14 @@
-//! 默认口令生成：首次设置时给用户一个随机强口令。
+//! Default passphrase generation: gives the user a random strong passphrase on first setup.
 
 use crate::base32;
 use crate::error::Error;
 use rand_core::{OsRng, RngCore};
 use zeroize::Zeroize;
 
-const CHARS: usize = 20; // 20 × 5 = 100 位熵
-const RAND_BYTES: usize = 13; // 104 位，取前 100 位
+const CHARS: usize = 20; // 20 x 5 = 100 bits of entropy
+const RAND_BYTES: usize = 13; // 104 bits, of which the first 100 are used
 
-/// 生成形如 `7K3M-QX9D-…` 的口令：20 个 Crockford Base32 字符，每 4 个一组，共 5 组。
+/// Generates a passphrase like `7K3M-QX9D-...`: 20 Crockford Base32 characters in 5 groups of 4.
 pub fn generate() -> Result<String, Error> {
     let mut raw = [0u8; RAND_BYTES];
     OsRng.try_fill_bytes(&mut raw).map_err(|_| Error::Rng)?;

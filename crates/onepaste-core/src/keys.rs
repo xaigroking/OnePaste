@@ -1,5 +1,5 @@
-//! 密钥层级：随机主密钥 MK 加密全部数据；口令派生 KEK 只用来包装 MK。
-//! 改口令只重新包装 MK，不重加密任何条目。
+//! Key hierarchy: a random master key (MK) encrypts all data; the passphrase-derived KEK only wraps the MK.
+//! Changing the passphrase only re-wraps the MK and never re-encrypts any item.
 
 use crate::crypto::{self, aad, KdfParams, Key, MIN_SALT_LEN};
 use crate::error::Error;
@@ -9,20 +9,20 @@ use serde::{Deserialize, Serialize};
 
 pub const KEYPARAMS_V: u8 = 1;
 
-/// 保存在服务端/本地的密钥参数记录：盐是公开信息，被包装的 MK 没有口令不可恢复。
+/// The key parameter record stored on the server and locally: the salt is public, and the wrapped MK cannot be recovered without the passphrase.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyParams {
     pub v: u8,
     pub salt: String,
     pub kdf: KdfParams,
     pub wrapped_mk: String,
-    /// base64(`seal(MK, MKCHECK, 空明文)`)：用来确认手上的 MK 属于这个库。旧记录没有这个字段。
+    /// base64(`seal(MK, MKCHECK, empty plaintext)`): confirms that an MK in hand belongs to this vault. Old records do not have this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mk_check: Option<String>,
 }
 
 impl KeyParams {
-    /// 首台设备创建：随机盐 + 随机 MK，返回参数记录与 MK。
+    /// Created by the first device: random salt plus random MK; returns the parameter record and the MK.
     pub fn create(pass: &str, kdf: KdfParams) -> Result<(Self, Key), Error> {
         let mk = Key::random()?;
         let rec = Self::wrap(pass, kdf, &mk)?;
@@ -44,7 +44,7 @@ impl KeyParams {
         })
     }
 
-    /// 用口令取回 MK。AEAD 校验失败即“口令错误”，同时充当口令校验，无需试解真实条目。
+    /// Recovers the MK with the passphrase. An AEAD failure means "wrong passphrase" and doubles as the passphrase check, so no real item has to be trial-decrypted.
     pub fn unlock(&self, pass: &str) -> Result<Key, Error> {
         if self.v != KEYPARAMS_V {
             return Err(Error::UnsupportedVersion(self.v));
@@ -57,20 +57,20 @@ impl KeyParams {
         Ok(Key::from_bytes(arr))
     }
 
-    /// 改口令：O(1)，换新盐重新包装同一把 MK；旧条目无需改动。
+    /// Changes the passphrase in O(1): re-wraps the same MK under a new salt; existing items stay untouched.
     pub fn change_passphrase(&self, old: &str, new: &str) -> Result<Self, Error> {
         let mk = self.unlock(old)?;
         Self::wrap(new, self.kdf, &mk)
     }
 
-    /// 确认 `mk` 属于这个库。记录里没有 `mk_check` 时报错，而不是放行。
+    /// Confirms that `mk` belongs to this vault. A record without `mk_check` is an error, not a pass.
     pub fn verify_mk(&self, mk: &Key) -> Result<(), Error> {
         let check = self.mk_check.as_ref().ok_or(Error::InvalidArgument("mk_check missing"))?;
         let sealed = B64.decode(check).map_err(|_| Error::MalformedEnvelope)?;
         crypto::open(mk, aad::MKCHECK, &sealed).map(|_| ()).map_err(|_| Error::WrongRecoveryKit)
     }
 
-    /// 忘记口令后的恢复：先确认 MK 属于这个库，通过才用新口令重新包装。没通过不产出任何记录。
+    /// Recovery after a forgotten passphrase: first confirm the MK belongs to this vault, and only then re-wrap it under the new passphrase. No record is produced on failure.
     pub fn reset_passphrase(&self, mk: &Key, new_pass: &str) -> Result<Self, Error> {
         self.verify_mk(mk)?;
         Self::wrap(new_pass, self.kdf, mk)
@@ -105,7 +105,7 @@ mod tests {
         rec.v = 9;
         assert_eq!(rec.unlock("pw").unwrap_err(), Error::UnsupportedVersion(9));
         let (mut rec, _) = KeyParams::create("pw", KDF).unwrap();
-        rec.kdf.m_kib = 64; // 降级攻击：服务端把参数改弱
+        rec.kdf.m_kib = 64; // downgrade attack: the server weakens the parameters
         assert_eq!(rec.unlock("pw").unwrap_err(), Error::WeakKdf);
     }
 

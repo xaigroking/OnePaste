@@ -1,4 +1,4 @@
-/// 从 PNG 文件头读出宽高；不是合法 PNG 返回 `None`。
+/// Reads width and height from the PNG header; returns `None` if it is not a valid PNG.
 #[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) fn dimensions(png: &[u8]) -> Option<(u32, u32)> {
     const SIG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];

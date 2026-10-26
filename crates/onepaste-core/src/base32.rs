@@ -1,8 +1,8 @@
-//! Crockford Base32：字母表不含 I、L、O、U，便于人工抄写。仅供本 crate 内部使用。
+//! Crockford Base32: the alphabet excludes I, L, O and U so it is easy to copy by hand. Internal to this crate.
 
 pub(crate) const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-/// 把字节当成大端位流，每 5 位编成 1 个字符；末尾不足 5 位时在低位补 0。
+/// Treats the bytes as a big-endian bit stream and encodes 5 bits per character; a short tail is padded with zero bits.
 pub(crate) fn encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity((bytes.len() * 8 + 4) / 5);
     let mut acc: u16 = 0;
@@ -22,7 +22,7 @@ pub(crate) fn encode(bytes: &[u8]) -> String {
     out
 }
 
-/// 单个字符 → 5 位数值。不区分大小写；`O`→`0`，`I`/`L`→`1`；其他不在字母表内的字符返回 `None`。
+/// One character to its 5-bit value. Case-insensitive; `O` maps to `0`, `I`/`L` map to `1`; any other character outside the alphabet returns `None`.
 pub(crate) fn value(c: char) -> Option<u8> {
     let c = match c.to_ascii_uppercase() {
         'O' => '0',
@@ -35,7 +35,7 @@ pub(crate) fn value(c: char) -> Option<u8> {
     ALPHABET.iter().position(|&a| a as char == c).map(|i| i as u8)
 }
 
-/// 每 4 个字符一组，用 `-` 连接。
+/// Groups the characters in fours joined by `-`.
 pub(crate) fn group4(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + s.len() / 4);
     for (i, c) in s.chars().enumerate() {

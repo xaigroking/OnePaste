@@ -1,4 +1,4 @@
-//! 不支持的平台：所有入口都返回 `Unsupported`。
+//! Unsupported platforms: every entry point returns `Unsupported`.
 
 use crate::error::PlatformError;
 
