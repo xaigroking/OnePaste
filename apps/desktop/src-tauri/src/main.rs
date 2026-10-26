@@ -1,21 +1,30 @@
-// 发布版在 Windows 上不弹出控制台窗口。
+// Release builds do not open a console window on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
 mod diag;
 mod hotkey;
 mod icons;
+mod lang;
 mod state;
 mod tray;
 mod watchers;
+#[cfg(any(windows, test))]
+mod webview2;
 
 use state::AppState;
 use tauri::{Manager, WindowEvent};
 
 fn main() {
+    // Without the WebView2 runtime nothing can be shown, so say so and exit with code 2.
+    #[cfg(windows)]
+    webview2::ensure_or_exit();
+
+    let settings_dir = lang::settings_dir();
+    let preference = settings_dir.as_deref().map(lang::load).unwrap_or(lang::Preference::System);
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .manage(AppState::default())
+        .manage(AppState::new(preference, lang::system_locale(), settings_dir))
         .invoke_handler(tauri::generate_handler![
             commands::get_recents,
             commands::copy_back,
@@ -25,9 +34,11 @@ fn main() {
             commands::set_texts,
             commands::secure_action,
             commands::copy_diagnostics,
+            commands::get_language_state,
+            commands::set_language,
         ])
         .setup(|app| {
-            // 不显示 Dock 图标，只留菜单栏图标。
+            // No Dock icon, only the menu bar icon.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -39,7 +50,7 @@ fn main() {
             handle.state::<AppState>().0.lock().unwrap().push_log("started", None);
             Ok(())
         })
-        // 关闭窗口只是隐藏到托盘；退出只能从托盘菜单。
+        // Closing the window only hides it to the tray; quitting is only possible from the tray menu.
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();

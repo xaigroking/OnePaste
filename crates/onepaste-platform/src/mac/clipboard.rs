@@ -1,4 +1,4 @@
-//! macOS 剪贴板：系统没有变化通知，轮询 `changeCount`（间隔 300 毫秒）。
+//! macOS clipboard: the system sends no change notification, so `changeCount` is polled every 300 ms.
 
 use crate::clipboard::{classify, Content, Event, Image, Snapshot, WriteOptions};
 use crate::error::PlatformError;
@@ -95,7 +95,7 @@ impl Monitor {
     pub(crate) fn start(on_event: Box<dyn Fn(Event) + Send>) -> Result<Monitor, PlatformError> {
         let stop = Arc::new(AtomicBool::new(false));
         let flag = stop.clone();
-        // 起点在调用线程里同步取得，避免线程启动前发生的写入被漏掉或误报。
+        // The starting point is taken synchronously on the calling thread so writes before the thread starts are neither missed nor misreported.
         let mut last = NSPasteboard::generalPasteboard().changeCount();
         let thread = std::thread::spawn(move || {
             let pb = NSPasteboard::generalPasteboard();

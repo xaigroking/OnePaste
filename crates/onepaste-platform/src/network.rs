@@ -1,4 +1,4 @@
-//! 网络变化事件。
+//! Network change events.
 
 use crate::error::PlatformError;
 
@@ -15,7 +15,7 @@ pub enum NetworkState {
     Offline,
 }
 
-/// 网络状态监听。注册后立即回调一次当前状态；丢弃即停止。
+/// Network state watcher. The current state is reported once right after registration; dropping it stops it.
 pub struct NetworkWatcher {
     _inner: imp::Watcher,
 }

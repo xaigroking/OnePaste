@@ -1,12 +1,12 @@
-//! 诊断信息：只含版本、系统、托盘状态和事件记录，不含任何剪贴板内容或密钥。
+//! Diagnostics: version, system, tray state and event records only. Never any clipboard content or keys.
 
 use crate::state::{Inner, LogEntry};
 
-/// 把毫秒时间戳格式化成 UTC 的 `YYYY-MM-DD HH:MM:SS`。
+/// Formats a millisecond timestamp as UTC `YYYY-MM-DD HH:MM:SS`.
 pub fn format_utc(ts_ms: u64) -> String {
     let secs = ts_ms / 1000;
     let (days, rem) = ((secs / 86_400) as i64, secs % 86_400);
-    // 公历日期换算（Howard Hinnant 的 civil_from_days）
+    // Gregorian date conversion (Howard Hinnant's civil_from_days)
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
@@ -29,10 +29,12 @@ fn line(e: &LogEntry) -> String {
 pub fn build(state: &Inner, os_version: &str) -> String {
     let mut out = String::new();
     out.push_str(&format!("app_version: {}\n", env!("CARGO_PKG_VERSION")));
-    // 发布构建时由 CI 注入，用来区分同一个版本号的不同预发布
+    // Injected by CI on release builds to tell apart pre-releases that share a version number
     out.push_str(&format!("build_tag: {}\n", option_env!("ONEPASTE_BUILD_TAG").unwrap_or("none")));
     out.push_str(&format!("os: {os_version}\n"));
     out.push_str(&format!("arch: {}\n", std::env::consts::ARCH));
+    out.push_str(&format!("system_locale: {}\n", state.system_locale.as_deref().unwrap_or("unknown")));
+    out.push_str(&format!("ui_language: {}\n", crate::lang::effective(state.language, state.system_locale.as_deref())));
     out.push_str(&format!("tray_state: {}\n", state.tray.key()));
     out.push_str("recent_events (utc):\n");
     let skip = state.log.len().saturating_sub(20);
@@ -68,6 +70,7 @@ mod tests {
         assert!(text.contains("n29") && !text.contains("n9\n") && !text.contains("n0\n"));
         assert!(text.contains("os: TestOS 1.0") && text.contains("tray_state: synced"));
         assert!(text.contains("build_tag: "));
+        assert!(text.contains("system_locale: unknown") && text.contains("ui_language: en"));
         assert!(!text.contains("super-secret"));
     }
 }

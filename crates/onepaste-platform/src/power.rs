@@ -1,4 +1,4 @@
-//! 睡眠唤醒事件。
+//! Wake-from-sleep events.
 
 use crate::error::PlatformError;
 
@@ -9,7 +9,7 @@ use crate::unsupported::power as imp;
 #[cfg(windows)]
 use crate::win::power as imp;
 
-/// 唤醒监听。丢弃即停止。
+/// Wake watcher. Dropping it stops it.
 pub struct WakeWatcher {
     _inner: imp::Watcher,
 }

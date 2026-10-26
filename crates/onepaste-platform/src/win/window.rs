@@ -1,4 +1,4 @@
-//! 在独立线程里跑一个隐藏窗口和消息循环，把窗口消息交给回调。
+//! Runs a hidden window and message loop on its own thread and hands window messages to a callback.
 
 use crate::error::PlatformError;
 use std::ffi::c_void;
@@ -48,15 +48,15 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
     }
 }
 
-/// 窗口和线程的持有者；丢弃时关闭窗口并等待线程退出。
+/// Owner of the window and its thread; dropping it closes the window and waits for the thread to exit.
 pub(crate) struct MessageWindow {
     hwnd: usize,
     thread: Option<JoinHandle<()>>,
 }
 
 impl MessageWindow {
-    /// `message_only` 为真时创建仅用于收消息的窗口；否则创建隐藏的顶层窗口（能收到系统广播）。
-    /// `init` 在窗口创建后、进入消息循环前执行，失败则整体失败。
+    /// With `message_only` a message-only window is created; otherwise a hidden top-level window (which can receive system broadcasts).
+    /// `init` runs after the window is created and before the message loop starts; if it fails, everything fails.
     pub(crate) fn spawn(
         class_name: &str,
         message_only: bool,
@@ -79,7 +79,7 @@ impl MessageWindow {
                 lpszClassName: PCWSTR(class.as_ptr()),
                 ..Default::default()
             };
-            RegisterClassW(&wc); // 重复注册会返回 0，可以忽略
+            RegisterClassW(&wc); // registering twice returns 0, which can be ignored
             let parent = if message_only { Some(HWND_MESSAGE) } else { None };
             let hwnd = match CreateWindowExW(
                 WINDOW_EX_STYLE(0),

@@ -7,7 +7,7 @@ use windows::Win32::Networking::WinSock::NL_NETWORK_CONNECTIVITY_HINT;
 
 type Callback = Box<dyn Fn(NetworkState) + Send + Sync>;
 
-/// 连接级别：3 为受限的互联网访问，4 为完整的互联网访问。
+/// Connectivity level: 3 is constrained internet access, 4 is full internet access.
 const LEVEL_CONSTRAINED_INTERNET: i32 = 3;
 
 unsafe extern "system" fn on_hint(ctx: *const c_void, hint: NL_NETWORK_CONNECTIVITY_HINT) {
@@ -21,7 +21,7 @@ pub(crate) struct Watcher {
     ctx: *mut Callback,
 }
 
-// 句柄只用于取消注册，回调要求 Send + Sync。
+// The handle is only used to unregister; the callback must be Send + Sync.
 unsafe impl Send for Watcher {}
 unsafe impl Sync for Watcher {}
 

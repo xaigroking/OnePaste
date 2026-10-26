@@ -63,6 +63,8 @@ h2 { font-size: 14px; margin: 20px 0 6px; }
 .log { max-height: 200px; overflow-y: auto; }
 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.language { align-items: center; margin: 8px 0 0; }
+select { font: inherit; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); }
 
 button {
   font: inherit;

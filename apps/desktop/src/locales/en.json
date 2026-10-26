@@ -1,5 +1,7 @@
 {
-  "app": { "title": "OnePaste desktop spike" },
+  "app": {
+    "title": "OnePaste desktop spike"
+  },
   "hotkey": {
     "hint": "Press {{keys}} to bring up this window",
     "busy": "Hotkey is already in use"
@@ -7,7 +9,7 @@
   "recents": {
     "title": "Recent items (in memory only, up to 20)",
     "empty": "Nothing yet. Copy some text or take a screenshot.",
-    "image": "Image {{width}}×{{height}}",
+    "image": "Image {{width}}\u00d7{{height}}",
     "clickHint": "Click an item to put it back on the clipboard"
   },
   "secure": {
@@ -27,7 +29,9 @@
     "network_offline": "Network disconnected",
     "hotkey_registered": "Hotkey registered",
     "hotkey_busy": "Hotkey registration failed (in use)",
-    "sensitive_skipped": "Skipped: sensitive marker"
+    "sensitive_skipped": "Skipped: sensitive marker",
+    "settings_save_failed": "Could not save the language setting",
+    "watcher_failed": "A watcher failed to start"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -47,6 +51,15 @@
     "diagnostics": "Copy diagnostics",
     "quit": "Quit",
     "statusLine": "Status: {state}",
-    "tooltip": "OnePaste · {state}"
+    "tooltip": "OnePaste \u00b7 {state}"
+  },
+  "language": {
+    "label": "Language",
+    "system": "Follow system",
+    "zh": "\u4e2d\u6587",
+    "en": "English"
+  },
+  "webview2": {
+    "missing": "The Microsoft Edge WebView2 runtime was not found, so OnePaste cannot show its window. Please install it and then start OnePaste again."
   }
 }

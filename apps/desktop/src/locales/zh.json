@@ -1,5 +1,7 @@
 {
-  "app": { "title": "OnePaste 桌面验证" },
+  "app": {
+    "title": "OnePaste 桌面验证"
+  },
   "hotkey": {
     "hint": "按 {{keys}} 呼出本窗口",
     "busy": "热键被占用"
@@ -27,7 +29,9 @@
     "network_offline": "网络已断开",
     "hotkey_registered": "热键注册成功",
     "hotkey_busy": "热键注册失败（被占用）",
-    "sensitive_skipped": "已跳过：敏感标记"
+    "sensitive_skipped": "已跳过：敏感标记",
+    "settings_save_failed": "无法保存语言设置",
+    "watcher_failed": "监听器启动失败"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -48,5 +52,14 @@
     "quit": "退出",
     "statusLine": "状态：{state}",
     "tooltip": "OnePaste · {state}"
+  },
+  "language": {
+    "label": "语言",
+    "system": "跟随系统",
+    "zh": "中文",
+    "en": "English"
+  },
+  "webview2": {
+    "missing": "没有找到 Microsoft Edge WebView2 运行时，OnePaste 无法显示窗口。请先安装它，然后重新打开 OnePaste。"
   }
 }

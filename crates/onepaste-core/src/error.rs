@@ -1,7 +1,7 @@
 use thiserror::Error;
 
-/// 对外只暴露**稳定错误码**（`code()`），文案由客户端本地化。
-/// 错误信息不得包含密钥、口令或明文。
+/// Only **stable error codes** (`code()`) are exposed; clients localize the wording.
+/// Error messages must never contain keys, passphrases or plaintext.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum Error {
     #[error("invalid argument")]
@@ -29,7 +29,7 @@ pub enum Error {
 }
 
 impl Error {
-    /// 稳定、可序列化的错误码；新增只增不改。
+    /// A stable, serializable error code; new codes may be added but existing ones never change.
     pub fn code(&self) -> &'static str {
         match self {
             Error::InvalidArgument(_) => "invalid_argument",

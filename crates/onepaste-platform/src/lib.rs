@@ -1,8 +1,8 @@
-//! 平台适配：剪贴板监听与读写、系统安全存储、睡眠唤醒与网络变化事件。
+//! Platform adapters: clipboard monitoring and access, system secure storage, wake-from-sleep and network change events.
 //!
-//! Windows 和 macOS 有真实实现；其他平台（包括 Linux）所有函数都返回
-//! [`PlatformError::Unsupported`]，这样整个工作区仍然可以在 Linux 上编译和测试。
-//! 本 crate 不写日志，也不把剪贴板内容、密钥打进任何错误信息。
+//! Windows and macOS have real implementations; on every other platform (Linux included) all functions return
+//! [`PlatformError::Unsupported`], so the whole workspace still builds and tests on Linux.
+//! This crate writes no logs and never puts clipboard content or keys into any error message.
 
 pub mod clipboard;
 pub mod network;

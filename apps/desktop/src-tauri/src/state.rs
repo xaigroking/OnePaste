@@ -1,8 +1,10 @@
-//! 应用状态：最近记录（只放内存）、事件日志、托盘状态、热键状态、托盘文案。
+//! App state: recent items (memory only), event log, tray state, hotkey state and tray texts.
 
+use crate::lang::Preference;
 use onepaste_platform::clipboard::Content;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -64,7 +66,7 @@ pub struct Recent {
     pub ts_ms: u64,
 }
 
-/// 托盘文案，由界面层的 i18next 提供；模板里的 `{state}` 由 Rust 替换。
+/// Tray texts, supplied by the UI layer through i18next. Rust replaces `{state}` in the templates.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrayTexts {
@@ -97,11 +99,17 @@ pub struct Inner {
     pub tray: TrayState,
     pub hotkey: HotkeyState,
     pub texts: TrayTexts,
+    /// The language preference chosen by the user (`system` by default).
+    pub language: Preference,
+    /// The raw system locale as reported by the OS, if it could be read.
+    pub system_locale: Option<String>,
+    /// Where `settings.json` lives; `None` if the location cannot be determined.
+    pub settings_dir: Option<PathBuf>,
     next_id: u64,
 }
 
 impl Inner {
-    /// 新记录放在最前面；内容相同的旧记录先移除，超过上限的丢弃最旧的。
+    /// The new item goes first; an older item with the same content is removed, and the oldest ones beyond the cap are dropped.
     pub fn add_recent(&mut self, content: Content) {
         self.recents.retain(|r| r.content != content);
         self.next_id += 1;
@@ -121,7 +129,13 @@ pub struct AppState(pub Mutex<Inner>);
 
 impl Default for AppState {
     fn default() -> Self {
-        // 界面层推送文案之前，托盘先用占位符。
+        AppState::new(Preference::System, None, None)
+    }
+}
+
+impl AppState {
+    pub fn new(language: Preference, system_locale: Option<String>, settings_dir: Option<PathBuf>) -> Self {
+        // Until the UI layer pushes its texts, the tray uses placeholders.
         let placeholder = "…".to_string();
         let texts = TrayTexts {
             open: placeholder.clone(),
@@ -141,6 +155,9 @@ impl Default for AppState {
             tray: TrayState::Synced,
             hotkey: HotkeyState::Unknown,
             texts,
+            language,
+            system_locale,
+            settings_dir,
             next_id: 0,
         }))
     }

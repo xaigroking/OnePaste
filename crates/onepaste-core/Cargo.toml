@@ -1,6 +1,6 @@
 [package]
 name = "onepaste-core"
-description = "OnePaste 核心：密钥、加解密、条目信封（不依赖数据库、网络、界面与平台 SDK）"
+description = "OnePaste core: keys, encryption and item envelopes (no database, network, UI or platform SDK dependencies)"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

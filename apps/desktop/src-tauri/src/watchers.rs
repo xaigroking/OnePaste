@@ -1,4 +1,4 @@
-//! 把平台事件（剪贴板、睡眠唤醒、网络变化）接到应用状态和事件日志。
+//! Connects platform events (clipboard, wake from sleep, network changes) to the app state and the event log.
 
 use crate::state::AppState;
 use crate::tray;
@@ -8,7 +8,7 @@ use onepaste_platform::power::WakeWatcher;
 use std::any::Any;
 use tauri::{AppHandle, Manager};
 
-/// 持有各个监听器，应用退出时一起停止。
+/// Holds the watchers; they all stop when the app exits.
 pub struct Watchers {
     _held: Vec<Box<dyn Any + Send + Sync>>,
 }

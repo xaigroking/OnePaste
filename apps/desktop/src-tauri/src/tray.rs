@@ -1,4 +1,4 @@
-//! 托盘：4 种状态各有不同的图标和提示文字；菜单文案由界面层提供。
+//! Tray: four states, each with its own icon and tooltip. Menu texts come from the UI layer.
 
 use crate::state::{AppState, TrayState};
 use crate::{commands, icons};
@@ -25,7 +25,7 @@ pub fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// 通知界面：Rust 端状态有变化，需要重新拉取。
+/// Tells the UI that Rust-side state changed and needs to be fetched again.
 pub fn notify_changed(app: &AppHandle) {
     let _ = app.emit("onepaste://changed", ());
 }
@@ -72,14 +72,14 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     }
 }
 
-/// 切换托盘状态：换图标、换提示文字、更新状态行。
+/// Switches the tray state: new icon, new tooltip, updated status line.
 pub fn set_state(app: &AppHandle, next: TrayState) {
     app.state::<AppState>().0.lock().unwrap().tray = next;
     refresh(app);
     notify_changed(app);
 }
 
-/// 按当前状态和文案刷新托盘图标、提示文字和菜单。
+/// Refreshes the tray icon, tooltip and menu from the current state and texts.
 pub fn refresh(app: &AppHandle) {
     let (state, texts) = {
         let s = app.state::<AppState>();

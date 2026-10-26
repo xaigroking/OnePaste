@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onChanged } from "./api";
-import type { HotkeyState, LogEntry, RecentItem, SecureResult, TrayState, TrayTexts } from "./api";
+import type {
+  HotkeyState,
+  LanguagePreference,
+  LanguageState,
+  LogEntry,
+  RecentItem,
+  SecureResult,
+  TrayState,
+  TrayTexts,
+} from "./api";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
 const HOTKEY_TEXT = IS_MAC ? "⌃⌥V" : "Ctrl+Alt+V";
@@ -11,21 +20,36 @@ function formatTime(tsMs: number): string {
 }
 
 export default function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [hotkey, setHotkey] = useState<HotkeyState>("unknown");
   const [tray, setTray] = useState<TrayState>("synced");
   const [secure, setSecure] = useState<SecureResult | null>(null);
   const [diag, setDiag] = useState<SecureResult | null>(null);
+  const [language, setLanguage] = useState<LanguageState | null>(null);
 
   const refresh = useCallback(async () => {
-    const [r, l, h, s] = await Promise.all([api.recents(), api.log(), api.hotkey(), api.trayState()]);
+    const [r, l, h, s, lang] = await Promise.all([
+      api.recents(),
+      api.log(),
+      api.hotkey(),
+      api.trayState(),
+      api.languageState(),
+    ]);
     setRecents(r);
     setLog(l);
     setHotkey(h);
     setTray(s);
+    setLanguage(lang);
   }, []);
+
+  // Switch the UI language as soon as the Rust side reports a different one.
+  useEffect(() => {
+    if (language && language.effective !== i18n.language) {
+      void i18n.changeLanguage(language.effective);
+    }
+  }, [language, i18n]);
 
   useEffect(() => {
     const texts: TrayTexts = {
@@ -52,6 +76,7 @@ export default function App() {
     return () => unlisten?.();
   }, [refresh]);
 
+  const changeLanguage = async (preference: LanguagePreference) => setLanguage(await api.setLanguage(preference));
   const runSecure = async (action: "write" | "read" | "delete") => setSecure(await api.secure(action));
   const runDiagnostics = async () => setDiag(await api.copyDiagnostics());
 
@@ -60,6 +85,18 @@ export default function App() {
       <h1>{t("app.title")}</h1>
       {hotkey === "busy" && <p className="banner">{t("hotkey.busy")}</p>}
       <p className="muted">{t("hotkey.hint", { keys: HOTKEY_TEXT })}</p>
+
+      <label className="row language">
+        <span>{t("language.label")}</span>
+        <select
+          value={language?.preference ?? "system"}
+          onChange={(e) => void changeLanguage(e.target.value as LanguagePreference)}
+        >
+          <option value="system">{t("language.system")}</option>
+          <option value="zh">{t("language.zh")}</option>
+          <option value="en">{t("language.en")}</option>
+        </select>
+      </label>
 
       <section>
         <h2>{t("recents.title")}</h2>

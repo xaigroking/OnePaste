@@ -1,5 +1,6 @@
-//! 界面可以调用的命令。返回值里没有剪贴板内容之外的敏感信息；密钥内容永远不返回。
+//! Commands the UI can call. Responses carry nothing sensitive beyond clipboard content; key material is never returned.
 
+use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
 use onepaste_platform::clipboard::{self, Content};
@@ -36,6 +37,47 @@ impl ActionResult {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LanguageState {
+    preference: Preference,
+    effective: &'static str,
+    system_locale: Option<String>,
+}
+
+fn language_state(state: &AppState) -> LanguageState {
+    let g = state.0.lock().unwrap();
+    LanguageState {
+        preference: g.language,
+        effective: lang::effective(g.language, g.system_locale.as_deref()),
+        system_locale: g.system_locale.clone(),
+    }
+}
+
+#[tauri::command]
+pub fn get_language_state(state: State<AppState>) -> LanguageState {
+    language_state(&state)
+}
+
+/// Stores and persists the language preference. The UI and the tray switch immediately: the UI
+/// reloads its language from the state and pushes fresh tray texts.
+#[tauri::command]
+pub fn set_language(app: AppHandle, preference: Preference) -> LanguageState {
+    let state = app.state::<AppState>();
+    let dir = {
+        let mut g = state.0.lock().unwrap();
+        g.language = preference;
+        g.settings_dir.clone()
+    };
+    if let Some(dir) = dir {
+        if lang::save(&dir, preference).is_err() {
+            state.0.lock().unwrap().push_log("settings_save_failed", None);
+        }
+    }
+    tray::notify_changed(&app);
+    language_state(&state)
+}
+
 #[tauri::command]
 pub fn get_recents(state: State<AppState>) -> Vec<RecentDto> {
     let g = state.0.lock().unwrap();
@@ -62,7 +104,7 @@ pub fn get_recents(state: State<AppState>) -> Vec<RecentDto> {
         .collect()
 }
 
-/// 把一条记录写回剪贴板；写入时带防回环标记，所以不会在列表里多出重复记录。
+/// Puts a recent item back on the clipboard. The write carries the origin marker, so no duplicate entry appears in the list.
 #[tauri::command]
 pub fn copy_back(state: State<AppState>, id: u64) -> Result<(), String> {
     let content = {
@@ -94,7 +136,7 @@ pub fn set_texts(app: AppHandle, texts: TrayTexts) {
     tray::refresh(&app);
 }
 
-/// 安全存储测试：只返回成功或失败和错误码，不返回密钥内容。
+/// Secure storage test: returns only success or failure plus an error code, never the key contents.
 #[tauri::command]
 pub fn secure_action(action: String) -> ActionResult {
     match action.as_str() {
@@ -109,7 +151,7 @@ pub fn secure_action(action: String) -> ActionResult {
     }
 }
 
-/// 把诊断信息放进剪贴板。带防回环标记，所以不会作为一条记录出现在列表里。
+/// Puts the diagnostics text on the clipboard. It carries the origin marker, so it does not show up as a list entry.
 pub fn copy_diagnostics_impl(app: &AppHandle) -> ActionResult {
     let text = {
         let s = app.state::<AppState>();

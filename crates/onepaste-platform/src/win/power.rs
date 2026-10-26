@@ -10,7 +10,7 @@ pub(crate) struct Watcher {
 
 impl Watcher {
     pub(crate) fn start(on_wake: Box<dyn Fn() + Send + Sync>) -> Result<Watcher, PlatformError> {
-        // 系统广播只发给顶层窗口，所以这里不用仅消息窗口。
+        // System broadcasts only reach top-level windows, so a message-only window is not used here.
         let win = MessageWindow::spawn(
             "OnePastePowerWatcher",
             false,

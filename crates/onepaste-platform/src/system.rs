@@ -1,6 +1,6 @@
-//! 系统信息（用于诊断）。
+//! System information (for diagnostics).
 
-/// 操作系统版本的可读描述；取不到时返回平台名。
+/// A readable description of the OS version; falls back to the platform name.
 pub fn os_version() -> String {
     #[cfg(windows)]
     {

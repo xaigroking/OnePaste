@@ -1,8 +1,8 @@
-"""用与 Rust 实现无关的参考库生成已知答案向量。
+"""Generates known-answer vectors with reference libraries independent of the Rust implementation.
 
-Argon2id 用 argon2-cffi（libargon2 C 参考实现），XChaCha20-Poly1305 用 PyNaCl（libsodium）。
-用法：python tools/gen_vectors.py > crates/onepaste-core/tests/vectors.json
-依赖：pip install argon2-cffi pynacl
+Argon2id uses argon2-cffi (the libargon2 C reference implementation); XChaCha20-Poly1305 uses PyNaCl (libsodium).
+Usage: python tools/gen_vectors.py > crates/onepaste-core/tests/vectors.json
+Requires: pip install argon2-cffi pynacl
 """
 import base64, json
 from argon2.low_level import hash_secret_raw, Type
@@ -19,8 +19,8 @@ kek = hash_secret_raw(PASS.encode(), SALT, time_cost=T, memory_cost=M_KIB, paral
 KEY = bytes([0x07]) * 32
 NONCE = bytes([0x09]) * 24
 AAD = b"onepaste/item/v1:uid-1"
-PT = "你好，OnePaste".encode()
-ct = aead(PT, AAD, NONCE, KEY)           # 密文 || 16 字节标签
+PT = "\u4f60\u597d\uff0cOnePaste".encode()
+ct = aead(PT, AAD, NONCE, KEY)           # ciphertext || 16-byte tag
 
 MKWRAP_AAD = b"onepaste/mkwrap/v1"
 MK = bytes(range(32))
