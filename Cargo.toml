@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/onepaste-core"]
-exclude = ["spikes/vaultcore"]
+members = ["crates/onepaste-core", "crates/onepaste-platform"]
+exclude = ["spikes/vaultcore", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.0.1"
