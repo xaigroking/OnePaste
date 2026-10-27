@@ -12,7 +12,7 @@ async function start() {
     throw new Error("root element missing");
   }
   // The language is decided on the Rust side, so wait for it before the first render.
-  const language = await api.languageState().catch(() => ({ effective: "en" as const }));
+  const language = await api.languageState().catch(() => ({ effective: "en" }));
   await initI18n(language.effective);
   ReactDOM.createRoot(root).render(
     <React.StrictMode>

@@ -28,15 +28,15 @@ impl ActionResult {
 #[serde(rename_all = "camelCase")]
 pub struct LanguageState {
     preference: Preference,
-    effective: &'static str,
+    effective: String,
     system_locale: Option<String>,
 }
 
 fn language_state(state: &AppState) -> LanguageState {
     let g = state.0.lock().unwrap();
     LanguageState {
-        preference: g.language,
-        effective: lang::effective(g.language, g.system_locale.as_deref()),
+        preference: g.language.clone(),
+        effective: lang::effective(&g.language, g.system_locale.as_deref()),
         system_locale: g.system_locale.clone(),
     }
 }
@@ -53,11 +53,11 @@ pub fn set_language(app: AppHandle, preference: Preference) -> LanguageState {
     let state = app.state::<AppState>();
     let dir = {
         let mut g = state.0.lock().unwrap();
-        g.language = preference;
+        g.language = preference.clone();
         g.settings_dir.clone()
     };
     if let Some(dir) = dir {
-        if lang::save(&dir, preference).is_err() {
+        if lang::save(&dir, &preference).is_err() {
             state.0.lock().unwrap().push_log("settings_save_failed", None);
         }
     }

@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "nativeName": "中文",
+    "dir": "ltr"
+  },
   "app": {
     "title": "OnePaste"
   },
@@ -66,8 +70,8 @@
   "language": {
     "label": "语言",
     "system": "跟随系统",
-    "zh": "中文",
-    "en": "English"
+    "auto": "当前跟随系统：{{name}}",
+    "manual": "手动选择语言"
   },
   "webview2": {
     "missing": "没有找到 Microsoft Edge WebView2 运行时，OnePaste 无法显示窗口。请先安装它，然后重新打开 OnePaste。"

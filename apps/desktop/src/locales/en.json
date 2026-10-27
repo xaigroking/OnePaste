@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "nativeName": "English",
+    "dir": "ltr"
+  },
   "app": {
     "title": "OnePaste"
   },
@@ -66,8 +70,8 @@
   "language": {
     "label": "Language",
     "system": "Follow system",
-    "zh": "\u4e2d\u6587",
-    "en": "English"
+    "auto": "Following the system: {{name}}",
+    "manual": "Choose a language"
   },
   "webview2": {
     "missing": "The Microsoft Edge WebView2 runtime was not found, so OnePaste cannot show its window. Please install it and then start OnePaste again."

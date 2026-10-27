@@ -15,6 +15,7 @@ import type {
   TrayTexts,
 } from "./api";
 import { applyTheme, loadTheme } from "./format";
+import { applyDocumentLanguage, resolveLanguage } from "./i18n";
 import { DevicesView } from "./components/DevicesView";
 import { HistoryView } from "./components/HistoryView";
 import { JoinForm } from "./components/JoinForm";
@@ -74,9 +75,10 @@ export default function App() {
 
   // Switch the UI language as soon as the Rust side reports a different one.
   useEffect(() => {
-    if (language && language.effective !== i18n.language) {
-      void i18n.changeLanguage(language.effective);
-    }
+    if (!language) return;
+    const next = resolveLanguage(language.effective);
+    if (next !== i18n.language) void i18n.changeLanguage(next);
+    applyDocumentLanguage(next);
   }, [language, i18n]);
 
   useEffect(() => {

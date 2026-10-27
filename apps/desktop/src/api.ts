@@ -51,12 +51,13 @@ export interface LogEntry {
   detail: string | null;
 }
 
-export type LanguagePreference = "system" | "zh" | "en";
+/** `"system"` to follow the system, or a language tag such as `"zh"` or `"pt-br"`. */
+export type LanguagePreference = string;
 
 export interface LanguageState {
   preference: LanguagePreference;
-  /** The language the UI actually uses. */
-  effective: "zh" | "en";
+  /** The language tag the UI should try; the UI maps it to the closest translation it has. */
+  effective: string;
   /** The raw system locale, if it could be read. */
   systemLocale: string | null;
 }

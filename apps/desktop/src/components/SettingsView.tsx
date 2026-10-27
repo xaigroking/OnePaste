@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ActionResult, AppSettings, AppStatus, HotkeyState, LanguagePreference, LanguageState, LogEntry } from "../api";
 import { applyTheme, formatClock, loadTheme } from "../format";
+import { LANGUAGES, languageInfo, resolveLanguage } from "../i18n";
 import type { ThemeChoice } from "../format";
 import { Badge, Button, Card, Chip, Switch } from "./ui";
 
@@ -21,6 +22,7 @@ interface Props {
 export function SettingsView(p: Props) {
   const { t } = useTranslation();
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme);
+  const preference = p.language?.preference ?? "system";
   const pickTheme = (c: ThemeChoice) => {
     applyTheme(c);
     setTheme(c);
@@ -43,12 +45,22 @@ export function SettingsView(p: Props) {
         </div>
         <label className="setting">
           <span>{t("language.label")}</span>
-          <select value={p.language?.preference ?? "system"} onChange={(e) => p.onLanguage(e.target.value as LanguagePreference)}>
+          <select value={preference} onChange={(e) => p.onLanguage(e.target.value as LanguagePreference)}>
             <option value="system">{t("language.system")}</option>
-            <option value="zh">{t("language.zh")}</option>
-            <option value="en">{t("language.en")}</option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.nativeName}
+              </option>
+            ))}
+            {/* A saved choice that has no translation (yet) stays visible instead of silently changing */}
+            {preference !== "system" && !languageInfo(preference) && <option value={preference}>{preference}</option>}
           </select>
         </label>
+        <p className="muted small">
+          {preference === "system"
+            ? t("language.auto", { name: languageInfo(resolveLanguage(p.language?.effective))?.nativeName })
+            : t("language.manual")}
+        </p>
       </Card>
 
       {p.settings && (
