@@ -68,6 +68,8 @@ pub struct ItemSummary {
     pub queued: bool,
 }
 
+const DEFAULT_PAGE_SIZE: u32 = 200;
+
 pub(crate) enum InFlight {
     Push { op_id: u64 },
     Pull,
@@ -82,7 +84,12 @@ pub struct Engine<S: Store> {
     pub(crate) push_retry_at: u64,
     pub(crate) pull_retry_at: u64,
     pub(crate) pull_attempts: u32,
+    /// How many times in a row a full pull was restarted because the server kept answering `cursor_expired`.
+    pub(crate) refetch_restarts: u32,
+    /// Pulling is switched off for this run (the server kept refusing the full pull) until the next `request_pull`.
+    pub(crate) pull_suspended: bool,
     pub(crate) stale_streak: HashMap<u64, u32>,
+    page_size: u32,
 }
 
 /// Runs `f` as one storage transaction. If `f` fails, nothing it did is kept.
@@ -131,8 +138,16 @@ impl<S: Store> Engine<S> {
             push_retry_at: 0,
             pull_retry_at: 0,
             pull_attempts: 0,
+            refetch_restarts: 0,
+            pull_suspended: false,
             stale_streak: HashMap::new(),
+            page_size: DEFAULT_PAGE_SIZE,
         }
+    }
+
+    /// Items requested per pull page (the default is 200).
+    pub fn set_page_size(&mut self, n: u32) {
+        self.page_size = n.clamp(1, 500);
     }
 
     pub fn into_store(self) -> S {
@@ -317,6 +332,7 @@ impl<S: Store> Engine<S> {
     /// Asks for a pull on the next `next_action`.
     pub fn request_pull(&mut self) {
         self.pull_wanted = true;
+        self.pull_suspended = false;
         self.pull_retry_at = 0;
         self.pull_attempts = 0;
     }
@@ -378,14 +394,14 @@ impl<S: Store> Engine<S> {
                     }
                 }
             }
-            if self.pull_wanted || meta.refetching {
+            if (self.pull_wanted || meta.refetching) && !self.pull_suspended {
                 if now_ms < self.pull_retry_at {
                     return Ok(Action::Wait { until_ms: self.pull_retry_at });
                 }
                 self.inflight = Some(InFlight::Pull);
                 return Ok(Action::Send(HttpRequest {
                     method: Method::Get,
-                    path_and_query: format!("/v1/items?after={}&limit=200", meta.cursor),
+                    path_and_query: format!("/v1/items?after={}&limit={}", meta.cursor, self.page_size),
                     headers: self.headers(None),
                     body: Vec::new(),
                 }));

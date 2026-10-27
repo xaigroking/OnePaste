@@ -415,3 +415,24 @@ fn request_and_response_debug_output_hides_the_token_and_the_body() {
     let body = String::from_utf8_lossy(&req.body).into_owned();
     assert!(!body.contains("TOPSECRET-MARKER"), "the body carries only ciphertext");
 }
+
+#[test]
+fn a_server_that_keeps_expiring_the_cursor_of_a_full_pull_does_not_make_the_client_spin() {
+    let mk = Key::random().unwrap();
+    let mut e = engine(&mk);
+    e.request_pull();
+    let mut sent = 0;
+    let mut last = Vec::new();
+    for _ in 0..20 {
+        match e.next_action(T0).unwrap() {
+            Action::Send(_) => {
+                sent += 1;
+                last = e.on_response(T0, resp(410, json!({ "code": "cursor_expired" }))).unwrap();
+            }
+            _ => break,
+        }
+    }
+    assert!(sent <= 4, "the engine sent {sent} requests");
+    assert_eq!(last, vec![Event::PullFailed { code: "cursor_expired".into() }]);
+    assert_eq!(e.next_action(T0).unwrap(), Action::Idle, "it stops until the next sync is asked for");
+}

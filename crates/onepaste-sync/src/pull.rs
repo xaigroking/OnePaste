@@ -9,6 +9,9 @@ use crate::types::*;
 use serde_json::Value;
 use std::collections::HashSet;
 
+/// Full pulls restarted in a row before the engine gives up for this run.
+const MAX_REFETCH_RESTARTS: u32 = 3;
+
 struct Page {
     items: Vec<Value>,
     next_after: i64,
@@ -37,7 +40,15 @@ impl<S: Store> Engine<S> {
         match resp.status {
             200 => {}
             410 => {
-                // The cursor is older than the server keeps tombstones: pull everything again from the start
+                // The cursor is older than the server keeps tombstones: pull everything again from the start. A server
+                // that keeps refusing the cursors of the full pull itself must not make the client spin.
+                self.refetch_restarts += 1;
+                if self.refetch_restarts > MAX_REFETCH_RESTARTS {
+                    self.refetch_restarts = 0;
+                    self.pull_wanted = false;
+                    self.pull_suspended = true;
+                    return Ok(vec![Event::PullFailed { code: "cursor_expired".into() }]);
+                }
                 self.read(|tx| {
                     let mut m = tx.meta()?;
                     m.cursor = 0;
@@ -74,6 +85,9 @@ impl<S: Store> Engine<S> {
             return Ok(vec![Event::Paused(PauseReason::ServerRollback)]);
         }
         self.pull_wanted = has_more;
+        if !self.pull_wanted {
+            self.refetch_restarts = 0;
+        }
         let mut events: Vec<Event> =
             out.skipped.iter().map(|(id, code)| Event::SkippedRecord { id: id.clone(), code }).collect();
         events.push(Event::Pulled { applied: out.applied, skipped: out.skipped.len(), has_more });
@@ -124,6 +138,7 @@ impl<S: Store> Engine<S> {
                 tx.put_item(&ItemRow { id: rec.id, seq: rec.seq, deleted: rec.deleted, envelope_json: env_json, mark: meta.epoch })?;
                 applied += 1;
             }
+            let mut refetch_done = false;
             meta.max_seen_seq = max_seen;
             meta.cursor = meta.cursor.max(page.next_after);
             if !page.has_more && meta.refetching {
@@ -134,8 +149,13 @@ impl<S: Store> Engine<S> {
                     }
                 }
                 meta.refetching = false;
+                refetch_done = true;
             }
             tx.set_meta(&meta)?;
+            if refetch_done {
+                tx.checkpoint("before_refetch_commit");
+            }
+            tx.checkpoint("before_page_commit");
             Ok(Applied { applied, skipped, rolled_back: false })
         })
     }

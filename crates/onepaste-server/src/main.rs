@@ -53,13 +53,18 @@ async fn main() {
             std::process::exit(2);
         }
     };
-    let cfg = match build_config(&cli) {
+    #[allow(unused_mut)]
+    let mut cfg = match build_config(&cli) {
         Ok(c) => c,
         Err(msg) => {
             eprintln!("{msg}");
             std::process::exit(2);
         }
     };
+    #[cfg(feature = "fault-injection")]
+    if let Some(n) = std::env::var("ONEPASTE_TOMBSTONE_RETENTION_SECS").ok().and_then(|v| v.parse().ok()) {
+        cfg.tombstone_retention_secs = n;
+    }
     tracing_subscriber::fmt().json().with_writer(std::io::stdout).init();
 
     if cli.connect_code {

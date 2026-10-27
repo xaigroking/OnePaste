@@ -2,6 +2,7 @@
 
 pub mod api;
 pub mod config;
+pub mod crash;
 pub mod error;
 pub mod ratelimit;
 pub mod store;
@@ -105,6 +106,8 @@ impl Server {
             cfg: cfg.clone(),
             events,
         });
+        // Maintenance also runs at start, so a server that is restarted often still purges old tombstones
+        run_cleanup(&state);
         let app = api::router(state.clone());
         let rustls_cfg = axum_server::tls_rustls::RustlsConfig::from_pem_file(&tls.cert_path, &tls.key_path)
             .await

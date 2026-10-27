@@ -184,6 +184,10 @@ impl Tx for SqliteTx<'_> {
         let rows = st.query_map([], row_to_op).map_err(fail)?.collect::<Result<Vec<_>, _>>().map_err(fail)?;
         Ok(rows)
     }
+
+    fn checkpoint(&mut self, name: &'static str) {
+        crate::crash::crash_point(name);
+    }
 }
 
 impl Store for SqliteStore {

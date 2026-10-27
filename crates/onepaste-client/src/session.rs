@@ -67,7 +67,12 @@ impl Session {
         let sealed = store.secret_get("devtoken")?.ok_or(ClientError::NotJoined)?;
         let token = String::from_utf8(crypto::open(&mk, aad::DEVTOKEN, &sealed)?).map_err(|_| ClientError::Storage("devtoken".into()))?;
         let transport = Transport::new(&url, &fingerprint);
-        let engine = Engine::new(store, Key::from_bytes(*mk.as_bytes()), token.clone());
+        #[allow(unused_mut)]
+        let mut engine = Engine::new(store, Key::from_bytes(*mk.as_bytes()), token.clone());
+        #[cfg(feature = "fault-injection")]
+        if let Some(n) = std::env::var("ONEPASTE_PAGE_SIZE").ok().and_then(|v| v.parse().ok()) {
+            engine.set_page_size(n);
+        }
         Ok(Session { engine, transport, info: Info { url, fingerprint, device_id }, mk, token })
     }
 
@@ -83,6 +88,9 @@ impl Session {
             match self.engine.next_action(now_ms())? {
                 Action::Send(req) => match self.transport.send(&req).await {
                     Ok(resp) => {
+                        if req.method == Method::Put && (200..300).contains(&resp.status) {
+                            crate::crash::crash_point("after_response_before_apply");
+                        }
                         for ev in self.engine.on_response(now_ms(), resp)? {
                             match &ev {
                                 Event::Pushed { .. } => report.pushed += 1,

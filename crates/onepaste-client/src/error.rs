@@ -7,6 +7,8 @@ pub enum ClientError {
     WrongPassphrase,
     #[error("a passphrase is required to join an existing vault")]
     PassphraseRequired,
+    #[error("the recovery kit file already exists; choose another path (kit_file_exists)")]
+    KitFileExists,
     #[error("wrong recovery kit")]
     WrongRecoveryKit,
     #[error("this directory has not joined a vault yet")]
@@ -63,6 +65,7 @@ impl ClientError {
     /// The process exit code the command line tool uses.
     pub fn exit_code(&self) -> u8 {
         match self {
+            ClientError::KitFileExists => 2,
             ClientError::WrongPassphrase | ClientError::WrongRecoveryKit => 3,
             ClientError::Paused(PauseReason::ServerRollback) => 4,
             ClientError::Paused(PauseReason::Revoked) => 5,

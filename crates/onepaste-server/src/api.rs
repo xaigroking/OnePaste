@@ -379,11 +379,13 @@ async fn put_item(State(s): St, headers: HeaderMap, Path(id): Path<String>, body
     let reply = s.store.idempotent(&format!("d:{device}"), &key, &request_hash("PUT", &path, &body), now, s.cfg.idempotency_ttl_secs, |tx| {
         Store::put_item_tx(tx, &id, base_seq, &write, now)
     })?;
+    // The write and its idempotency record are committed; the answer has not been sent yet
+    crate::crash::crash_point("after_commit_before_response");
     Ok(finish_write(&s, reply))
 }
 
 async fn list_items(State(s): St, headers: HeaderMap, RawQuery(q): RawQuery) -> Result<Response, ApiError> {
-    auth(&s, &headers)?;
+    let (device, _) = auth(&s, &headers)?;
     let (mut after, mut limit) = (0i64, 200i64);
     for pair in q.unwrap_or_default().split('&').filter(|p| !p.is_empty()) {
         let (k, v) = pair.split_once('=').unwrap_or((pair, ""));
@@ -394,7 +396,7 @@ async fn list_items(State(s): St, headers: HeaderMap, RawQuery(q): RawQuery) -> 
             _ => return Err(ApiError::invalid()),
         }
     }
-    let page = s.store.list_items(after, limit)?;
+    let page = s.store.list_items(&device, after, limit)?;
     Ok(json_response(200, page.to_string().into_bytes()))
 }
 
