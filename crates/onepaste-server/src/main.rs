@@ -4,7 +4,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 const USAGE: &str = "Usage: onepaste-server [connect-code] [--data-dir <dir>] [--listen <addr>] [--public-url <url>]\n\
-Environment: ONEPASTE_DATA_DIR, ONEPASTE_LISTEN, ONEPASTE_PUBLIC_URL (command line arguments win)";
+Environment: ONEPASTE_DATA_DIR, ONEPASTE_LISTEN, ONEPASTE_PUBLIC_URL (command line arguments win)\n\
+RUST_LOG=<trace|debug|info|warn|error> sets the log level (default: info)";
 
 struct Cli {
     connect_code: bool,
@@ -43,6 +44,7 @@ fn build_config(cli: &Cli) -> Result<Config, String> {
 
 #[tokio::main]
 async fn main() {
+    onepaste_server::harden::disable_core_dumps();
     let cli = match parse_args() {
         Ok(c) => c,
         Err(msg) => {
@@ -65,7 +67,8 @@ async fn main() {
     if let Some(n) = std::env::var("ONEPASTE_TOMBSTONE_RETENTION_SECS").ok().and_then(|v| v.parse().ok()) {
         cfg.tombstone_retention_secs = n;
     }
-    tracing_subscriber::fmt().json().with_writer(std::io::stdout).init();
+    let level = std::env::var("RUST_LOG").ok().and_then(|v| v.trim().to_ascii_lowercase().parse::<tracing::Level>().ok()).unwrap_or(tracing::Level::INFO);
+    tracing_subscriber::fmt().json().with_max_level(level).with_writer(std::io::stdout).init();
 
     if cli.connect_code {
         match connect_code(&cfg) {

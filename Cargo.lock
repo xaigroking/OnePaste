@@ -1305,6 +1305,7 @@ name = "onepaste-client"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "libc",
  "onepaste-core",
  "onepaste-sync",
  "reqwest",
@@ -1354,6 +1355,7 @@ dependencies = [
  "axum-server",
  "base64 0.22.1",
  "http-body-util",
+ "libc",
  "onepaste-client",
  "onepaste-core",
  "rand_core",
