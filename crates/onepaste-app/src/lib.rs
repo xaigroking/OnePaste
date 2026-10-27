@@ -10,7 +10,7 @@ mod error;
 pub mod ports;
 mod settings;
 
-pub use app::{App, AppConfig, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
+pub use app::{App, AppConfig, DeviceList, DeviceView, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
 pub use error::AppError;
 pub use onepaste_history::Filter;
 pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemorySecretStore, MonitorGuard, SecretStore};
