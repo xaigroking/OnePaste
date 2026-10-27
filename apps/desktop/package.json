@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "tauri": "tauri"
+    "build": "tsc --noEmit && python3 ../../tools/check_locales.py && vite build",
+    "tauri": "tauri",
+    "i18n:check": "python3 ../../tools/check_locales.py"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4",

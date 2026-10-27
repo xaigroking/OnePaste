@@ -34,6 +34,28 @@ export interface ItemView {
   height: number;
   /** Size in bytes of an image. */
   size: number;
+  /** Optional: shown when the backend reports where and when an item was copied. */
+  sourceDevice?: string;
+  sourceApp?: string;
+  createdAtMs?: number;
+  /** Optional per-item sync state. */
+  syncState?: "synced" | "pending" | "local";
+}
+
+export interface DeviceView {
+  deviceId: string;
+  /** The name the user gave the device; null if it cannot be read. */
+  name: string | null;
+  /** Seconds since the epoch. */
+  createdAt: number;
+  lastSeenAt: number | null;
+  revoked: boolean;
+  thisDevice: boolean;
+}
+
+export interface DeviceList {
+  devices: DeviceView[];
+  serverUrl: string;
 }
 
 export interface AppSettings {
@@ -47,12 +69,13 @@ export interface LogEntry {
   detail: string | null;
 }
 
-export type LanguagePreference = "system" | "zh" | "en";
+/** `"system"` to follow the system, or a language tag such as `"zh"` or `"pt-br"`. */
+export type LanguagePreference = string;
 
 export interface LanguageState {
   preference: LanguagePreference;
-  /** The language the UI actually uses. */
-  effective: "zh" | "en";
+  /** The language tag the UI should try; the UI maps it to the closest translation it has. */
+  effective: string;
   /** The raw system locale, if it could be read. */
   systemLocale: string | null;
 }
@@ -90,6 +113,9 @@ export const api = {
   wipeLocalData: () => invoke<void>("app_wipe_local_data"),
   /** Puts text on the clipboard so that it is neither recorded nor offered to clipboard history tools. */
   copySecret: (text: string) => invoke<void>("app_copy_secret", { text }),
+  devices: () => invoke<DeviceList>("app_devices"),
+  revokeDevice: (deviceId: string) => invoke<void>("app_revoke_device", { deviceId }),
+  newConnectionCode: () => invoke<string>("app_new_connection_code"),
   /** The version and the build id, for example `0.0.1 (v0.0.1-main.7)`. */
   version: () => invoke<string>("app_version"),
   status: () => invoke<AppStatus>("app_status"),

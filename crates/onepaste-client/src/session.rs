@@ -175,7 +175,33 @@ impl Session {
         result
     }
 
+    /// A handle for plain API calls that does not borrow the session, so a program can keep the session free for other
+    /// work while a request is in flight.
+    pub fn api(&self) -> ApiClient {
+        ApiClient { transport: self.transport.clone(), token: self.token.clone(), url: self.info.url.clone(), fingerprint: self.info.fingerprint.clone() }
+    }
+
     /// A plain API call outside the engine (devices, invitations). Write calls carry a fresh idempotency key.
+    pub async fn call(&self, method: Method, path: &str, body: Option<Value>) -> Result<Value, ClientError> {
+        self.api().call(method, path, body).await
+    }
+
+    /// Asks the server for a new registration credential and builds the connection code for another device.
+    pub async fn invite(&self) -> Result<String, ClientError> {
+        self.api().invite().await
+    }
+}
+
+/// Plain API calls with the device token: the device list, revoking a device, invitations.
+#[derive(Clone)]
+pub struct ApiClient {
+    transport: Transport,
+    token: String,
+    url: String,
+    fingerprint: String,
+}
+
+impl ApiClient {
     pub async fn call(&self, method: Method, path: &str, body: Option<Value>) -> Result<Value, ClientError> {
         let mut headers = vec![
             ("OnePaste-Proto".to_string(), "1".to_string()),
@@ -198,6 +224,6 @@ impl Session {
     pub async fn invite(&self) -> Result<String, ClientError> {
         let v = self.call(Method::Post, "/v1/devices/invite", None).await?;
         let t = v.get("reg_token").and_then(Value::as_str).ok_or_else(|| ClientError::Other("malformed invitation".into()))?;
-        Ok(ConnectionCode { u: self.info.url.clone(), fp: self.info.fingerprint.clone(), t: t.to_string() }.encode())
+        Ok(ConnectionCode { u: self.url.clone(), fp: self.fingerprint.clone(), t: t.to_string() }.encode())
     }
 }

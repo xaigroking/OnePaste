@@ -15,8 +15,10 @@
       {
         "label": "main",
         "title": "OnePaste",
-        "width": 560,
-        "height": 720,
+        "width": 1040,
+        "height": 640,
+        "minWidth": 720,
+        "minHeight": 480,
         "visible": true
       }
     ],

@@ -13,9 +13,11 @@ fn message_in(json: &str) -> Option<String> {
     v.get("webview2")?.get("missing")?.as_str().map(str::to_string)
 }
 
-/// The full message box text for a language (`"zh"` or `"en"`); falls back to English.
+/// The full message box text for a language tag; Chinese tags (`zh`, `zh-tw`, ...) get the Chinese text,
+/// every other tag falls back to English.
 pub fn missing_message(language: &str) -> String {
-    let text = if language == "zh" { message_in(ZH) } else { None }
+    let is_zh = language == "zh" || language.starts_with("zh-");
+    let text = if is_zh { message_in(ZH) } else { None }
         .or_else(|| message_in(EN))
         .unwrap_or_else(|| FALLBACK.to_string());
     format!("{text}\n\n{DOWNLOAD_URL}")
@@ -80,8 +82,8 @@ mod imp {
             return;
         }
         let pref = lang::settings_dir().map(|d| lang::load(&d)).unwrap_or(lang::Preference::System);
-        let language = lang::effective(pref, lang::system_locale().as_deref());
-        let text = wide(&missing_message(language));
+        let language = lang::effective(&pref, lang::system_locale().as_deref());
+        let text = wide(&missing_message(&language));
         let caption = wide("OnePaste");
         unsafe {
             MessageBoxW(None, PCWSTR(text.as_ptr()), PCWSTR(caption.as_ptr()), MB_OK | MB_ICONERROR);
@@ -106,7 +108,7 @@ mod tests {
 
     #[test]
     fn message_ends_with_the_download_link() {
-        for language in ["en", "zh", "fr"] {
+        for language in ["en", "zh", "zh-tw", "fr"] {
             assert!(missing_message(language).ends_with(DOWNLOAD_URL), "{language}");
         }
         assert_eq!(missing_message("fr"), missing_message("en"));

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "./api";
+import { Button } from "./components/ui";
 
 export type Strength = "weak" | "fair" | "strong";
 
@@ -16,7 +17,7 @@ export function passphraseStrength(p: string): Strength {
 export function ChooseMode({ choice, onChoice, onNext }: { choice: "local" | "server" | null; onChoice: (c: "local" | "server") => void; onNext: () => void }) {
   const { t } = useTranslation();
   return (
-    <section>
+    <div>
       <h2>{t("onboarding.mode.title")}</h2>
       <div role="radiogroup" className="modes">
         <label className="mode">
@@ -42,11 +43,11 @@ export function ChooseMode({ choice, onChoice, onNext }: { choice: "local" | "se
         </label>
       </div>
       <div className="row">
-        <button type="button" disabled={choice === null} onClick={onNext}>
+        <Button disabled={choice === null} onClick={onNext}>
           {t("onboarding.next")}
-        </button>
+        </Button>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -74,34 +75,34 @@ export function KitScreen({
 }) {
   const { t } = useTranslation();
   return (
-    <section className="kit-screen">
+    <div className="kit-screen">
       <h2>{t("onboarding.kit.title")}</h2>
-      <p className="banner">{t("onboarding.kit.warning")}</p>
+      <p className="notice notice-warn">{t("onboarding.kit.warning")}</p>
       <pre className="kit" data-testid="kit">
         {kit}
       </pre>
       <div className="row">
-        <button type="button" onClick={onCopy}>
+        <Button onClick={onCopy}>
           {t("onboarding.kit.copy")}
-        </button>
-        <button type="button" onClick={onSave}>
+        </Button>
+        <Button onClick={onSave}>
           {t("onboarding.kit.save")}
-        </button>
-        <button type="button" onClick={onPrint}>
+        </Button>
+        <Button onClick={onPrint}>
           {t("onboarding.kit.print")}
-        </button>
+        </Button>
       </div>
       <label className="row">
         <input type="checkbox" checked={saved} onChange={(e) => onSavedChange(e.target.checked)} />
         <span>{t("onboarding.kit.saved")}</span>
       </label>
       <div className="row">
-        <button type="button" disabled={!saved || busy} onClick={onDone}>
+        <Button disabled={!saved || busy} onClick={onDone}>
           {busy ? t("onboarding.working") : t("onboarding.kit.done")}
-        </button>
+        </Button>
       </div>
-      {error && <p className="banner">{errorText(t, error)}</p>}
-    </section>
+      {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
+    </div>
   );
 }
 
@@ -115,6 +116,16 @@ type Step = "mode" | "code" | "unlock" | "kitJoin" | "passphrase" | "kit";
 
 /** The first-run flow. Going back is possible everywhere before the vault is registered. */
 export function Onboarding({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="join-wrap">
+      <section className="card join-card">
+        <OnboardingSteps onDone={onDone} />
+      </section>
+    </div>
+  );
+}
+
+function OnboardingSteps({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>("mode");
   const [choice, setChoice] = useState<"local" | "server" | null>(null);
@@ -163,14 +174,14 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           onChoice={setChoice}
           onNext={() => (choice === "local" ? void run(async () => { await api.chooseLocalOnly(); onDone(); }) : back("code"))}
         />
-        {error && <p className="banner">{errorText(t, error)}</p>}
+        {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
       </>
     );
   }
 
   if (step === "code") {
     return (
-      <section>
+      <div>
         <h2>{t("onboarding.code.title")}</h2>
         <p className="muted">{t("onboarding.code.intro")}</p>
         <p className="muted">{t("onboarding.code.serverHelp")}</p>
@@ -183,9 +194,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} autoComplete="off" />
         </label>
         <div className="row">
-          <button type="button" onClick={() => back("mode")}>{t("onboarding.back")}</button>
-          <button
-            type="button"
+          <Button onClick={() => back("mode")}>{t("onboarding.back")}</Button>
+          <Button
             disabled={busy || !code.trim()}
             onClick={() =>
               void run(async () => {
@@ -195,16 +205,16 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             }
           >
             {busy ? t("onboarding.working") : t("onboarding.next")}
-          </button>
+          </Button>
         </div>
-        {error && <p className="banner">{errorText(t, error)}</p>}
-      </section>
+        {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
+      </div>
     );
   }
 
   if (step === "unlock") {
     return (
-      <section>
+      <div>
         <h2>{t("onboarding.unlock.title")}</h2>
         <p className="muted">{t("onboarding.unlock.intro")}</p>
         <label className="field">
@@ -212,9 +222,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" />
         </label>
         <div className="row">
-          <button type="button" onClick={() => back("code")}>{t("onboarding.back")}</button>
-          <button
-            type="button"
+          <Button onClick={() => back("code")}>{t("onboarding.back")}</Button>
+          <Button
             disabled={busy || !passphrase}
             onClick={() =>
               void run(async () => {
@@ -225,19 +234,19 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             }
           >
             {busy ? t("onboarding.working") : t("onboarding.unlock.submit")}
-          </button>
+          </Button>
         </div>
         <p>
           <button type="button" className="link" onClick={() => back("kitJoin")}>{t("onboarding.unlock.forgot")}</button>
         </p>
-        {error && <p className="banner">{errorText(t, error)}</p>}
-      </section>
+        {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
+      </div>
     );
   }
 
   if (step === "kitJoin") {
     return (
-      <section>
+      <div>
         <h2>{t("onboarding.kitJoin.title")}</h2>
         <p className="muted">{t("onboarding.kitJoin.intro")}</p>
         <label className="field">
@@ -245,9 +254,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <textarea className="kit-input" rows={4} value={kitInput} onChange={(e) => setKitInput(e.target.value)} spellCheck={false} autoComplete="off" />
         </label>
         <div className="row">
-          <button type="button" onClick={() => back("unlock")}>{t("onboarding.back")}</button>
-          <button
-            type="button"
+          <Button onClick={() => back("unlock")}>{t("onboarding.back")}</Button>
+          <Button
             disabled={busy || !kitInput.trim()}
             onClick={() =>
               void run(async () => {
@@ -258,10 +266,10 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             }
           >
             {busy ? t("onboarding.working") : t("onboarding.kitJoin.submit")}
-          </button>
+          </Button>
         </div>
-        {error && <p className="banner">{errorText(t, error)}</p>}
-      </section>
+        {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
+      </div>
     );
   }
 
@@ -269,7 +277,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     const strength = passphraseStrength(passphrase);
     const mismatch = again.length > 0 && again !== passphrase;
     return (
-      <section>
+      <div>
         <h2>{t("onboarding.passphraseStep.title")}</h2>
         <p className="muted">{t("onboarding.passphraseStep.intro")}</p>
         <label className="field">
@@ -281,10 +289,9 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <span>{t("onboarding.passphraseStep.again")}</span>
           <input type="text" value={again} onChange={(e) => setAgain(e.target.value)} spellCheck={false} autoComplete="off" />
         </label>
-        {mismatch && <p className="banner">{t("onboarding.passphraseStep.mismatch")}</p>}
+        {mismatch && <p className="notice notice-warn">{t("onboarding.passphraseStep.mismatch")}</p>}
         <div className="row">
-          <button
-            type="button"
+          <Button
             onClick={() =>
               void run(async () => {
                 const p = await api.generatePassphrase();
@@ -294,12 +301,11 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             }
           >
             {t("onboarding.passphraseStep.generate")}
-          </button>
+          </Button>
         </div>
         <div className="row">
-          <button type="button" onClick={() => back("code")}>{t("onboarding.back")}</button>
-          <button
-            type="button"
+          <Button onClick={() => back("code")}>{t("onboarding.back")}</Button>
+          <Button
             disabled={busy || !passphrase || passphrase !== again}
             onClick={() =>
               void run(async () => {
@@ -310,10 +316,10 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             }
           >
             {busy ? t("onboarding.working") : t("onboarding.next")}
-          </button>
+          </Button>
         </div>
-        {error && <p className="banner">{errorText(t, error)}</p>}
-      </section>
+        {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
+      </div>
     );
   }
 

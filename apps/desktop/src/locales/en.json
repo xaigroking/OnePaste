@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "nativeName": "English",
+    "dir": "ltr"
+  },
   "app": {
     "title": "OnePaste"
   },
@@ -49,6 +53,11 @@
     "syncing": "Syncing",
     "offline": "Offline",
     "error": "Error",
+    "listening": "Listening",
+    "paused": "Recording off",
+    "stopped": "Stopped",
+    "active": "Active",
+    "pendingCount": "{{count}} waiting to upload",
     "local": "Local only"
   },
   "diagnostics": {
@@ -66,8 +75,8 @@
   "language": {
     "label": "Language",
     "system": "Follow system",
-    "zh": "\u4e2d\u6587",
-    "en": "English"
+    "auto": "Following the system: {{name}}",
+    "manual": "Choose a language"
   },
   "webview2": {
     "missing": "The Microsoft Edge WebView2 runtime was not found, so OnePaste cannot show its window. Please install it and then start OnePaste again."
@@ -81,13 +90,14 @@
     "stuck": "{{conflict}} changes are in conflict and {{failed}} could not be uploaded."
   },
   "search": {
-    "placeholder": "Search your history",
+    "placeholder": "Search your history (local index, never uploaded)",
     "filter": {
       "all": "All",
       "favorites": "Favorites",
       "text": "Text",
       "images": "Images"
-    }
+    },
+    "filterLabel": "Filter by type"
   },
   "results": {
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
@@ -105,7 +115,78 @@
   "settings": {
     "title": "Settings",
     "autoApply": "Put what you copy on your other devices into this computer's clipboard",
-    "record": "Record what I copy on this computer"
+    "record": "Record what I copy on this computer",
+    "general": "General",
+    "appearance": "Appearance",
+    "theme": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "clipboard": "Clipboard",
+    "sync": "Sync",
+    "syncState": "Sync",
+    "queue": "Queue",
+    "queueValue": "{{pending}} waiting, {{conflict}} in conflict, {{failed}} failed",
+    "shortcuts": "Shortcuts",
+    "showWindow": "Show OnePaste",
+    "privacy": "Privacy and diagnostics",
+    "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
+    "about": "About",
+    "aboutBody": "OnePaste is source-available and free for non-commercial use. No telemetry is sent."
+  },
+  "nav": {
+    "history": "History",
+    "devices": "Devices",
+    "settings": "Settings"
+  },
+  "sync": {
+    "synced": "Synced",
+    "pending": "Waiting",
+    "localOnly": "This device only"
+  },
+  "detail": {
+    "title": "Details",
+    "note": "Note",
+    "notePlaceholder": "Add a note...",
+    "delete": "Delete (syncs to all devices)",
+    "deleteConfirm": "Click again to delete everywhere",
+    "none": "Select an item to see its details."
+  },
+  "devices": {
+    "thisDevice": "This device",
+    "thisBadge": "This device",
+    "listTitle": "Devices in this vault",
+    "loading": "Loading\u2026",
+    "colName": "Name",
+    "colSeen": "Last seen",
+    "colState": "Status",
+    "colActions": "Actions",
+    "now": "Now",
+    "never": "Not yet",
+    "unreadable": "Unnamed device",
+    "removed": "Removed",
+    "active": "Active",
+    "rename": "Rename",
+    "soon": "Coming soon",
+    "soonHint": "Renaming a device needs a change on the server and is not available yet.",
+    "remove": "Remove",
+    "removeTitle": "Remove {{name}}",
+    "removeBody": "Remove \"{{name}}\" from your vault? It stops syncing right away and will no longer receive your history. Items it already has stay on that computer. To add it again you need a new connection code.",
+    "removeConfirm": "Remove device",
+    "addTitle": "Add a device",
+    "addBody": "Make a connection code, then open OnePaste on the other computer and choose \"Connect to my own server\".",
+    "addMake": "Make a connection code",
+    "addReminder": "The new device also needs your passphrase. Keep your recovery kit safe: it is the only way back if you forget the passphrase. A new code replaces any earlier unused one.",
+    "addDone": "Done",
+    "footer": "Syncing through your own server: {{server}}",
+    "localTitle": "This computer keeps its history to itself",
+    "localBody": "Nothing is synced, so there are no other devices. To use more than one computer, set OnePaste up again and connect it to your own server.",
+    "errors": {
+      "cannot_revoke_this_device": "This device cannot remove itself here.",
+      "unreachable": "The server cannot be reached.",
+      "other": "That did not work ({{code}})."
+    }
   },
   "onboarding": {
     "next": "Next",

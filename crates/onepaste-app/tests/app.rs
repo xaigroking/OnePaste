@@ -519,5 +519,12 @@ fn the_futures_of_the_commands_can_run_on_any_thread() {
     send(&app.delete(""));
     send(&app.diagnostics());
     send(&app.sync_now());
+    send(&app.devices());
+    send(&app.revoke_device(""));
+    send(&app.new_connection_code());
+    send(&app.create_vault("", "", ""));
+    send(&app.confirm_kit_saved());
+    send(&app.choose_local_only());
+    send(&app.wipe_local_data());
     send(&app.on_clip_event(ClipEvent::SkippedSelf));
 }

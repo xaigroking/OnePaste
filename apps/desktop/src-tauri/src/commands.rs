@@ -3,7 +3,7 @@
 use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
-use onepaste_app::{parse_filter, App, ItemView, Mode, ServerVault, Settings, Status};
+use onepaste_app::{parse_filter, App, DeviceList, ItemView, Mode, ServerVault, Settings, Status};
 use onepaste_platform::clipboard::{self, Content};
 use onepaste_platform::system;
 use serde::Serialize;
@@ -28,15 +28,15 @@ impl ActionResult {
 #[serde(rename_all = "camelCase")]
 pub struct LanguageState {
     preference: Preference,
-    effective: &'static str,
+    effective: String,
     system_locale: Option<String>,
 }
 
 fn language_state(state: &AppState) -> LanguageState {
     let g = state.0.lock().unwrap();
     LanguageState {
-        preference: g.language,
-        effective: lang::effective(g.language, g.system_locale.as_deref()),
+        preference: g.language.clone(),
+        effective: lang::effective(&g.language, g.system_locale.as_deref()),
         system_locale: g.system_locale.clone(),
     }
 }
@@ -53,11 +53,11 @@ pub fn set_language(app: AppHandle, preference: Preference) -> LanguageState {
     let state = app.state::<AppState>();
     let dir = {
         let mut g = state.0.lock().unwrap();
-        g.language = preference;
+        g.language = preference.clone();
         g.settings_dir.clone()
     };
     if let Some(dir) = dir {
-        if lang::save(&dir, preference).is_err() {
+        if lang::save(&dir, &preference).is_err() {
             state.0.lock().unwrap().push_log("settings_save_failed", None);
         }
     }
@@ -145,6 +145,24 @@ pub async fn app_join_with_kit(app: AppHandle, core: State<'_, App>, code: Strin
     let r = core.join_with_kit(&code, &kit, &device_name).await.map_err(|e| e.code());
     tray::notify_changed(&app);
     r
+}
+
+/// The devices of the vault and the server they sync through.
+#[tauri::command]
+pub async fn app_devices(core: State<'_, App>) -> Result<DeviceList, String> {
+    core.devices().await.map_err(|e| e.code())
+}
+
+/// Removes another device from the vault.
+#[tauri::command]
+pub async fn app_revoke_device(core: State<'_, App>, device_id: String) -> Result<(), String> {
+    core.revoke_device(&device_id).await.map_err(|e| e.code())
+}
+
+/// A new connection code for adding a device.
+#[tauri::command]
+pub async fn app_new_connection_code(core: State<'_, App>) -> Result<String, String> {
+    core.new_connection_code().await.map_err(|e| e.code())
 }
 
 /// The version and the build id, for the About line. For a release build it is for example `0.0.1 (v0.0.1-main.7)`.

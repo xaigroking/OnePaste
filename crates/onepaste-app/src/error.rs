@@ -19,6 +19,8 @@ pub enum AppError {
     NoPendingSetup,
     #[error("this mode has no recovery kit")]
     NoRecoveryKit,
+    #[error("this device cannot remove itself from the vault here")]
+    CannotRevokeThisDevice,
     #[error("the connection code is not valid")]
     InvalidConnectionCode,
     #[error("the server cannot be reached")]
@@ -56,6 +58,7 @@ impl AppError {
             AppError::AlreadySetUp => "already_set_up".into(),
             AppError::NoPendingSetup => "no_pending_setup".into(),
             AppError::NoRecoveryKit => "no_recovery_kit".into(),
+            AppError::CannotRevokeThisDevice => "cannot_revoke_this_device".into(),
             AppError::InvalidConnectionCode => "invalid_connection_code".into(),
             AppError::Unreachable => "unreachable".into(),
             AppError::Server(c) => c.clone(),

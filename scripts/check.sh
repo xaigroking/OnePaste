@@ -232,4 +232,7 @@ done
 rm -f "$notes_tmp"
 [ "$release_fail" -eq 0 ] || fail=1
 
+# 14) Every translation file has all the keys of English, and the same placeholders
+python3 tools/check_locales.py || fail=1
+
 [ "$fail" -eq 0 ] && echo "check.sh: OK" || { echo "check.sh: FAILED" >&2; exit 1; }

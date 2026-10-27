@@ -34,7 +34,7 @@ pub fn build(state: &Inner, os_version: &str) -> String {
     out.push_str(&format!("os: {os_version}\n"));
     out.push_str(&format!("arch: {}\n", std::env::consts::ARCH));
     out.push_str(&format!("system_locale: {}\n", state.system_locale.as_deref().unwrap_or("unknown")));
-    out.push_str(&format!("ui_language: {}\n", crate::lang::effective(state.language, state.system_locale.as_deref())));
+    out.push_str(&format!("ui_language: {}\n", crate::lang::effective(&state.language, state.system_locale.as_deref())));
     out.push_str(&format!("tray_state: {}\n", state.tray.key()));
     out.push_str("recent_events (utc):\n");
     let skip = state.log.len().saturating_sub(20);

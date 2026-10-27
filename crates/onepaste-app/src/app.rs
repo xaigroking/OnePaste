@@ -87,6 +87,28 @@ pub struct ItemView {
     pub size: i64,
 }
 
+/// One device of the vault, as the devices page shows it.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceView {
+    pub device_id: String,
+    /// The name the user gave it, opened with the vault key. `None` if it cannot be read.
+    pub name: Option<String>,
+    /// Seconds since the epoch.
+    pub created_at: i64,
+    pub last_seen_at: Option<i64>,
+    pub revoked: bool,
+    pub this_device: bool,
+}
+
+/// The devices of the vault and the server they sync through.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceList {
+    pub devices: Vec<DeviceView>,
+    pub server_url: String,
+}
+
 /// An entry of the event log. It never holds clipboard content: only kinds, sizes and error codes.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -930,6 +952,59 @@ impl App {
             out.push_str(&format!("  {} {}{}\n", e.ts_ms, e.kind, e.detail.as_ref().map(|d| format!(" ({d})")).unwrap_or_default()));
         }
         out
+    }
+
+    /// A handle for plain server calls, taken while the session lock is held and used after it is released.
+    async fn api(&self) -> Result<(onepaste_client::ApiClient, Key, String), AppError> {
+        let g = self.0.session.lock().await;
+        let s = g.as_ref().ok_or(AppError::NotJoined)?;
+        Ok((s.api(), Key::from_bytes(*s.master_key().as_bytes()), s.info.device_id.clone()))
+    }
+
+    /// The devices of the vault, with their names opened. Needs the server.
+    pub async fn devices(&self) -> Result<DeviceList, AppError> {
+        use base64::engine::general_purpose::STANDARD as B64;
+        use onepaste_core::crypto::{self, aad};
+        let (api, mk, me) = self.api().await?;
+        let rows = api.call(onepaste_sync::Method::Get, "/v1/devices", None).await.map_err(AppError::from)?;
+        let mut devices = Vec::new();
+        for d in rows.as_array().cloned().unwrap_or_default() {
+            let id = d["device_id"].as_str().unwrap_or("").to_string();
+            let name = d["sealed_name"]
+                .as_str()
+                .and_then(|n| B64.decode(n).ok())
+                .and_then(|raw| crypto::open(&mk, &aad::device(&id), &raw).ok())
+                .and_then(|b| String::from_utf8(b).ok());
+            devices.push(DeviceView {
+                this_device: id == me,
+                device_id: id,
+                name,
+                created_at: d["created_at"].as_i64().unwrap_or(0),
+                last_seen_at: d["last_seen_at"].as_i64(),
+                revoked: d["revoked"].as_bool().unwrap_or(false),
+            });
+        }
+        let server_url = self.0.session.lock().await.as_ref().map(|s| s.info.url.clone()).unwrap_or_default();
+        Ok(DeviceList { devices, server_url })
+    }
+
+    /// Removes another device from the vault: it can no longer sync. This device cannot revoke itself here.
+    pub async fn revoke_device(&self, device_id: &str) -> Result<(), AppError> {
+        let (api, _, me) = self.api().await?;
+        if device_id == me {
+            return Err(AppError::CannotRevokeThisDevice);
+        }
+        api.call(onepaste_sync::Method::Delete, &format!("/v1/devices/{device_id}"), None).await.map_err(AppError::from)?;
+        self.log("device_revoked", None);
+        Ok(())
+    }
+
+    /// A new connection code for adding another device. It replaces the unused ones.
+    pub async fn new_connection_code(&self) -> Result<String, AppError> {
+        let (api, _, _) = self.api().await?;
+        let code = api.invite().await.map_err(AppError::from)?;
+        self.log("connection_code_made", None);
+        Ok(code)
     }
 
     /// Stops the background work.
