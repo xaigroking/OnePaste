@@ -85,3 +85,34 @@ footer {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+
+/* Joining form and search */
+.field { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
+input {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+}
+input[type="checkbox"] { padding: 0; }
+.grow { flex: 1; min-width: 0; }
+button:disabled { opacity: 0.5; cursor: default; }
+.note { color: var(--muted); font-style: normal; }
+
+/* The action buttons of an item must not inherit the "whole row is a button" style of the other lists */
+.items li { align-items: center; justify-content: space-between; }
+.items .text { flex: 1; min-width: 0; }
+.actions { display: flex; gap: 6px; flex: none; }
+.items .actions button {
+  all: initial;
+  font: inherit;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+}
+.items .actions button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.items .actions button:focus-visible { outline: 2px solid var(--accent); }

@@ -1,24 +1,10 @@
 {
   "app": {
-    "title": "OnePaste desktop spike"
+    "title": "OnePaste"
   },
   "hotkey": {
     "hint": "Press {{keys}} to bring up this window",
     "busy": "Hotkey is already in use"
-  },
-  "recents": {
-    "title": "Recent items (in memory only, up to 20)",
-    "empty": "Nothing yet. Copy some text or take a screenshot.",
-    "image": "Image {{width}}\u00d7{{height}}",
-    "clickHint": "Click an item to put it back on the clipboard"
-  },
-  "secure": {
-    "title": "Secure storage test",
-    "write": "Write test key",
-    "read": "Read",
-    "delete": "Delete",
-    "ok": "Success",
-    "fail": "Failed: {{code}}"
   },
   "log": {
     "title": "Event log",
@@ -31,7 +17,27 @@
     "hotkey_busy": "Hotkey registration failed (in use)",
     "sensitive_skipped": "Skipped: sensitive marker",
     "settings_save_failed": "Could not save the language setting",
-    "watcher_failed": "A watcher failed to start"
+    "watcher_failed": "A watcher failed to start",
+    "joined": "Joined the vault",
+    "captured": "Copied item recorded",
+    "uploaded": "Change uploaded",
+    "downloaded": "New items downloaded",
+    "applied_remote": "Put an item from another device on the clipboard",
+    "skipped_sensitive": "Skipped: sensitive marker",
+    "skipped_self": "Skipped: written by OnePaste",
+    "skipped_duplicate": "Skipped: same as the last copy",
+    "image_too_large": "Image too large to sync",
+    "sync_paused": "Syncing stopped",
+    "woke_from_sleep": "System woke from sleep",
+    "upload_failed": "An upload failed",
+    "download_failed": "A download failed",
+    "conflict": "A change is in conflict",
+    "capture_failed": "Could not record a copy",
+    "apply_failed": "Could not write to the clipboard",
+    "history_refresh_failed": "Could not update the history",
+    "sync_engine_error": "A sync error occurred",
+    "clipboard_monitor_failed": "The clipboard monitor could not start",
+    "start_failed": "Could not start syncing"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -47,7 +53,6 @@
   },
   "tray": {
     "open": "Open window",
-    "toggle": "Switch status (for testing)",
     "diagnostics": "Copy diagnostics",
     "quit": "Quit",
     "statusLine": "Status: {state}",
@@ -61,5 +66,57 @@
   },
   "webview2": {
     "missing": "The Microsoft Edge WebView2 runtime was not found, so OnePaste cannot show its window. Please install it and then start OnePaste again."
+  },
+  "join": {
+    "title": "Join your vault",
+    "intro": "Paste the connection code from the device that already holds your vault, and type its passphrase. The passphrase is used once and never saved.",
+    "code": "Connection code",
+    "passphrase": "Passphrase",
+    "deviceName": "Name of this device",
+    "submit": "Join",
+    "working": "Joining\u2026",
+    "errors": {
+      "wrong_passphrase": "The passphrase is wrong. Nothing was changed.",
+      "vault_empty": "This server has no vault yet. Create one first on a device that supports it, then join with its connection code.",
+      "invalid_connection_code": "This is not a valid connection code.",
+      "unreachable": "The server cannot be reached. Check the address and your network.",
+      "registration_invalid": "The connection code has expired or was already used. Ask for a new one.",
+      "other": "Joining failed ({{code}})."
+    }
+  },
+  "paused": {
+    "revoked": "This device was removed from the vault, so syncing has stopped. Ask for a new connection code from another device and join again.",
+    "server_rollback": "The server shows older data than this device has already seen, so syncing has stopped. Use \"onepaste resync\" on the command line to recover.",
+    "other": "Syncing has stopped ({{code}})."
+  },
+  "queue": {
+    "stuck": "{{conflict}} changes are in conflict and {{failed}} could not be uploaded."
+  },
+  "search": {
+    "placeholder": "Search your history",
+    "filter": {
+      "all": "All",
+      "favorites": "Favorites",
+      "text": "Text",
+      "images": "Images"
+    }
+  },
+  "results": {
+    "empty": "Nothing yet. Copy some text or an image and it will appear here.",
+    "noMatch": "Nothing matches."
+  },
+  "item": {
+    "image": "Image {{width}}\u00d7{{height}}, {{size}}",
+    "copy": "Copy",
+    "favorite": "Favorite",
+    "unfavorite": "Unfavorite",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "delete": "Delete"
+  },
+  "settings": {
+    "title": "Settings",
+    "autoApply": "Put what you copy on your other devices into this computer's clipboard",
+    "record": "Record what I copy on this computer"
   }
 }

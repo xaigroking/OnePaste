@@ -1,48 +1,124 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onChanged } from "./api";
 import type {
+  ActionResult,
+  AppSettings,
+  AppStatus,
+  Filter,
   HotkeyState,
+  ItemView,
   LanguagePreference,
   LanguageState,
   LogEntry,
-  RecentItem,
-  SecureResult,
   TrayState,
   TrayTexts,
 } from "./api";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
 const HOTKEY_TEXT = IS_MAC ? "⌃⌥V" : "Ctrl+Alt+V";
+const PAGE_SIZE = 50;
+const FILTERS: Filter[] = ["all", "favorites", "text", "images"];
 
 function formatTime(tsMs: number): string {
   return new Date(tsMs).toLocaleTimeString([], { hour12: false });
 }
 
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+/** The joining form: connection code, passphrase, device name. The passphrase is used once and never stored. */
+function JoinForm({ onJoined }: { onJoined: () => void }) {
+  const { t } = useTranslation();
+  const [code, setCode] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [deviceName, setDeviceName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.join(code.trim(), passphrase, deviceName.trim() || "OnePaste desktop");
+      setPassphrase("");
+      onJoined();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h2>{t("join.title")}</h2>
+      <p className="muted">{t("join.intro")}</p>
+      <label className="field">
+        <span>{t("join.code")}</span>
+        <input value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} autoComplete="off" />
+      </label>
+      <label className="field">
+        <span>{t("join.passphrase")}</span>
+        <input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" />
+      </label>
+      <label className="field">
+        <span>{t("join.deviceName")}</span>
+        <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} autoComplete="off" />
+      </label>
+      <div className="row">
+        <button type="button" disabled={busy || !code.trim() || !passphrase} onClick={() => void submit()}>
+          {busy ? t("join.working") : t("join.submit")}
+        </button>
+      </div>
+      {error && <p className="banner">{t(`join.errors.${error}`, { defaultValue: t("join.errors.other", { code: error }) })}</p>}
+    </section>
+  );
+}
+
 export default function App() {
   const { t, i18n } = useTranslation();
-  const [recents, setRecents] = useState<RecentItem[]>([]);
+  const [status, setStatus] = useState<AppStatus | null>(null);
+  const [items, setItems] = useState<ItemView[]>([]);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [hotkey, setHotkey] = useState<HotkeyState>("unknown");
   const [tray, setTray] = useState<TrayState>("synced");
-  const [secure, setSecure] = useState<SecureResult | null>(null);
-  const [diag, setDiag] = useState<SecureResult | null>(null);
+  const [diag, setDiag] = useState<ActionResult | null>(null);
   const [language, setLanguage] = useState<LanguageState | null>(null);
+  // The newest search wins: an older, slower answer must not overwrite it
+  const searchSeq = useRef(0);
 
   const refresh = useCallback(async () => {
-    const [r, l, h, s, lang] = await Promise.all([
-      api.recents(),
+    const [st, l, h, tr, lang, se] = await Promise.all([
+      api.status(),
       api.log(),
       api.hotkey(),
       api.trayState(),
       api.languageState(),
+      api.settings(),
     ]);
-    setRecents(r);
+    setStatus(st);
     setLog(l);
     setHotkey(h);
-    setTray(s);
+    setTray(tr);
     setLanguage(lang);
-  }, []);
+    setSettings(se);
+    if (st.joined) {
+      const seq = ++searchSeq.current;
+      try {
+        const found = await api.search(query, filter, PAGE_SIZE, 0);
+        if (seq === searchSeq.current) setItems(found);
+      } catch {
+        if (seq === searchSeq.current) setItems([]);
+      }
+    }
+  }, [query, filter]);
 
   // Switch the UI language as soon as the Rust side reports a different one.
   useEffect(() => {
@@ -54,7 +130,6 @@ export default function App() {
   useEffect(() => {
     const texts: TrayTexts = {
       open: t("tray.open"),
-      toggle: t("tray.toggle"),
       diagnostics: t("tray.diagnostics"),
       quit: t("tray.quit"),
       statusLine: t("tray.statusLine"),
@@ -64,8 +139,8 @@ export default function App() {
       offline: t("status.offline"),
       error: t("status.error"),
     };
-    void api.setTexts(texts).then(refresh);
-  }, [t, refresh]);
+    void api.setTexts(texts);
+  }, [t]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -73,12 +148,30 @@ export default function App() {
       unlisten = u;
     });
     void refresh();
-    return () => unlisten?.();
+    // A safety net for changes that do not announce themselves
+    const timer = window.setInterval(() => void refresh(), 5000);
+    return () => {
+      unlisten?.();
+      window.clearInterval(timer);
+    };
   }, [refresh]);
 
   const changeLanguage = async (preference: LanguagePreference) => setLanguage(await api.setLanguage(preference));
-  const runSecure = async (action: "write" | "read" | "delete") => setSecure(await api.secure(action));
   const runDiagnostics = async () => setDiag(await api.copyDiagnostics());
+  const act = async (work: Promise<void>) => {
+    try {
+      await work;
+    } finally {
+      void refresh();
+    }
+  };
+  const changeSetting = async (next: AppSettings) => {
+    await api.setSettings(next);
+    setSettings(next);
+  };
+
+  const joined = status?.joined ?? false;
+  const emptyKey = query.trim() || filter !== "all" ? "results.noMatch" : "results.empty";
 
   return (
     <main>
@@ -98,44 +191,99 @@ export default function App() {
         </select>
       </label>
 
-      <section>
-        <h2>{t("recents.title")}</h2>
-        {recents.length === 0 ? (
-          <p className="muted">{t("recents.empty")}</p>
-        ) : (
-          <>
-            <p className="muted">{t("recents.clickHint")}</p>
-            <ul className="list">
-              {recents.map((r) => (
-                <li key={r.id}>
-                  <button type="button" onClick={() => void api.copyBack(r.id)}>
-                    <span className="time">{formatTime(r.tsMs)}</span>
-                    <span className="text">
-                      {r.kind === "image" ? t("recents.image", { width: r.width, height: r.height }) : r.preview}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+      {status && !joined && <JoinForm onJoined={() => void refresh()} />}
 
-      <section>
-        <h2>{t("secure.title")}</h2>
-        <div className="row">
-          <button type="button" onClick={() => void runSecure("write")}>
-            {t("secure.write")}
-          </button>
-          <button type="button" onClick={() => void runSecure("read")}>
-            {t("secure.read")}
-          </button>
-          <button type="button" onClick={() => void runSecure("delete")}>
-            {t("secure.delete")}
-          </button>
-        </div>
-        {secure && <p>{secure.ok ? t("secure.ok") : t("secure.fail", { code: secure.code })}</p>}
-      </section>
+      {joined && status && (
+        <>
+          {status.paused && (
+            <p className="banner">
+              {t(`paused.${status.paused}`, { defaultValue: t("paused.other", { code: status.paused }) })}
+            </p>
+          )}
+          {(status.conflict > 0 || status.failed > 0) && (
+            <p className="banner">{t("queue.stuck", { conflict: status.conflict, failed: status.failed })}</p>
+          )}
+
+          <section>
+            <div className="row">
+              <input
+                className="grow"
+                type="search"
+                placeholder={t("search.placeholder")}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+                {FILTERS.map((f) => (
+                  <option key={f} value={f}>
+                    {t(`search.filter.${f}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {items.length === 0 ? (
+              <p className="muted">{t(emptyKey)}</p>
+            ) : (
+              <ul className="list items">
+                {items.map((it) => (
+                  <li key={it.itemId}>
+                    <span className="text">
+                      {it.kind === "image"
+                        ? t("item.image", { width: it.width, height: it.height, size: formatSize(it.size) })
+                        : it.preview}
+                      {it.note && <em className="note"> — {it.note}</em>}
+                    </span>
+                    <span className="actions">
+                      <button type="button" onClick={() => void act(api.copy(it.itemId))}>
+                        {t("item.copy")}
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={it.favorite}
+                        onClick={() => void act(api.setFlags(it.itemId, { favorite: !it.favorite }))}
+                      >
+                        {it.favorite ? t("item.unfavorite") : t("item.favorite")}
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={it.pinned}
+                        onClick={() => void act(api.setFlags(it.itemId, { pinned: !it.pinned }))}
+                      >
+                        {it.pinned ? t("item.unpin") : t("item.pin")}
+                      </button>
+                      <button type="button" onClick={() => void act(api.remove(it.itemId))}>
+                        {t("item.delete")}
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {settings && (
+            <section>
+              <h2>{t("settings.title")}</h2>
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={settings.autoApplyRemote}
+                  onChange={(e) => void changeSetting({ ...settings, autoApplyRemote: e.target.checked })}
+                />
+                <span>{t("settings.autoApply")}</span>
+              </label>
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={settings.recordClipboard}
+                  onChange={(e) => void changeSetting({ ...settings, recordClipboard: e.target.checked })}
+                />
+                <span>{t("settings.record")}</span>
+              </label>
+            </section>
+          )}
+        </>
+      )}
 
       <section>
         <h2>{t("log.title")}</h2>

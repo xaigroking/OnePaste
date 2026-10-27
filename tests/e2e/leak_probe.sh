@@ -4,6 +4,8 @@
 # Needs: bash, jq, python3, sqlite3, curl and binaries built with the fault-injection features. In CI it also needs
 # tcpdump and sudo. Without capture rights (a developer machine) the user-space recorder tools/tcp_tap.py still sees every
 # byte the clients exchange with the server, and the tcpdump checks are reported as not run; in CI they must run.
+# The desktop application logic (the test harness) takes part in the flow, so its data directory, its history database and
+# its traffic are scanned as well.
 # Usage: tests/e2e/leak_probe.sh [binary-directory]   (default: target/debug)
 set -Eeuo pipefail
 
@@ -24,6 +26,8 @@ TAP_TOOL="$HERE/../../tools/tcp_tap.py"
 BIN_DIR=${1:-${BIN_DIR:-target/debug}}
 SERVER=$(cd "$BIN_DIR" && pwd)/onepaste-server
 CLI=$(cd "$BIN_DIR" && pwd)/onepaste
+HARNESS=$(cd "$BIN_DIR" && pwd)/onepaste-app-harness
+test -x "$HARNESS" || die "the test harness is not built: $HARNESS"
 ROOT=$(mktemp -d)
 OUT="$ROOT/out"
 TAPDIR="$ROOT/tap"
@@ -35,6 +39,7 @@ TCPDUMP_ON=0
 OLD_CORE_PATTERN=""
 cleanup() {
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2> /dev/null || true; done
+  [ -n "${HD_PID:-}" ] && kill "$HD_PID" 2> /dev/null || true
   if [ "$TCPDUMP_ON" = 1 ]; then sudo -n pkill -INT -x tcpdump 2> /dev/null || true; fi
   if [ -n "$OLD_CORE_PATTERN" ]; then sudo -n sysctl -q -w "kernel.core_pattern=$OLD_CORE_PATTERN" > /dev/null 2>&1 || true; fi
   rm -rf "$ROOT"
@@ -191,6 +196,44 @@ cli A list list
 cli A get get "$ID"
 ok "flow finished"
 
+step "run the desktop application logic through the same server with the planted strings"
+# Searching builds the history database of A (an encrypted copy of what A holds)
+cli A search_a search "$M_TEXT"
+cli A invite_h invite
+INVITE_H=$(grep -m1 '^onepaste1:' "$OUT/invite_h.out")
+coproc HD { "$HARNESS" "$ROOT/H" 2> "$OUT/harness.err"; }
+# hd <name> <command...>: sends one command to the harness and keeps its answer in $OUT/<name>.out
+hd() {
+  local name=$1
+  shift
+  printf '%s\n' "$*" >&"${HD[1]}"
+  : > "$OUT/$name.out"
+  local line
+  while IFS= read -r -t 60 line <&"${HD[0]}"; do
+    if [ "$line" = "END" ]; then return 0; fi
+    printf '%s\n' "$line" >> "$OUT/$name.out"
+  done
+  die "the harness did not answer: $name"
+}
+hd harness_join join "$INVITE_H" "$M_PASS" desktop
+test "$(cat "$OUT/harness_join.out")" = "ok"
+hd harness_sync1 sync
+hd harness_copy copy "desktop copy $M_TEXT"
+hd harness_sync2 sync
+hd harness_image copy-image
+hd harness_sync3 sync
+# search, clipboard and list print content to the user on purpose
+hd harness_list search "$M_TEXT"
+grep -q "$M_TEXT" "$OUT/harness_list.out" || die "the desktop search should find the planted text"
+hd harness_clip clipboard
+hd harness_status status
+printf 'quit\n' >&"${HD[1]}"
+wait "$HD_PID" 2> /dev/null || true
+HD_PID=""
+cli A sync_a3 sync
+test -f "$ROOT/H/history.db" || die "the desktop application did not build a history database"
+ok "desktop application flow finished"
+
 step "plain HTTP control request through the control recorder"
 curl -s -o /dev/null -X POST --data "control $M_TEXT" "http://127.0.0.1:$T2/" || true
 
@@ -244,14 +287,16 @@ echo "server log: $LOG_LINES lines"
 scan_for_markers "server logs" "$OUT/server.logs"
 scan_for_markers "server logs, server-held secrets" -p "$EXTRA" "$OUT/server.logs"
 
-step "1.2.3 client data directories"
+step "1.2.3 client data directories, including the history databases"
 scan_for_markers "client A data directory" "$ROOT/A"
 scan_for_markers "client B data directory" "$ROOT/B"
+scan_for_markers "desktop application data directory" "$ROOT/H"
+test -f "$ROOT/A/history.db" || die "client A has no history database to scan"
 
 step "1.2.4 everything the client commands printed"
 CLIENT_OUT="$ROOT/client_out"
 mkdir -p "$CLIENT_OUT"
-for f in join_a invite join_b add set sync_b sync_a add2 sync_b2 rm sync_a2 status revoke sync_b3; do cp "$OUT/$f.out" "$CLIENT_OUT/"; done
+for f in join_a invite join_b add set sync_b sync_a add2 sync_b2 rm sync_a2 status revoke sync_b3 invite_h sync_a3 harness_join harness_sync1 harness_sync2 harness_sync3 harness_status; do cp "$OUT/$f.out" "$CLIENT_OUT/"; done
 test "$(find "$CLIENT_OUT" -type f -size +0 | wc -l)" -ge 10 || die "the client printed almost nothing"
 scan_for_markers "client output" "$CLIENT_OUT"
 scan_for_markers "client output, server-held secrets" -p "$EXTRA" "$CLIENT_OUT"
@@ -332,8 +377,11 @@ check_mode() { [ "$(mode "$1")" = "$2" ] || die "$1 has mode $(mode "$1"), expec
 check_mode "$ROOT/A" 700
 check_mode "$ROOT/B" 700
 check_mode "$ROOT/srv" 700
+check_mode "$ROOT/H" 700
 check_mode "$ROOT/srv/tls/key.pem" 600
-for f in "$ROOT"/A/onepaste.db* "$ROOT"/B/onepaste.db* "$ROOT"/srv/onepaste.db*; do check_mode "$f" 600; done
+for f in "$ROOT"/A/onepaste.db* "$ROOT"/B/onepaste.db* "$ROOT"/srv/onepaste.db* "$ROOT"/A/history.db* "$ROOT"/H/client.db* "$ROOT"/H/onepaste.db* "$ROOT"/H/history.db*; do
+  [ -e "$f" ] && check_mode "$f" 600
+done
 ok "directories 0700, database files and the private key 0600"
 
 # ---------------------------------------------------------------------------------------------------------------------

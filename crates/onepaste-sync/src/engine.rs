@@ -58,6 +58,8 @@ pub struct ItemSummary {
     pub seq: i64,
     pub deleted: bool,
     pub decrypt_failed: bool,
+    /// `text`, `image` or whatever kind the item has; empty for a tombstone or an item that cannot be read.
+    pub kind: String,
     /// The first line of the content, at most 60 characters.
     pub first_line: String,
     pub favorite: bool,
@@ -281,6 +283,7 @@ impl<S: Store> Engine<S> {
                     seq: row.seq,
                     deleted: row.deleted,
                     decrypt_failed: false,
+                    kind: String::new(),
                     first_line: String::new(),
                     favorite: false,
                     pinned: false,
@@ -291,7 +294,9 @@ impl<S: Store> Engine<S> {
                 if let (Some(j), false) = (&row.envelope_json, row.deleted) {
                     match parse_envelope(j).and_then(|e| open_envelope(mk, &e)) {
                         Ok(p) => {
-                            s.first_line = p.content.as_deref().unwrap_or("").lines().next().unwrap_or("").chars().take(60).collect();
+                            s.kind = p.kind.clone();
+                            // The content of an image is its encoded bytes, which are no line of text
+                            s.first_line = if p.kind == "image" { String::new() } else { p.content.as_deref().unwrap_or("").lines().next().unwrap_or("").chars().take(60).collect() };
                             s.favorite = p.favorite;
                             s.pinned = p.pinned;
                             s.note = p.note;

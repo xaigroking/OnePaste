@@ -1,8 +1,9 @@
-//! Connects platform events (clipboard, wake from sleep, network changes) to the app state and the event log.
+//! Connects wake-from-sleep and network events to the application logic. The clipboard is watched by the application
+//! logic itself, through the platform adapters.
 
 use crate::state::AppState;
 use crate::tray;
-use onepaste_platform::clipboard::{Event, Monitor};
+use onepaste_app::App;
 use onepaste_platform::network::{NetworkState, NetworkWatcher};
 use onepaste_platform::power::WakeWatcher;
 use std::any::Any;
@@ -18,33 +19,17 @@ fn log(app: &AppHandle, kind: &str, detail: Option<String>) {
     tray::notify_changed(app);
 }
 
-pub fn start(app: &AppHandle) -> Watchers {
+pub fn start(app: &AppHandle, core: &App) -> Watchers {
     let mut held: Vec<Box<dyn Any + Send + Sync>> = Vec::new();
 
-    let a = app.clone();
-    match Monitor::start(move |event| match event {
-        Event::Captured(content) => {
-            a.state::<AppState>().0.lock().unwrap().add_recent(content);
-            tray::notify_changed(&a);
-        }
-        Event::SkippedSensitive => log(&a, "sensitive_skipped", None),
-        Event::SkippedSelf => {}
-    }) {
-        Ok(m) => held.push(Box::new(m)),
-        Err(e) => log(app, "watcher_failed", Some(format!("clipboard {}", e.code()))),
-    }
-
-    let a = app.clone();
-    match WakeWatcher::start(move || log(&a, "wake", None)) {
+    let c = core.clone();
+    match WakeWatcher::start(move || c.notify_wake()) {
         Ok(w) => held.push(Box::new(w)),
         Err(e) => log(app, "watcher_failed", Some(format!("wake {}", e.code()))),
     }
 
-    let a = app.clone();
-    match NetworkWatcher::start(move |s| {
-        let kind = if s == NetworkState::Online { "network_online" } else { "network_offline" };
-        log(&a, kind, None);
-    }) {
+    let c = core.clone();
+    match NetworkWatcher::start(move |s| c.notify_network(s == NetworkState::Online)) {
         Ok(w) => held.push(Box::new(w)),
         Err(e) => log(app, "watcher_failed", Some(format!("network {}", e.code()))),
     }

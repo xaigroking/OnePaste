@@ -185,6 +185,7 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
                 device_name: name.clone().unwrap_or_else(|| "onepaste-cli".to_string()),
                 passphrase: env_passphrase(),
                 recovery_kit_out: recovery_kit_out.clone(),
+                existing_only: false,
             };
             let res = match join(&data_dir(&cli), opts.clone()).await {
                 Err(ClientError::PassphraseRequired) => {
@@ -233,7 +234,7 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
             if *json {
                 let v: Vec<Value> = items
                     .iter()
-                    .map(|i| json!({ "id": i.id, "seq": i.seq, "deleted": i.deleted, "decrypt_failed": i.decrypt_failed, "first_line": i.first_line, "favorite": i.favorite, "pinned": i.pinned, "note": i.note, "tags": i.tags, "queued": i.queued }))
+                    .map(|i| json!({ "id": i.id, "seq": i.seq, "deleted": i.deleted, "decrypt_failed": i.decrypt_failed, "kind": i.kind, "first_line": i.first_line, "favorite": i.favorite, "pinned": i.pinned, "note": i.note, "tags": i.tags, "queued": i.queued }))
                     .collect();
                 println!("{}", Value::Array(v));
             } else {

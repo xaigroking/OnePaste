@@ -20,6 +20,8 @@ pub struct JoinOptions {
     /// Required to join an existing vault. For a new vault it is optional: a random one is generated when absent.
     pub passphrase: Option<String>,
     pub recovery_kit_out: Option<PathBuf>,
+    /// Refuse to create a vault: if the server has none yet, fail with `VaultEmpty` before anything is registered.
+    pub existing_only: bool,
 }
 
 pub struct JoinResult {
@@ -29,6 +31,8 @@ pub struct JoinResult {
     pub generated_passphrase: Option<String>,
     /// Only for a new vault with no output file.
     pub recovery_kit: Option<String>,
+    /// The master key, for programs that keep it in the system secure store. Never print or log it.
+    pub master_key: onepaste_core::crypto::Key,
 }
 
 fn request(method: Method, path: &str, extra: Vec<(&str, String)>, body: Option<Value>) -> HttpRequest {
@@ -100,6 +104,9 @@ pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientErr
             (record, mk, false, None, None)
         }
         404 if code_of(&got.body) == "vault_empty" => {
+            if opts.existing_only {
+                return Err(ClientError::VaultEmpty);
+            }
             let (pass, generated) = match opts.passphrase {
                 Some(p) => (p, None),
                 None => {
@@ -150,5 +157,5 @@ pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientErr
         &[("u", code.u.as_str()), ("fp", code.fp.as_str()), ("device_id", device_id.as_str()), ("keyparams", record_json.as_str())],
         &[("devtoken", sealed_token.as_slice())],
     )?;
-    Ok(JoinResult { device_id, new_vault, generated_passphrase: generated, recovery_kit: kit_for_output })
+    Ok(JoinResult { device_id, new_vault, generated_passphrase: generated, recovery_kit: kit_for_output, master_key: mk })
 }

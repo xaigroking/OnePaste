@@ -19,4 +19,9 @@ for bin in onepaste-server onepaste; do
   done
   echo "checked $file"
 done
+# The test harness of the application logic must not be part of a production build
+if [ -e "$dir/onepaste-app-harness" ]; then
+  echo "FAIL: $dir/onepaste-app-harness exists: the test harness is in a production build" >&2
+  status=1
+fi
 exit $status

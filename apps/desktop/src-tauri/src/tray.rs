@@ -12,7 +12,6 @@ const TRAY_ID: &str = "main";
 pub struct TrayItems {
     status: MenuItem<Wry>,
     open: MenuItem<Wry>,
-    toggle: MenuItem<Wry>,
     diagnostics: MenuItem<Wry>,
     quit: MenuItem<Wry>,
 }
@@ -35,10 +34,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let texts = state.0.lock().unwrap().texts.clone();
     let status = MenuItem::with_id(app, "status", &texts.status_line, false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", &texts.open, true, None::<&str>)?;
-    let toggle = MenuItem::with_id(app, "toggle", &texts.toggle, true, None::<&str>)?;
     let diagnostics = MenuItem::with_id(app, "diagnostics", &texts.diagnostics, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", &texts.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&status, &open, &toggle, &diagnostics, &quit])?;
+    let menu = Menu::with_items(app, &[&status, &open, &diagnostics, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::new_owned(icons::rgba(TrayState::Synced), icons::SIZE, icons::SIZE))
@@ -52,7 +50,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         })
         .build(app)?;
 
-    app.manage(TrayItems { status, open, toggle, diagnostics, quit });
+    app.manage(TrayItems { status, open, diagnostics, quit });
     refresh(app);
     Ok(())
 }
@@ -60,12 +58,11 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         "open" => show_main_window(app),
-        "toggle" => {
-            let next = app.state::<AppState>().0.lock().unwrap().tray.next();
-            set_state(app, next);
-        }
         "diagnostics" => {
-            let _ = commands::copy_diagnostics_impl(app);
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::copy_diagnostics_impl(&app).await;
+            });
         }
         "quit" => app.exit(0),
         _ => {}
@@ -94,7 +91,6 @@ pub fn refresh(app: &AppHandle) {
     if let Some(items) = app.try_state::<TrayItems>() {
         let _ = items.status.set_text(texts.status_line.replace("{state}", &name));
         let _ = items.open.set_text(&texts.open);
-        let _ = items.toggle.set_text(&texts.toggle);
         let _ = items.diagnostics.set_text(&texts.diagnostics);
         let _ = items.quit.set_text(&texts.quit);
     }

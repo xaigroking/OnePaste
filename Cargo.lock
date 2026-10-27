@@ -1289,6 +1289,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
+name = "onepaste-app"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "onepaste-client",
+ "onepaste-core",
+ "onepaste-history",
+ "onepaste-server",
+ "onepaste-sync",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "onepaste-cli"
 version = "0.0.1"
 dependencies = [

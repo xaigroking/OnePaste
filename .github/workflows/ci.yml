@@ -126,11 +126,13 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
       - name: Build the server and the command line client (with test-only fault injection)
-        run: cargo build -p onepaste-server -p onepaste-cli --features onepaste-cli/fault-injection,onepaste-server/fault-injection
+        run: cargo build -p onepaste-server -p onepaste-cli -p onepaste-app --features onepaste-cli/fault-injection,onepaste-server/fault-injection,onepaste-app/test-harness
       - name: Two-client end-to-end test
         run: bash tests/e2e/two_clients.sh target/debug
       - name: Crash recovery end-to-end test
         run: bash tests/e2e/crash_recovery.sh target/debug
+      - name: Desktop application against the command line end-to-end test
+        run: bash tests/e2e/desktop_cli.sh target/debug
       - name: History search end-to-end test
         run: bash tests/e2e/history_search.sh target/debug
       - name: Leak probe
@@ -138,7 +140,7 @@ jobs:
           command -v tcpdump > /dev/null || { sudo apt-get update && sudo apt-get install -y tcpdump; }
           bash tests/e2e/leak_probe.sh target/debug
       - name: Build the release binaries without any feature
-        run: cargo build --release -p onepaste-server -p onepaste-cli
+        run: cargo build --release -p onepaste-server -p onepaste-cli -p onepaste-app
       - name: Check that the release binaries hold no fault injection
         run: bash scripts/no-fault-injection-strings.sh target/release
 

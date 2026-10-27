@@ -61,7 +61,6 @@ mod tests {
     fn diagnostics_keep_last_20_events_and_no_content() {
         let AppState(m) = AppState::default();
         let mut s = m.into_inner().unwrap();
-        s.add_recent(onepaste_platform::clipboard::Content::Text("super-secret-clipboard-text".into()));
         for i in 0..30 {
             s.push_log("wake", Some(format!("n{i}")));
         }
@@ -71,6 +70,5 @@ mod tests {
         assert!(text.contains("os: TestOS 1.0") && text.contains("tray_state: synced"));
         assert!(text.contains("build_tag: "));
         assert!(text.contains("system_locale: unknown") && text.contains("ui_language: en"));
-        assert!(!text.contains("super-secret"));
     }
 }

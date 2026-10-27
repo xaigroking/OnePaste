@@ -1,0 +1,30 @@
+[package]
+name = "onepaste-app"
+description = "OnePaste desktop application logic: joining, capture, sync driver, history search. Platform features are injected, so it runs and is tested without a window."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+# A small test program driven from standard input; never part of a release build
+test-harness = []
+
+[[bin]]
+name = "onepaste-app-harness"
+path = "src/bin/harness.rs"
+required-features = ["test-harness"]
+
+[dependencies]
+onepaste-client = { path = "../onepaste-client" }
+onepaste-core = { path = "../onepaste-core" }
+onepaste-sync = { path = "../onepaste-sync" }
+onepaste-history = { path = "../onepaste-history" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+sha2 = "0.10"
+thiserror = "1"
+
+[dev-dependencies]
+onepaste-server = { path = "../onepaste-server" }
