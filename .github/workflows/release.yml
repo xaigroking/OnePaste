@@ -1,8 +1,10 @@
 name: release
 
+# Named releases (v<version>-beta.<N>): a person makes the annotated tag. The automatic pre-releases of the main branch
+# (v<version>-main.<N>) have their own workflow, release-main.yml, and are ignored here.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*", "!v*-main.*"]
 
 permissions:
   contents: read
@@ -33,6 +35,7 @@ jobs:
       label: ${{ github.ref_name }}
       build_tag: ${{ github.ref_name }}
       retention_days: 1
+      include_tools: true
     # The optional Apple signing secrets (see the comment at the top of build-portable.yml)
     secrets: inherit
 
@@ -58,26 +61,9 @@ jobs:
       - name: Collect the files and write the checksums and the release notes
         run: |
           set -euo pipefail
-          win="OnePaste-${GITHUB_REF_NAME}-windows-x64-portable.zip"
-          mac="OnePaste-${GITHUB_REF_NAME}-macos-universal-portable.zip"
-          mkdir -p out
-          for f in "$win" "$mac"; do
-            test -f "staged/$f" || { echo "missing build output: $f"; ls -R staged; exit 1; }
-            cp "staged/$f" out/
-          done
-          python3 tools/check_portable_zip.py "out/$win" OnePaste.exe READ-ME-FIRST.txt
-          python3 tools/check_portable_zip.py "out/$mac" READ-ME-FIRST.txt prefix:OnePaste.app/
-          (cd out && sha256sum "$win" "$mac" > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          bash scripts/collect-release.sh "$GITHUB_REF_NAME" staged out downloads.md
           git for-each-ref --format='%(contents)' "refs/tags/${GITHUB_REF_NAME}" > notes.md
-          {
-            echo
-            echo "## Downloads"
-            echo
-            echo "| Platform | Architecture | File |"
-            echo "|---|---|---|"
-            echo "| Windows | x64 | \`$win\` |"
-            echo "| macOS | Apple silicon + Intel (universal) | \`$mac\` |"
-          } >> notes.md
+          { echo; cat packaging/release-notes/try-it.txt; echo; cat downloads.md; } >> notes.md
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2
         with:

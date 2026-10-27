@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "onepaste", version, about = "OnePaste command line client")]
+#[command(name = "onepaste", version = env!("ONEPASTE_VERSION_LONG"), about = "OnePaste command line client")]
 struct Cli {
     /// Directory that holds the local vault (default: ~/.onepaste)
     #[arg(long, global = true, env = "ONEPASTE_HOME")]

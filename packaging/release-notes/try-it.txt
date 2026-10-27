@@ -1,0 +1,10 @@
+## Try it in 3 steps
+Everything you need is in the downloads below; you do not have to install anything else.
+
+1. **Start the server** on a computer that stays on. Unzip the `tools` package for that computer, open a terminal in the unzipped folder and run the server. It prints a connection code, a line that starts with `onepaste1:`.
+   - Windows: `.\onepaste-server.exe`
+   - macOS and Linux: `./onepaste-server`
+2. **Open OnePaste** on your computer (the desktop download), choose "Connect to my own server", paste the connection code and follow the steps: choose a passphrase, then save the recovery kit it shows you somewhere offline.
+3. **Add a second device.** In the server folder, run the same program with `connect-code` to print a new code (`.\onepaste-server.exe connect-code` on Windows, `./onepaste-server connect-code` on macOS and Linux). On the second device open OnePaste, choose "Connect to my own server", paste the new code and type your passphrase.
+
+The `tools` packages also hold the command line client `onepaste`. On macOS the two programs are not signed either; `READ-ME-FIRST.txt` in the package shows how to allow them.

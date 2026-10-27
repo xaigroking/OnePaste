@@ -178,6 +178,12 @@ pub async fn app_new_connection_code(core: State<'_, App>) -> Result<String, Str
     core.new_connection_code().await.map_err(|e| e.code())
 }
 
+/// The version and the build id, for the About line. For a release build it is for example `0.0.1 (v0.0.1-main.7)`.
+#[tauri::command]
+pub fn app_version() -> String {
+    env!("ONEPASTE_VERSION_LONG").to_string()
+}
+
 /// Puts a secret (the recovery kit) on the clipboard with the origin marker, so it is not recorded as a history item.
 #[tauri::command]
 pub fn app_copy_secret(text: String) -> ActionResult {

@@ -76,7 +76,8 @@
     "syncNow": "Sync now",
     "devices": "Devices\u2026",
     "settings": "Settings\u2026",
-    "devicesCount": "{count} devices"
+    "devicesCount": "{count} devices",
+    "diagnostics": "Copy diagnostics"
   },
   "language": {
     "label": "Language",
@@ -311,5 +312,8 @@
     "syncMethod": "Method",
     "syncLocal": "Only on this computer",
     "syncServer": "Your own server"
+  },
+  "about": {
+    "version": "Version {{version}}"
   }
 }

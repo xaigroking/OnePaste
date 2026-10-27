@@ -126,6 +126,8 @@ export const api = {
   newConnectionCode: () => invoke<string>("app_new_connection_code"),
   hideQuickPanel: () => invoke<void>("hide_quick_panel"),
   setDeviceCount: (count: number | null) => invoke<void>("set_device_count", { count }),
+  /** The version and the build id, for example `0.0.1 (v0.0.1-main.7)`. */
+  version: () => invoke<string>("app_version"),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),

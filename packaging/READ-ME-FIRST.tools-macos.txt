@@ -1,0 +1,22 @@
+OnePaste server and command line client on macOS: allow them to open the first time
+=================================================================================
+
+These are two programs for a terminal: onepaste-server and onepaste. They are not
+signed with an Apple Developer ID, so macOS blocks each of them the first time you
+run it. This is expected, and they are not damaged. To allow them:
+
+1. In Terminal, go to this folder and run: ./onepaste-server
+   A dialog says Apple cannot verify it. Click Done.
+2. Open System Settings -> Privacy & Security, and scroll down to the
+   Security section.
+3. Click Open Anyway next to the message about onepaste-server, then confirm
+   (it may ask for your password or Touch ID). Run ./onepaste-server again.
+4. If the message says the program "is damaged and can't be opened", run this in
+   Terminal and try again (replace <path> with the folder that holds the programs):
+
+       xattr -cr <path>
+
+Do the same for ./onepaste the first time you run it. You only have to do this once.
+
+./onepaste-server prints a connection code (a line that starts with onepaste1:).
+See the release page for what to do with it.

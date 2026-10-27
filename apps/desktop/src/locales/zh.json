@@ -76,7 +76,8 @@
     "syncNow": "立即同步",
     "devices": "设备…",
     "settings": "设置…",
-    "devicesCount": "{count} 台设备"
+    "devicesCount": "{count} 台设备",
+    "diagnostics": "复制诊断信息"
   },
   "language": {
     "label": "语言",
@@ -311,5 +312,8 @@
     "syncMethod": "方式",
     "syncLocal": "仅本机",
     "syncServer": "你自己的服务器"
+  },
+  "about": {
+    "version": "版本 {{version}}"
   }
 }

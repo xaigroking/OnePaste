@@ -1,0 +1,16 @@
+OnePaste server and command line client on Windows
+==================================================
+
+These are two programs for a terminal: onepaste-server.exe and onepaste.exe.
+They are not signed, so Windows may warn you the first time you start one.
+This is expected. To allow it:
+
+1. Open a terminal (PowerShell) in this folder and run: .\onepaste-server.exe
+2. If SmartScreen says "Windows protected your PC", click More info, then click
+   Run anyway.
+
+Nothing is installed and no administrator rights are needed. You only have to
+do this once for each program.
+
+Run .\onepaste-server.exe to start the server. It prints a connection code (a line
+that starts with onepaste1:). See the release page for what to do with it.
