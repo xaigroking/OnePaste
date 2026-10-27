@@ -182,4 +182,7 @@ else
   skip "not inside a git repository, so file contents and commit history cannot be checked"
 fi
 
+# 13) Every translation file has all the keys of English, and the same placeholders
+python3 tools/check_locales.py || fail=1
+
 [ "$fail" -eq 0 ] && echo "check.sh: OK" || { echo "check.sh: FAILED" >&2; exit 1; }
