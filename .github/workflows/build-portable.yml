@@ -153,6 +153,9 @@ jobs:
           }
           Stop-Process -Id $p.Id -Force
           Write-Host "The program was still running after 10 seconds"
+      - name: Life cycle smoke test (start, start again, quit; three rounds)
+        shell: bash
+        run: python tools/smoke_lifecycle.py smoke
       - uses: actions/upload-artifact@v4
         with:
           name: portable-windows-x64
@@ -300,6 +303,8 @@ jobs:
           fi
           kill "$pid"
           echo "The program was still running after 10 seconds"
+      - name: Life cycle smoke test (start, start again, quit; three rounds)
+        run: python3 tools/smoke_lifecycle.py smoke --mac-open
       - uses: actions/upload-artifact@v4
         with:
           name: portable-macos-universal

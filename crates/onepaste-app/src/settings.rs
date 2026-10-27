@@ -19,11 +19,15 @@ pub struct Settings {
     pub update_channel: Option<crate::update::Channel>,
     /// The version the user chose to skip; it is not offered again, a newer one is.
     pub skipped_update: Option<String>,
+    /// The user dismissed the note that closing the window keeps the program running in the tray.
+    pub tray_notice_dismissed: bool,
+    /// The height in pixels of the text preview in the detail pane, when the user has dragged it.
+    pub text_preview_height: Option<u32>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { auto_apply_remote: true, record_clipboard: true, check_updates: true, update_channel: None, skipped_update: None }
+        Settings { auto_apply_remote: true, record_clipboard: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
     }
 }
 

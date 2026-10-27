@@ -8,6 +8,7 @@
 mod app;
 mod error;
 pub mod ports;
+pub mod instance;
 mod settings;
 pub mod update;
 

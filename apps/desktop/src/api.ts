@@ -75,6 +75,9 @@ export interface AppSettings {
   /** null means the default for this version. */
   updateChannel: UpdateChannel | null;
   skippedUpdate: string | null;
+  trayNoticeDismissed: boolean;
+  /** The height in pixels the user gave the text preview, if any. */
+  textPreviewHeight: number | null;
 }
 
 export interface LogEntry {
@@ -145,6 +148,7 @@ export const api = {
   availableUpdate: () => invoke<UpdateInfo | null>("app_available_update"),
   skipUpdate: (version: string) => invoke<void>("app_skip_update", { version }),
   openRelease: (url: string) => invoke<void>("app_open_release", { url }),
+  closeToTray: (dontShowAgain: boolean) => invoke<void>("close_to_tray", { dontShowAgain }),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
@@ -181,4 +185,9 @@ export function onQuickOpened(handler: () => void): Promise<() => void> {
 /** A background check found a newer version. */
 export function onUpdateAvailable(handler: (info: UpdateInfo) => void): Promise<() => void> {
   return listen<UpdateInfo>("onepaste://update-available", (e) => handler(e.payload));
+}
+
+/** The window was asked to close and the user has not yet been told that the program keeps running in the tray. */
+export function onCloseNotice(handler: () => void): Promise<() => void> {
+  return listen("onepaste://close-notice", handler);
 }

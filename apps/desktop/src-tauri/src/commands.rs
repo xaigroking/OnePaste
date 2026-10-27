@@ -147,6 +147,17 @@ pub async fn app_join_with_kit(app: AppHandle, core: State<'_, App>, code: Strin
     r
 }
 
+/// The user answered the note about closing the window: hide it, and with "do not show again" do not ask any more.
+#[tauri::command]
+pub fn close_to_tray(app: AppHandle, core: State<App>, dont_show_again: bool) {
+    if dont_show_again {
+        let mut s = core.settings();
+        s.tray_notice_dismissed = true;
+        let _ = core.set_settings(s);
+    }
+    crate::lifecycle::hide_main_window(&app);
+}
+
 /// Hides the quick panel (after a copy, or on Escape).
 #[tauri::command]
 pub fn hide_quick_panel(app: AppHandle) {
