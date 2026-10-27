@@ -1,7 +1,22 @@
 name: build-portable
 
-# Builds the portable desktop packages: a zip with a single OnePaste.exe for Windows and a
-# universal OnePaste.app zip for macOS. Nothing is installed and no administrator rights are needed.
+# Builds the portable desktop packages: a zip with OnePaste.exe for Windows and a universal
+# OnePaste.app zip for macOS. Each zip also holds READ-ME-FIRST.txt (copied from packaging/) with the steps
+# to allow the app to open the first time. Nothing is installed and no administrator rights are needed.
+#
+# macOS signing is optional and needs no code change:
+#   * Without the repository secrets below the app is signed ad hoc and not notarized (the current state).
+#   * To switch to a Developer ID signature with notarization, add all of these repository secrets
+#     (Settings -> Secrets and variables -> Actions) and push the next release tag:
+#       APPLE_CERTIFICATE            the "Developer ID Application" certificate exported as .p12, base64 encoded
+#       APPLE_CERTIFICATE_PASSWORD   the password chosen when exporting the .p12
+#       APPLE_SIGNING_IDENTITY       for example "Developer ID Application: Your Name (TEAMID)"
+#       APPLE_ID                     the Apple ID used for notarization
+#       APPLE_PASSWORD               an app-specific password of that Apple ID
+#       APPLE_TEAM_ID                the 10-character Apple team id
+#   * Missing secrets never fail the build. If APPLE_CERTIFICATE is set but another secret is missing, or if
+#     signing or notarization fails, the build fails: it never falls back to ad hoc signing silently.
+#   * Only the release workflow passes the secrets on; builds for pull requests never see them.
 on:
   workflow_call:
     inputs:
@@ -19,6 +34,19 @@ on:
         type: number
         required: false
         default: 14
+    secrets:
+      APPLE_CERTIFICATE:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_SIGNING_IDENTITY:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
 
 permissions:
   contents: read
@@ -54,8 +82,10 @@ jobs:
           name="OnePaste-${LABEL}-windows-x64"
           mkdir -p "dist/$name"
           cp apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/onepaste-desktop.exe "dist/$name/OnePaste.exe"
+          cp packaging/READ-ME-FIRST.windows.txt "dist/$name/READ-ME-FIRST.txt"
           python tools/check_exe_manifest.py "dist/$name/OnePaste.exe"
           python tools/make_zip.py "dist/$name" "dist/$name-portable.zip"
+          python tools/check_portable_zip.py "dist/$name-portable.zip" OnePaste.exe READ-ME-FIRST.txt
           rm -rf "dist/$name"
           ls -l dist
       - name: Smoke test (unzip, start, stay alive for 10 seconds)
@@ -96,6 +126,37 @@ jobs:
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
+      - name: Choose ad hoc signing or Developer ID signing with notarization
+        id: signing
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPLE_CERTIFICATE:-}" ]; then
+            echo "mode=adhoc" >> "$GITHUB_OUTPUT"
+            echo "No Apple signing secrets are configured: the app is signed ad hoc and not notarized"
+            exit 0
+          fi
+          missing=""
+          for v in APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!v:-}" ]; then missing="$missing $v"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "FAIL: APPLE_CERTIFICATE is set but these secrets are missing:$missing"
+            exit 1
+          fi
+          # Tauri reads these variables, imports the certificate into a temporary keychain, signs, and notarizes
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            echo "::add-mask::${!v}"
+            printf '%s=%s\n' "$v" "${!v}" >> "$GITHUB_ENV"
+          done
+          echo "mode=developer-id" >> "$GITHUB_OUTPUT"
+          echo "Apple signing secrets found: the app is signed with the Developer ID certificate and notarized"
       - name: Build the universal app bundle (no dmg)
         working-directory: apps/desktop
         env:
@@ -112,10 +173,26 @@ jobs:
           case "$archs" in *arm64*) ;; *) echo "FAIL: arm64 is missing"; exit 1;; esac
           mkdir -p dist
           zip="dist/OnePaste-${LABEL}-macos-universal-portable.zip"
-          ditto -c -k --keepParent "$app" "$zip"
+          # The zip holds OnePaste.app and, next to it, READ-ME-FIRST.txt
+          rm -rf stage && mkdir stage
+          ditto "$app" stage/OnePaste.app
+          cp packaging/READ-ME-FIRST.macos.txt stage/READ-ME-FIRST.txt
+          ditto -c -k stage "$zip"
+          python3 tools/check_portable_zip.py "$zip" READ-ME-FIRST.txt prefix:OnePaste.app/
           rm -rf smoke && mkdir smoke
           ditto -x -k "$zip" smoke
           codesign --verify --deep --strict --verbose=2 smoke/OnePaste.app
+          details=$(codesign -dv --verbose=4 smoke/OnePaste.app 2>&1)
+          echo "$details"
+          if [ "${{ steps.signing.outputs.mode }}" = "developer-id" ]; then
+            # Secrets were given, so anything short of a notarized Developer ID app is a failure, never a quiet fallback
+            grep -q 'Authority=Developer ID Application' <<<"$details" || { echo "FAIL: the app is not signed with a Developer ID Application certificate"; exit 1; }
+            if grep -q 'Signature=adhoc' <<<"$details"; then echo "FAIL: the app was signed ad hoc although signing secrets were given"; exit 1; fi
+            xcrun stapler validate smoke/OnePaste.app
+            spctl --assess --type execute --verbose=2 smoke/OnePaste.app
+          else
+            grep -q 'Signature=adhoc' <<<"$details" || { echo "FAIL: expected an ad hoc signature"; exit 1; }
+          fi
           ls -l dist
       - name: Smoke test (unzip, start, stay alive for 10 seconds)
         run: |

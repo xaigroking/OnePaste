@@ -33,6 +33,8 @@ jobs:
       label: ${{ github.ref_name }}
       build_tag: ${{ github.ref_name }}
       retention_days: 1
+    # The optional Apple signing secrets (see the comment at the top of build-portable.yml)
+    secrets: inherit
 
   publish:
     name: publish pre-release
@@ -63,6 +65,8 @@ jobs:
             test -f "staged/$f" || { echo "missing build output: $f"; ls -R staged; exit 1; }
             cp "staged/$f" out/
           done
+          python3 tools/check_portable_zip.py "out/$win" OnePaste.exe READ-ME-FIRST.txt
+          python3 tools/check_portable_zip.py "out/$mac" READ-ME-FIRST.txt prefix:OnePaste.app/
           (cd out && sha256sum "$win" "$mac" > SHA256SUMS.txt && cat SHA256SUMS.txt)
           git for-each-ref --format='%(contents)' "refs/tags/${GITHUB_REF_NAME}" > notes.md
           {
