@@ -13,4 +13,10 @@ fn emit_build_version() {
         .unwrap_or_else(|| "dev".to_string());
     let pkg = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
     println!("cargo:rustc-env=ONEPASTE_VERSION_LONG={pkg} ({tag})");
+    // What the update check compares with: the release name without its `v`, or the package version for a developer
+    // build, and the time this build was made (seconds since the epoch)
+    let version = std::env::var("ONEPASTE_BUILD_TAG").ok().filter(|t| !t.is_empty()).map(|t| t.trim_start_matches('v').to_string()).unwrap_or(pkg);
+    let built = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    println!("cargo:rustc-env=ONEPASTE_UPDATE_VERSION={version}");
+    println!("cargo:rustc-env=ONEPASTE_BUILD_UNIX={built}");
 }

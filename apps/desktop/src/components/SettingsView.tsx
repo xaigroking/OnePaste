@@ -6,6 +6,7 @@ import { LANGUAGES, languageInfo, resolveLanguage } from "../i18n";
 import type { ThemeChoice } from "../format";
 import { Badge, Button, Card, Chip, Switch } from "./ui";
 import { SecurityCard } from "./SecurityCard";
+import { UpdatesCard } from "./UpdatesCard";
 
 interface Props {
   settings: AppSettings | null;
@@ -125,6 +126,8 @@ export function SettingsView(p: Props) {
         <p className="muted small">{t("settingsMore.hotkeyHint")}</p>
         {p.hotkey === "busy" && <p className="notice notice-warn">{t("hotkey.busy")}</p>}
       </Card>
+
+      {p.settings && <UpdatesCard settings={p.settings} onSettings={p.onSettings} version={p.version} />}
 
       <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped} />
 

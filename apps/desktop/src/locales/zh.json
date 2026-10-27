@@ -91,7 +91,8 @@
   "paused": {
     "revoked": "这台设备已被从库中移除，同步已停止。请在另一台设备上重新获取连接码，再加入一次。",
     "server_rollback": "服务器上的数据比这台设备已经见过的还旧，同步已停止。请在命令行运行 \"onepaste resync\" 来恢复。",
-    "other": "同步已停止（{{code}}）。"
+    "other": "同步已停止（{{code}}）。",
+    "server_incompatible": "这个服务器使用的协议版本和这个 OnePaste 不一致。请升级服务器，或更新 OnePaste。你的数据是安全的，没有丢失。"
   },
   "queue": {
     "stuck": "有 {{conflict}} 个改动冲突，{{failed}} 个上传失败。"
@@ -266,7 +267,8 @@
       "rate_limited": "尝试次数太多，请等一分钟再试。",
       "already_set_up": "这台电脑上已经设置过 OnePaste 了。",
       "no_pending_setup": "设置被中断了，请重新开始。",
-      "other": "没有成功（{{code}}）。"
+      "other": "没有成功（{{code}}）。",
+      "unsupported_version": "这个服务器使用的协议版本和这个 OnePaste 不一致，请升级服务器或更新 OnePaste。"
     }
   },
   "security": {
@@ -315,5 +317,40 @@
   },
   "about": {
     "version": "版本 {{version}}"
+  },
+  "update": {
+    "title": "发现新版本",
+    "version": "OnePaste {{version}} 已经发布。",
+    "update": "更新",
+    "skip": "跳过此版本",
+    "later": "稍后"
+  },
+  "updates": {
+    "title": "更新",
+    "auto": "自动检查新版本",
+    "autoHint": "OnePaste 启动时检查一次，之后每六小时一次。除了本程序的版本号，不会发送任何信息。",
+    "channel": "提示哪些版本",
+    "channels": {
+      "preview": "全部，包括预发布",
+      "beta": "只要手工发布的测试版",
+      "stable": "只要正式版"
+    },
+    "channelHint": {
+      "preview": "包括每次改动后自动生成的预发布，最新但也最粗糙。",
+      "beta": "由人手工发布并命名的测试版，不含自动预发布。",
+      "stable": "只提示不是预发布的版本，目前还没有。"
+    },
+    "checkNow": "立即检查",
+    "checking": "正在检查…",
+    "none": "已经是最新版本。",
+    "found": "有新版本。",
+    "errors": {
+      "update_no_key": "这个版本还没有配置更新检查。",
+      "update_unreachable": "连不上更新服务器，请稍后再试。",
+      "update_status": "更新服务器的回答不对，请稍后再试。",
+      "update_damaged": "更新信息已损坏，没有使用。",
+      "update_bad_signature": "更新信息的签名不对，没有使用。",
+      "other": "检查没有成功（{{code}}）。"
+    }
   }
 }

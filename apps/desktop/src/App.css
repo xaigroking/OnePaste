@@ -175,3 +175,9 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .steps { display: flex; gap: 6px; margin: 0 0 16px; }
 .step { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
 .step-done { background: var(--accent); }
+
+/* Update dialog */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .4); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.modal { width: min(460px, 100%); margin: 0; }
+.update-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; margin: 10px 0; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-control); font: inherit; }
+.modal-actions { margin-top: 12px; justify-content: flex-end; }

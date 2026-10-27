@@ -43,6 +43,8 @@ pub enum AppError {
     Clipboard(String),
     #[error("storage failed ({0})")]
     Storage(String),
+    #[error("looking for updates failed ({0})")]
+    Update(String),
     #[error("{0}")]
     Other(String),
 }
@@ -70,6 +72,7 @@ impl AppError {
             AppError::ImageTooLarge => "image_too_large".into(),
             AppError::Clipboard(c) => format!("clipboard_{c}"),
             AppError::Storage(_) => "storage".into(),
+            AppError::Update(c) => c.clone(),
             AppError::Other(_) => "internal".into(),
         }
     }

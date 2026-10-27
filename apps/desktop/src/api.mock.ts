@@ -9,6 +9,7 @@ import type {
   Filter,
   HotkeyState,
   ItemView,
+  UpdateInfo,
   LanguagePreference,
   LanguageState,
   LogEntry,
@@ -42,7 +43,7 @@ const ITEMS: ItemView[] = [
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true };
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null };
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
@@ -60,7 +61,25 @@ const devices = (): DeviceList => ({
   ],
 });
 
+const UPDATE: UpdateInfo = {
+  version: "0.0.1-main.12",
+  notes: "Add the update check.\nFix the devices table.\n<b>Not markup</b>",
+  releaseUrl: "https://github.com/xaigroking/OnePaste/releases/tag/v0.0.1-main.12",
+};
+
 export const api = {
+  checkUpdate: async (_manual: boolean): Promise<UpdateInfo | null> => {
+    called("checkUpdate");
+    if (STATE === "error") return Promise.reject("update_unreachable");
+    return STATE === "empty" ? null : UPDATE;
+  },
+  availableUpdate: async (): Promise<UpdateInfo | null> => (SCREEN === "update" ? UPDATE : null),
+  skipUpdate: async (_version: string) => {
+    called("skipUpdate");
+  },
+  openRelease: async (_url: string) => {
+    called("openRelease");
+  },
   languageState: async (): Promise<LanguageState> => ({ preference: "system", effective: LANG, systemLocale: LANG }),
   setLanguage: async (preference: LanguagePreference): Promise<LanguageState> => ({ preference, effective: LANG, systemLocale: LANG }),
   firstRunState: async (): Promise<Mode> => status().mode,
@@ -130,11 +149,15 @@ export async function onChanged(_handler: () => void): Promise<() => void> {
 
 /** The scene's page is opened once, as the tray menu would. */
 export async function onNavigate(handler: (page: Page) => void): Promise<() => void> {
-  const page: Page | null = SCREEN === "dev" ? "devices" : SCREEN === "set" ? "settings" : null;
+  const page: Page | null = SCREEN === "dev" ? "devices" : SCREEN === "set" || SCREEN === "upd" ? "settings" : null;
   if (page) window.setTimeout(() => handler(page), 0);
   return () => undefined;
 }
 
 export async function onQuickOpened(_handler: () => void): Promise<() => void> {
+  return () => undefined;
+}
+
+export async function onUpdateAvailable(_handler: (info: UpdateInfo) => void): Promise<() => void> {
   return () => undefined;
 }

@@ -3,6 +3,7 @@
 use crate::error::AppError;
 use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, SecretStore};
 use crate::settings::{Settings, StateFile, STATE_FILE_NAME};
+use crate::update::{self, Channel, HttpsSource, Source, UpdateInfo};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use onepaste_client::{db_path, join, now_ms, prepare_new_vault, probe, JoinOptions, NewVault, Session, SqliteStore, VaultState, DB_FILE};
 use onepaste_core::crypto::Key;
@@ -126,11 +127,29 @@ pub struct AppConfig {
     pub poll_interval: Duration,
     /// Run the sync loop in the background (turned off in tests that drive each round by hand with `sync_now`).
     pub background_sync: bool,
+    /// Look for updates in the background: once when `start_update_checks` is called, then every six hours.
+    pub update_checks: bool,
+    /// The version this program is, as the update check compares it: a release name without its `v`.
+    pub update_version: String,
+    /// When this build was made, seconds since the epoch. It orders pre-releases that share their numbers.
+    pub built_at: u64,
+    /// Where updates come from and which key signs them. `None` is the real thing: HTTPS to GitHub and the key that
+    /// is part of this program. There is no environment variable or file that changes it; only code that builds an
+    /// `AppConfig` (tests do) can.
+    pub update_source: Option<UpdateSetup>,
+}
+
+/// A replacement for the real update source and key, for tests.
+#[derive(Clone)]
+pub struct UpdateSetup {
+    pub source: Arc<dyn Source>,
+    pub releases_url: String,
+    pub public_key: String,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        AppConfig { listen_for_changes: true, poll_interval: Duration::from_secs(30), background_sync: true }
+        AppConfig { listen_for_changes: true, poll_interval: Duration::from_secs(30), background_sync: true, update_checks: false, update_version: "0.0.0".into(), built_at: 0, update_source: None }
     }
 }
 
@@ -140,6 +159,8 @@ struct Shared {
     settings: Settings,
     tray: TrayState,
     paused: Option<PauseReason>,
+    /// The server answered that it does not speak this program's protocol version: it, or this program, needs upgrading.
+    incompatible: bool,
     log: VecDeque<LogEntry>,
     /// Fingerprint of the last content captured or applied, so the same content is not queued twice in a row.
     last_fp: Option<[u8; 32]>,
@@ -165,6 +186,9 @@ struct Inner {
     history: StdMutex<Option<HistoryStore>>,
     shared: StdMutex<Shared>,
     wake: Notify,
+    /// What an update check found last, and the listener that is told about a new version.
+    update_found: StdMutex<Option<UpdateInfo>>,
+    update_listener: StdMutex<Option<Arc<dyn Fn(&UpdateInfo) + Send + Sync>>>,
     tasks: StdMutex<Vec<JoinHandle<()>>>,
     monitor: StdMutex<Option<MonitorGuard>>,
 }
@@ -218,6 +242,7 @@ impl App {
                 settings,
                 tray: TrayState::Synced,
                 paused: None,
+                incompatible: false,
                 log: VecDeque::new(),
                 last_fp: None,
                 device_id: String::new(),
@@ -228,6 +253,8 @@ impl App {
                 listener: None,
             }),
             wake: Notify::new(),
+            update_found: StdMutex::new(None),
+            update_listener: StdMutex::new(None),
             tasks: StdMutex::new(Vec::new()),
             monitor: StdMutex::new(None),
         }))
@@ -283,7 +310,7 @@ impl App {
     }
 
     pub fn settings(&self) -> Settings {
-        lock(&self.0.shared).settings
+        lock(&self.0.shared).settings.clone()
     }
 
     pub fn set_settings(&self, s: Settings) -> Result<(), AppError> {
@@ -658,6 +685,7 @@ impl App {
             let g = lock(&self.0.shared);
             (g.paused, !g.initial_sync_done)
         };
+        lock(&self.0.shared).incompatible = false;
         self.set_tray(TrayState::Syncing, paused_before);
         let mut end = RoundEnd::Idle;
         loop {
@@ -726,10 +754,21 @@ impl App {
                 self.log("sync_paused", reason.map(|r| paused_code(r).to_string()));
                 self.set_tray(TrayState::Error, reason);
             }
+            _ if lock(&self.0.shared).incompatible => self.set_tray(TrayState::Error, None),
             RoundEnd::Offline => self.set_tray(TrayState::Offline, None),
             _ => self.set_tray(TrayState::Synced, None),
         }
         end
+    }
+
+    /// A server that refuses this program's protocol version must be visible, not a silent failure.
+    fn note_incompatible(&self, code: &str) {
+        if code == "unsupported_version" {
+            let first = !std::mem::replace(&mut lock(&self.0.shared).incompatible, true);
+            if first {
+                self.log("server_incompatible", None);
+            }
+        }
     }
 
     fn note_event(&self, ev: &Event) {
@@ -740,8 +779,14 @@ impl App {
             Event::Pushed { .. } => self.log("uploaded", None),
             Event::Pulled { applied, .. } if *applied > 0 => self.log("downloaded", Some(format!("{applied} items"))),
             Event::Conflict { .. } => self.log("conflict", None),
-            Event::OpFailed { code, .. } => self.log("upload_failed", Some(code.clone())),
-            Event::PullFailed { code } => self.log("download_failed", Some(code.clone())),
+            Event::OpFailed { code, .. } => {
+                self.note_incompatible(code);
+                self.log("upload_failed", Some(code.clone()))
+            }
+            Event::PullFailed { code } => {
+                self.note_incompatible(code);
+                self.log("download_failed", Some(code.clone()))
+            }
             _ => {}
         }
     }
@@ -865,6 +910,9 @@ impl App {
                 st.failed = x.failed;
                 st.paused = x.paused.map(|p| paused_code(p).to_string()).or(st.paused);
             }
+        }
+        if lock(&self.0.shared).incompatible {
+            st.paused = Some("server_incompatible".to_string());
         }
         st.items = lock(&self.0.history).as_ref().and_then(|h| h.count().ok()).unwrap_or(0);
         st
@@ -1004,6 +1052,84 @@ impl App {
         let code = api.invite().await.map_err(AppError::from)?;
         self.log("connection_code_made", None);
         Ok(code)
+    }
+
+    // ---- updates ---------------------------------------------------------------------------------------------------
+
+    /// Registers a function that is told when a newer version is found by a background check.
+    pub fn on_update_available(&self, f: impl Fn(&UpdateInfo) + Send + Sync + 'static) {
+        *lock(&self.0.update_listener) = Some(Arc::new(f));
+    }
+
+    /// The newer version the last check found, if there is one that has not been skipped.
+    pub fn available_update(&self) -> Option<UpdateInfo> {
+        lock(&self.0.update_found).clone()
+    }
+
+    /// The channel in use: the user's choice, or the default for this version.
+    pub fn update_channel(&self) -> Channel {
+        self.settings().update_channel.unwrap_or_else(|| update::default_channel(&self.0.cfg.update_version))
+    }
+
+    /// Looks for a newer version now. A background check (`manual` false) that fails says nothing: it is noted in the
+    /// event log and the answer is "nothing new". A check the user asked for returns the reason. A version the user
+    /// skipped is not reported by a background check; a manual check reports it again.
+    pub async fn check_for_update(&self, manual: bool) -> Result<Option<UpdateInfo>, AppError> {
+        let cfg = &self.0.cfg;
+        let result = match &cfg.update_source {
+            Some(setup) => update::check(setup.source.as_ref(), &setup.releases_url, &setup.public_key, &cfg.update_version, cfg.built_at, self.update_channel(), update::platform_key()).await,
+            None => match HttpsSource::new(&cfg.update_version) {
+                Ok(src) => update::check(&src, update::RELEASES_URL, update::PUBLIC_KEY, &cfg.update_version, cfg.built_at, self.update_channel(), update::platform_key()).await,
+                Err(e) => Err(e),
+            },
+        };
+        match result {
+            Ok(found) => {
+                let found = found.filter(|i| manual || self.settings().skipped_update.as_deref() != Some(i.version.as_str()));
+                *lock(&self.0.update_found) = found.clone();
+                if let (Some(info), false) = (&found, manual) {
+                    let listener = lock(&self.0.update_listener).clone();
+                    if let Some(l) = listener {
+                        l(info);
+                    }
+                }
+                self.log("update_checked", None);
+                Ok(found)
+            }
+            Err(e) => {
+                self.log("update_check_failed", Some(e.code().to_string()));
+                if manual {
+                    Err(e.into())
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    /// The user chose "skip this version": it is not offered again, a newer one is.
+    pub fn skip_update(&self, version: &str) -> Result<(), AppError> {
+        let mut s = self.settings();
+        s.skipped_update = Some(version.to_string());
+        self.set_settings(s)?;
+        *lock(&self.0.update_found) = None;
+        Ok(())
+    }
+
+    /// Starts the background checks: one now, then one every six hours, as long as the setting is on.
+    pub fn start_update_checks(&self) {
+        if !self.0.cfg.update_checks {
+            return;
+        }
+        let app = self.clone();
+        lock(&self.0.tasks).push(tokio::spawn(async move {
+            loop {
+                if app.settings().check_updates {
+                    let _ = app.check_for_update(false).await;
+                }
+                tokio::time::sleep(Duration::from_secs(6 * 3600)).await;
+            }
+        }));
     }
 
     /// Stops the background work.

@@ -247,3 +247,42 @@ jobs:
             apps/desktop/tests/screens
             apps/desktop/test-results
           retention-days: 14
+
+  # The update signing chain with a throwaway key: the Tauri signer makes a key and signs the manifest that the release
+  # script writes, and the program's own check accepts it and refuses a changed manifest. The key is made here and used
+  # nowhere else; the real key is a repository secret.
+  update-signing:
+    name: update-signing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Make a throwaway signing key
+        working-directory: apps/desktop
+        run: npx --no-install tauri signer generate --ci --password "" --write-keys "$RUNNER_TEMP/throwaway.key"
+      - name: Sign a sample manifest with the release script
+        env:
+          TAG: v0.0.1-main.99
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          printf '%s  OnePaste-%s-windows-x64-portable.zip\n%s  OnePaste-%s-macos-universal-portable.zip\n' "$(printf a | sha256sum | cut -d' ' -f1)" "$TAG" "$(printf b | sha256sum | cut -d' ' -f1)" "$TAG" > "$RUNNER_TEMP/out/SHA256SUMS.txt"
+          printf '## What'"'"'s changed\n- A sample change\n' > "$RUNNER_TEMP/notes.md"
+          TAURI_SIGNING_PRIVATE_KEY="$(cat "$RUNNER_TEMP/throwaway.key")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
+            bash scripts/sign-update-manifest.sh "$TAG" main "$RUNNER_TEMP/notes.md" owner/repo "$RUNNER_TEMP/out"
+          ls -l "$RUNNER_TEMP/out"
+      - name: The program accepts it
+        env:
+          UPDATE_TEST_PUBKEY_FILE: ${{ runner.temp }}/throwaway.key.pub
+          UPDATE_TEST_MANIFEST: ${{ runner.temp }}/out/latest.json
+          UPDATE_TEST_SIG: ${{ runner.temp }}/out/latest.json.sig
+        run: cargo test -p onepaste-app --test update_tauri_format -- --nocapture

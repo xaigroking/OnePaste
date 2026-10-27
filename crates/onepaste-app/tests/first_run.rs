@@ -24,7 +24,7 @@ fn temp_dir(name: &str) -> PathBuf {
 }
 
 fn quiet() -> AppConfig {
-    AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false }
+    AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false, ..AppConfig::default() }
 }
 
 /// A server that has no vault yet.
@@ -262,7 +262,7 @@ async fn wiping_local_data_returns_to_the_first_run_and_leaves_the_server_alone(
     d.clipboard.user_copies(Content::Text("something to forget".into()));
     tokio::time::sleep(Duration::from_millis(400)).await;
     d.app.sync_now().await.unwrap();
-    d.app.set_settings(Settings { auto_apply_remote: false, record_clipboard: true }).unwrap();
+    d.app.set_settings(Settings { auto_apply_remote: false, ..Settings::default() }).unwrap();
     assert!(d.dir.join("onepaste.db").exists() && d.dir.join("history.db").exists());
 
     d.app.wipe_local_data().await.unwrap();

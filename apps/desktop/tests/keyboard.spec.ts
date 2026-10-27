@@ -46,6 +46,24 @@ test("quick panel: Tab moves through the type chips and Escape closes", async ({
   await expect.poll(() => page.evaluate(() => window.__hidden)).toBe(true);
 });
 
+test("update dialog: Escape means later, and the three buttons do what they say", async ({ page }) => {
+  await page.goto("/?screen=update&lang=en");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Update", exact: true })).toBeFocused();
+  // The note is text, not markup
+  await expect(dialog.getByText("<b>Not markup</b>")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(() => window.__called ?? [])).toEqual([]);
+  await page.reload();
+  await page.getByRole("button", { name: "Skip this version" }).click();
+  await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["skipUpdate"]);
+  await page.reload();
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["openRelease"]);
+});
+
 test("first run: choosing local-only works with the keyboard alone", async ({ page }) => {
   await page.goto("/?screen=ob1&lang=en");
   await page.getByRole("radio", { name: /Only on this computer/ }).focus();

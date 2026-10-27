@@ -235,4 +235,15 @@ rm -f "$notes_tmp"
 # 14) Every translation file has all the keys of English, and the same placeholders
 python3 tools/check_locales.py || fail=1
 
+# 15) The update check: the manifest scripts are tested, and nothing can redirect the update source or key
+python3 tests/release/test_update_manifest.py > /dev/null || { say "FAIL tests/release/test_update_manifest.py"; fail=1; }
+# The address the update check asks and the key it trusts are fixed in the program: no environment variable, argument or
+# file may change them (tests do it by building their own configuration in code)
+if grep -nE 'env::var|env!\(|option_env' crates/onepaste-app/src/update.rs | grep -v 'include_str'; then
+  say "FAIL crates/onepaste-app/src/update.rs reads the environment"; fail=1
+fi
+if grep -nE 'UPDATE_(URL|KEY|SOURCE)' crates/onepaste-app/src apps/desktop/src-tauri/src | grep -E 'env|getenv'; then
+  say "FAIL an environment variable can change the update source"; fail=1
+fi
+
 [ "$fail" -eq 0 ] && echo "check.sh: OK" || { echo "check.sh: FAILED" >&2; exit 1; }

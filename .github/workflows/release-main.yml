@@ -106,6 +106,9 @@ jobs:
     env:
       TAG: ${{ needs.plan.outputs.tag }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The key that signs update manifests; the repository owner sets it. Without it no manifest is made.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -124,20 +127,34 @@ jobs:
           prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
           bash scripts/make-release-notes.sh "$TAG" "$GITHUB_SHA" "$prev" > notes.md
           { echo; cat downloads.md; } >> notes.md
+      - name: Install the signer (only when the update signing key is set up)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies for the signer
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Make and sign the update manifest
+        run: bash scripts/sign-update-manifest.sh "$TAG" main notes.md "$GITHUB_REPOSITORY" out
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-path: |
             out/*.zip
+            out/latest.json*
       - name: Make the annotated tag and publish the pre-release
         run: |
           set -euo pipefail
           git -c user.name="OnePaste release workflow" -c user.email="release@users.noreply.github.com" \
             tag -a "$TAG" "$GITHUB_SHA" -m "Automatic pre-release of main at $GITHUB_SHA"
           git push origin "refs/tags/$TAG"
+          # The manifest and its signature exist only when the signing key is set up
+          shopt -s nullglob
           gh release create "$TAG" --verify-tag --prerelease \
             --title "OnePaste $TAG" --notes-file notes.md \
-            out/*.zip out/SHA256SUMS.txt
+            out/*.zip out/SHA256SUMS.txt out/latest.json*
       - name: Keep the newest 10 automatic pre-releases
         run: |
           set -euo pipefail

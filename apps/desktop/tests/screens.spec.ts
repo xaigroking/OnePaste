@@ -33,6 +33,13 @@ const SCREENS: Screen[] = [
   { name: "dev", screen: "dev", size: WINDOW, states: ["empty", "loading", "error"] },
   { name: "set", screen: "set", size: WINDOW, states: ["loading", "error"] },
   { name: "qp", screen: "qp", size: { width: 560, height: 520 }, hash: "#/quick", states: ["empty", "loading", "error"] },
+  { name: "update", screen: "update", size: WINDOW, states: [] },
+  { name: "upd", screen: "upd", size: WINDOW, states: ["error"],
+    drive: async (page, lang, state) => {
+      const l = locale(lang);
+      await page.getByRole("heading", { name: l.updates.title }).scrollIntoViewIfNeeded();
+      if (state === "error") await page.getByRole("button", { name: l.updates.checkNow }).click();
+    } },
   { name: "tray", screen: "tray", size: { width: 330, height: 360 }, states: [] },
   { name: "state", screen: "state", size: WINDOW, states: [] },
   { name: "ob1", screen: "ob1", size: WINDOW, states: ["loading", "error"],

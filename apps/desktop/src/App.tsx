@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, onChanged, onNavigate } from "./api";
+import { api, onChanged, onNavigate, onUpdateAvailable } from "./api";
 import type {
   ActionResult,
   AppSettings,
@@ -8,6 +8,7 @@ import type {
   Filter,
   HotkeyState,
   ItemView,
+  UpdateInfo,
   LanguagePreference,
   LanguageState,
   LogEntry,
@@ -22,6 +23,7 @@ import { Onboarding } from "./onboarding";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
+import { UpdateDialog } from "./components/UpdateDialog";
 import type { View } from "./components/Sidebar";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
@@ -45,6 +47,7 @@ export default function App() {
   const [itemsError, setItemsError] = useState("");
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [version, setVersion] = useState("");
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // The newest search wins: an older, slower answer must not overwrite it
   const searchSeq = useRef(0);
 
@@ -128,6 +131,16 @@ export default function App() {
     void api.setTexts(texts);
   }, [t]);
 
+  // A newer version: one found before the window opened, and one a background check finds later. A failed check says nothing.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void api.availableUpdate().then(setUpdate).catch(() => undefined);
+    void onUpdateAvailable(setUpdate).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+  }, []);
+
   // The tray menu asks for a page ("Devices...", "Settings...")
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -197,8 +210,24 @@ export default function App() {
     );
   }
 
+  const updateDialog = update && (
+    <UpdateDialog
+      info={update}
+      onUpdate={() => {
+        void api.openRelease(update.releaseUrl);
+        setUpdate(null);
+      }}
+      onSkip={() => {
+        void api.skipUpdate(update.version);
+        setUpdate(null);
+      }}
+      onLater={() => setUpdate(null)}
+    />
+  );
+
   return (
     <div className="app">
+      {updateDialog}
       <Sidebar
         view={activeView}
         onView={setView}
