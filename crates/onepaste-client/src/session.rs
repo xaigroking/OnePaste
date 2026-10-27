@@ -58,12 +58,29 @@ impl Session {
     /// Opens the local vault and unlocks it with the passphrase. A wrong passphrase is `WrongPassphrase`.
     pub fn open(dir: &Path, passphrase: &str) -> Result<Session, ClientError> {
         let store = SqliteStore::open(&db_path(dir))?;
+        let record = Self::stored_record(&store)?;
+        let mk = record.unlock(passphrase)?;
+        Self::from_parts(store, mk)
+    }
+
+    /// Opens the local vault with the master key itself, for programs that keep it in the system secure store and
+    /// never ask for the passphrase again. A key that does not belong to this vault is `WrongKey`.
+    pub fn open_with_key(dir: &Path, mk: &Key) -> Result<Session, ClientError> {
+        let store = SqliteStore::open(&db_path(dir))?;
+        let record = Self::stored_record(&store)?;
+        record.verify_mk(mk).map_err(|_| ClientError::WrongKey)?;
+        Self::from_parts(store, Key::from_bytes(*mk.as_bytes()))
+    }
+
+    fn stored_record(store: &SqliteStore) -> Result<KeyParams, ClientError> {
+        store.meta_get("u")?.ok_or(ClientError::NotJoined)?;
+        serde_json::from_str(&store.meta_get("keyparams")?.ok_or(ClientError::NotJoined)?).map_err(|_| ClientError::Storage("keyparams".into()))
+    }
+
+    fn from_parts(store: SqliteStore, mk: Key) -> Result<Session, ClientError> {
         let url = store.meta_get("u")?.ok_or(ClientError::NotJoined)?;
         let fingerprint = store.meta_get("fp")?.ok_or(ClientError::NotJoined)?;
         let device_id = store.meta_get("device_id")?.ok_or(ClientError::NotJoined)?;
-        let record: KeyParams = serde_json::from_str(&store.meta_get("keyparams")?.ok_or(ClientError::NotJoined)?)
-            .map_err(|_| ClientError::Storage("keyparams".into()))?;
-        let mk = record.unlock(passphrase)?;
         let sealed = store.secret_get("devtoken")?.ok_or(ClientError::NotJoined)?;
         let token = String::from_utf8(crypto::open(&mk, aad::DEVTOKEN, &sealed)?).map_err(|_| ClientError::Storage("devtoken".into()))?;
         let transport = Transport::new(&url, &fingerprint);
@@ -74,6 +91,12 @@ impl Session {
             engine.set_page_size(n);
         }
         Ok(Session { engine, transport, info: Info { url, fingerprint, device_id }, mk, token })
+    }
+
+    /// Starts listening for change notifications on the server. `Some(seq)` is a notification, `None` means the stream
+    /// was re-established. The task ends when the receiver is dropped, or when the returned handle is aborted.
+    pub fn listen_for_changes(&self, tx: tokio::sync::mpsc::UnboundedSender<Option<i64>>) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(event_loop(self.transport.clone(), self.token.clone(), tx))
     }
 
     pub fn master_key(&self) -> &Key {

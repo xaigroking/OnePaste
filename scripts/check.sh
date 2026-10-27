@@ -72,17 +72,20 @@ sys.exit(1 if bad else 0)
 ' || fail=1
 fi
 
-# 8c) Test-only fault injection must never be on by default in the server, the client layer or the command line tool
+# 8c) Test-only features must never be on by default: fault injection in the server, the client layer and the command line
+#     tool, and the test harness in the application logic crate
 if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && [ -f Cargo.toml ]; then
   cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c '
 import sys, json
 d = json.load(sys.stdin)
 bad = False
 seen = set()
+guard = {"onepaste-server": "fault-injection", "onepaste-client": "fault-injection", "onepaste-cli": "fault-injection", "onepaste-app": "test-harness"}
 for p in d["packages"]:
-    if p["name"] not in ("onepaste-server", "onepaste-client", "onepaste-cli"):
+    if p["name"] not in guard:
         continue
     seen.add(p["name"])
+    feature = guard[p["name"]]
     feats = p["features"]
     todo, on = list(feats.get("default", [])), set()
     while todo:
@@ -92,12 +95,12 @@ for p in d["packages"]:
             continue
         on.add(name)
         todo.extend(feats.get(name, []))
-    if "fault-injection" in on:
-        print("FAIL %s enables fault-injection by default" % p["name"], file=sys.stderr); bad = True
-    if "fault-injection" not in feats:
-        print("FAIL %s has no fault-injection feature" % p["name"], file=sys.stderr); bad = True
-if len(seen) != 3:
-    print("FAIL fault-injection default check: crate missing: %s" % sorted({"onepaste-server", "onepaste-client", "onepaste-cli"} - seen), file=sys.stderr); bad = True
+    if feature in on:
+        print("FAIL %s enables %s by default" % (p["name"], feature), file=sys.stderr); bad = True
+    if feature not in feats:
+        print("FAIL %s has no %s feature" % (p["name"], feature), file=sys.stderr); bad = True
+if len(seen) != len(guard):
+    print("FAIL test-only feature check: crate missing: %s" % sorted(set(guard) - seen), file=sys.stderr); bad = True
 sys.exit(1 if bad else 0)
 ' || fail=1
 fi

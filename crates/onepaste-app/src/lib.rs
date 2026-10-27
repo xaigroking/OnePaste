@@ -1,0 +1,27 @@
+//! OnePaste desktop application logic.
+//!
+//! Everything that is not drawing a window lives here, so it can be tested on any machine: joining a vault with a
+//! connection code, keeping the master key in the system secure store, capturing the clipboard, writing items that
+//! arrive from other devices, driving the sync, searching the encrypted history. The platform (secure store,
+//! clipboard) is injected through the traits in [`ports`].
+
+mod app;
+mod error;
+pub mod ports;
+mod settings;
+
+pub use app::{App, AppConfig, ItemView, LogEntry, Status, TrayState};
+pub use error::AppError;
+pub use onepaste_history::Filter;
+pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemorySecretStore, MonitorGuard, SecretStore};
+pub use settings::Settings;
+
+/// Parses the filter names the interface uses.
+pub fn parse_filter(name: &str) -> Filter {
+    match name {
+        "favorites" => Filter::Favorites,
+        "text" => Filter::Text,
+        "images" => Filter::Images,
+        _ => Filter::All,
+    }
+}

@@ -9,6 +9,10 @@ pub enum ClientError {
     PassphraseRequired,
     #[error("the recovery kit file already exists; choose another path (kit_file_exists)")]
     KitFileExists,
+    #[error("the server has no vault yet, and creating one is not allowed here")]
+    VaultEmpty,
+    #[error("the stored key does not open this vault")]
+    WrongKey,
     #[error("wrong recovery kit")]
     WrongRecoveryKit,
     #[error("this directory has not joined a vault yet")]
@@ -66,7 +70,7 @@ impl ClientError {
     pub fn exit_code(&self) -> u8 {
         match self {
             ClientError::KitFileExists => 2,
-            ClientError::WrongPassphrase | ClientError::WrongRecoveryKit => 3,
+            ClientError::WrongPassphrase | ClientError::WrongRecoveryKit | ClientError::WrongKey => 3,
             ClientError::Paused(PauseReason::ServerRollback) => 4,
             ClientError::Paused(PauseReason::Revoked) => 5,
             _ => 1,
