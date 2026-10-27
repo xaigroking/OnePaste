@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       macos: ${{ steps.filter.outputs.macos }}
+      docker: ${{ steps.docker.outputs.docker }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,6 +40,29 @@ jobs:
           else
             echo "macos=false" >> "$GITHUB_OUTPUT"
             echo "Nothing that can differ on macOS changed: the macos job is skipped"
+          fi
+      # Decides whether the container image needs testing: the rule is a tested function in scripts/lib/release-paths.sh
+      - id: docker
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          . scripts/lib/release-paths.sh
+          if [ "$EVENT" = "pull_request" ]; then
+            files=$(git diff --name-only "$BASE...$HEAD")
+          elif git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
+            files=$(git diff --name-only "$BEFORE" HEAD)
+          else
+            files=Dockerfile
+          fi
+          if printf '%s\n' "$files" | needs_docker; then
+            echo "docker=true" >> "$GITHUB_OUTPUT"
+            echo "The container image can be affected: the docker job runs"
+          else
+            echo "docker=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing that affects the container image changed: the docker job is skipped"
           fi
 
   pr-only:
@@ -214,3 +238,20 @@ jobs:
       platforms: macos
       macos_runner: macos-15-intel
       run_tests: true
+
+  # The server container image: build it, run it with a volume, join two devices, restart it, and check what is inside
+  docker:
+    name: docker
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build the command line client
+        run: cargo build -p onepaste-cli
+      - name: Container image end-to-end test
+        run: bash tests/e2e/docker.sh target/debug
