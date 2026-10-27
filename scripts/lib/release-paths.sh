@@ -34,3 +34,10 @@ tag_kind() {
   elif [[ $1 =~ $BETA_TAG_REGEX ]]; then echo beta
   else echo other; fi
 }
+
+# needs_docker: reads the names of the changed files on standard input. Succeeds if the container image can behave
+# differently afterwards: the Dockerfile, its helper files, the server and what it is built from, the lock file, or the
+# workflow that builds it. Documents alone do not count.
+needs_docker() {
+  grep -Eq '^(Dockerfile$|\.dockerignore$|docker/|crates/onepaste-(server|core|sync)/|Cargo\.(lock|toml)$|tools/build_version\.rs$|tests/e2e/docker\.sh$|\.github/workflows/(ci|docker-image)\.yml$)'
+}

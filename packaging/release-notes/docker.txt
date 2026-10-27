@@ -1,0 +1,9 @@
+## Run the server with Docker
+If you have Docker, you do not need the `tools` download to run the server. Replace `192.168.1.20` with the address other computers use to reach this one:
+
+```
+docker run -d --name onepaste -p 8443:8443 -v onepaste-data:/data -e ONEPASTE_PUBLIC_URL=https://192.168.1.20:8443 ghcr.io/xaigroking/onepaste-server:{{TAG}}
+docker logs onepaste
+```
+
+The connection code is the line that starts with `onepaste1:`. To print a new one later: `docker exec onepaste /onepaste-server connect-code`. The image is for 64-bit Intel/AMD and for Arm. See the README for backups and upgrades.
