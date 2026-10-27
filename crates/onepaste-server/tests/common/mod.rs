@@ -6,70 +6,19 @@ use onepaste_core::crypto::{self, aad, KdfParams, Key};
 use onepaste_core::envelope::{seal_item, ItemPayload};
 use onepaste_core::keys::{vault_proof, KeyParams};
 use onepaste_server::config::Config;
-use onepaste_server::util::ct_eq;
-use onepaste_server::{tls, Server};
+use onepaste_server::Server;
 use reqwest::header::HeaderMap;
 use reqwest::Method;
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
-use rustls::SignatureScheme;
-use rustls::crypto::{ring, verify_tls12_signature, verify_tls13_signature, CryptoProvider};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use serde_json::{json, Value};
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Mutex, Once};
 use tracing_subscriber::fmt::MakeWriter;
 
 pub const KDF: KdfParams = KdfParams::MIN;
 
-/// Checks only that the SPKI fingerprint matches; the CA chain and host name are ignored. The handshake signature is still verified.
-#[derive(Debug)]
-pub struct PinVerifier {
-    pub fingerprint: String,
-    pub provider: Arc<CryptoProvider>,
-}
-
-impl ServerCertVerifier for PinVerifier {
-    fn verify_server_cert(
-        &self,
-        end_entity: &CertificateDer<'_>,
-        _intermediates: &[CertificateDer<'_>],
-        _name: &ServerName<'_>,
-        _ocsp: &[u8],
-        _now: UnixTime,
-    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        let got = tls::fingerprint_of_cert_der(end_entity.as_ref()).unwrap_or_default();
-        if ct_eq(got.as_bytes(), self.fingerprint.as_bytes()) {
-            Ok(rustls::client::danger::ServerCertVerified::assertion())
-        } else {
-            Err(rustls::Error::General("certificate fingerprint mismatch".into()))
-        }
-    }
-
-    fn verify_tls12_signature(&self, m: &[u8], c: &CertificateDer<'_>, d: &rustls::DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls12_signature(m, c, d, &self.provider.signature_verification_algorithms)
-    }
-
-    fn verify_tls13_signature(&self, m: &[u8], c: &CertificateDer<'_>, d: &rustls::DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls13_signature(m, c, d, &self.provider.signature_verification_algorithms)
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.provider.signature_verification_algorithms.supported_schemes()
-    }
-}
-
-pub fn pinned_client(fingerprint: &str) -> reqwest::Client {
-    let provider = Arc::new(ring::default_provider());
-    let cfg = rustls::ClientConfig::builder_with_provider(provider.clone())
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(PinVerifier { fingerprint: fingerprint.to_string(), provider }))
-        .with_no_client_auth();
-    reqwest::Client::builder().use_preconfigured_tls(cfg).build().unwrap()
-}
+pub use onepaste_client::pin::pinned_client;
 
 static LOGS: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 

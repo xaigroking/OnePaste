@@ -1,9 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["crates/onepaste-core", "crates/onepaste-platform", "crates/onepaste-server"]
+members = ["crates/onepaste-core", "crates/onepaste-platform", "crates/onepaste-server", "crates/onepaste-sync", "crates/onepaste-client", "crates/onepaste-cli"]
 exclude = ["spikes/vaultcore", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.0.1"
 edition = "2021"
 publish = false
+
+# Password hashing is slow without optimization; keep it fast in debug builds so tests and the end-to-end run stay short
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

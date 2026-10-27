@@ -7,6 +7,7 @@ pub use items::ItemWrite;
 pub use vault::RegisterIn;
 
 use crate::error::ApiError;
+use axum::http::StatusCode;
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
@@ -183,7 +184,8 @@ impl Store {
     }
 
     /// Runs a write under the idempotency rules. A repeated key with the same request replays the stored response;
-    /// a repeated key with a different request is `idempotency_conflict`. Only successful responses are stored.
+    /// a repeated key with a different request is `idempotency_conflict`. Successful responses and `stale` (409)
+    /// answers are stored, so a client that changes the body after `stale` must also change the key.
     pub fn idempotent(
         &self,
         scope: &str,
@@ -193,7 +195,7 @@ impl Store {
         ttl: i64,
         f: impl FnOnce(&Transaction) -> Result<Reply, ApiError>,
     ) -> Result<Reply, ApiError> {
-        self.write(|tx| {
+        let outcome = self.write(|tx| {
             let prev: Option<(Vec<u8>, i64, Vec<u8>, i64)> = tx
                 .query_row(
                     "SELECT req_hash, status, body, created_at FROM idempotency WHERE scope = ?1 AND key = ?2",
@@ -203,24 +205,37 @@ impl Store {
                 .optional()?;
             if let Some((h, status, body, created)) = prev {
                 if created.saturating_add(ttl) > now {
-                    if crate::util::ct_eq(&h, req_hash) {
-                        return Ok(Reply { status: status as u16, body, stored: None, notify_seq: None, replayed: true });
+                    if !crate::util::ct_eq(&h, req_hash) {
+                        return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "idempotency_conflict"));
                     }
-                    return Err(ApiError::new(
-                        axum::http::StatusCode::UNPROCESSABLE_ENTITY,
-                        "idempotency_conflict",
-                    ));
+                    if status == i64::from(StatusCode::CONFLICT.as_u16()) {
+                        return Ok(Err(stored_error(&body)));
+                    }
+                    return Ok(Ok(Reply { status: status as u16, body, stored: None, notify_seq: None, replayed: true }));
                 }
                 tx.execute("DELETE FROM idempotency WHERE scope = ?1 AND key = ?2", params![scope, key])?;
             }
-            let reply = f(tx)?;
-            let kept: &[u8] = reply.stored.as_deref().unwrap_or(&reply.body);
-            tx.execute(
-                "INSERT INTO idempotency (scope, key, req_hash, status, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![scope, key, &req_hash[..], i64::from(reply.status), kept, now],
-            )?;
-            Ok(reply)
-        })
+            let keep = |tx: &Transaction, status: u16, body: &[u8]| -> Result<(), ApiError> {
+                tx.execute(
+                    "INSERT INTO idempotency (scope, key, req_hash, status, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![scope, key, &req_hash[..], i64::from(status), body, now],
+                )?;
+                Ok(())
+            };
+            match f(tx) {
+                Ok(reply) => {
+                    keep(tx, reply.status, reply.stored.as_deref().unwrap_or(&reply.body))?;
+                    Ok(Ok(reply))
+                }
+                // A stale answer changes nothing, so it is safe to commit the record of it
+                Err(e) if e.status == StatusCode::CONFLICT => {
+                    keep(tx, e.status.as_u16(), &error_json(&e))?;
+                    Ok(Err(e))
+                }
+                Err(e) => Err(e),
+            }
+        })?;
+        outcome
     }
 
     /// Daily maintenance: purge old tombstones, raise the cursor floor, drop expired idempotency records and credentials.
@@ -249,6 +264,21 @@ impl Store {
             Ok(Reply { status: 204, body: Vec::new(), stored: None, notify_seq: None, replayed: false })
         })
     }
+}
+
+fn error_json(e: &ApiError) -> Vec<u8> {
+    let mut m = e.extra.clone();
+    m.insert("code".to_string(), serde_json::json!(e.code));
+    serde_json::Value::Object(m).to_string().into_bytes()
+}
+
+/// Rebuilds a stored `stale` answer. Only that code is ever stored.
+fn stored_error(body: &[u8]) -> ApiError {
+    let mut m: serde_json::Map<String, serde_json::Value> = serde_json::from_slice(body).unwrap_or_default();
+    m.remove("code");
+    let mut e = ApiError::new(StatusCode::CONFLICT, "stale");
+    e.extra = m;
+    e
 }
 
 fn reg_token_valid_tx(tx: &Transaction, hash: &[u8; 32], now: i64) -> Result<bool, ApiError> {

@@ -104,6 +104,12 @@ pub mod aad {
     pub fn device(id: &str) -> Vec<u8> {
         format!("onepaste/device/v1:{id}").into_bytes()
     }
+    /// Encrypts one queued outbound operation, bound to its operation number.
+    pub fn outbox(op_id: u64) -> Vec<u8> {
+        format!("onepaste/outbox/v1:{op_id}").into_bytes()
+    }
+    /// Encrypts the device token kept in local storage.
+    pub const DEVTOKEN: &[u8] = b"onepaste/devtoken/v1";
 }
 
 /// Encrypts and returns `nonce(24) || ciphertext || tag(16)`. The nonce is random every time.
@@ -153,6 +159,18 @@ mod tests {
         let weak = KdfParams { m_kib: 64, t: 1, p: 1 };
         assert_eq!(derive_key("x", &[0u8; 16], &weak).unwrap_err(), Error::WeakKdf);
         assert!(matches!(derive_key("x", &[0u8; 8], &P), Err(Error::InvalidArgument(_))));
+    }
+
+    #[test]
+    fn aad_contexts_are_distinct_and_bound_to_their_identifier() {
+        assert_eq!(aad::outbox(7), b"onepaste/outbox/v1:7".to_vec());
+        assert_ne!(aad::outbox(7), aad::outbox(8));
+        assert_eq!(aad::device("d1"), b"onepaste/device/v1:d1".to_vec());
+        assert_eq!(aad::DEVTOKEN, b"onepaste/devtoken/v1");
+        let k = Key::random().unwrap();
+        let sealed = seal(&k, &aad::outbox(7), b"op").unwrap();
+        assert_eq!(open(&k, &aad::outbox(8), &sealed), Err(Error::DecryptFailed));
+        assert_eq!(open(&k, aad::DEVTOKEN, &sealed), Err(Error::DecryptFailed));
     }
 
     #[test]
