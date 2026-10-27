@@ -73,7 +73,7 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [ "$health" = healthy ] || die "the container did not become healthy (status: $health)"
-uid=$(docker top "$NAME" -o uid | tail -n +2 | head -n1 | tr -d ' ')
+uid=$(docker top "$NAME" -eo pid,uid | awk 'NR == 2 { print $2 }')
 [ -n "$uid" ] && [ "$uid" != 0 ] && [ "$uid" != root ] || die "the server process runs as '$uid'"
 ok "the code is in the logs, the container is healthy and the server runs as uid $uid"
 
