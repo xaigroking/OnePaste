@@ -90,6 +90,10 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
           rustup default stable
+      - name: Install the workflow linter
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Repository gates and tests
         run: CI=true bash scripts/check.sh
       - name: Install Node

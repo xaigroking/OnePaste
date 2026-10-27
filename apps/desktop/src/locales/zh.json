@@ -187,5 +187,8 @@
     "wipeWarningLocal": "这会删除这台电脑上的全部历史和密钥，无法撤销。",
     "wipeConfirm": "删除这台电脑上的一切",
     "failed": "没有成功（{{code}}）。"
+  },
+  "about": {
+    "version": "版本 {{version}}"
   }
 }

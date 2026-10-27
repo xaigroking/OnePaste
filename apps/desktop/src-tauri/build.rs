@@ -1,5 +1,7 @@
+include!("../../../tools/build_version.rs");
+
 fn main() {
-    println!("cargo:rerun-if-env-changed=ONEPASTE_BUILD_TAG");
+    emit_build_version();
     println!("cargo:rerun-if-changed=windows-app.manifest");
     // An explicit manifest: the program never asks for administrator rights.
     let windows = tauri_build::WindowsAttributes::new().app_manifest(include_str!("windows-app.manifest"));

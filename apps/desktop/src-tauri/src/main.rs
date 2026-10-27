@@ -19,6 +19,11 @@ use std::sync::Arc;
 use tauri::{Manager, WindowEvent};
 
 fn main() {
+    // `OnePaste --version` prints the version and the build id, and nothing else starts
+    if std::env::args().skip(1).any(|a| a == "--version" || a == "-V") {
+        println!("OnePaste {}", env!("ONEPASTE_VERSION_LONG"));
+        return;
+    }
     // Without the WebView2 runtime nothing can be shown, so say so and exit with code 2.
     #[cfg(windows)]
     webview2::ensure_or_exit();
@@ -49,6 +54,7 @@ fn main() {
             commands::app_join_with_kit,
             commands::app_show_kit,
             commands::app_copy_secret,
+            commands::app_version,
             commands::app_wipe_local_data,
             commands::app_status,
             commands::app_search,

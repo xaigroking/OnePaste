@@ -28,7 +28,7 @@ fn line(e: &LogEntry) -> String {
 
 pub fn build(state: &Inner, os_version: &str) -> String {
     let mut out = String::new();
-    out.push_str(&format!("app_version: {}\n", env!("CARGO_PKG_VERSION")));
+    out.push_str(&format!("app_version: {}\n", env!("ONEPASTE_VERSION_LONG")));
     // Injected by CI on release builds to tell apart pre-releases that share a version number
     out.push_str(&format!("build_tag: {}\n", option_env!("ONEPASTE_BUILD_TAG").unwrap_or("none")));
     out.push_str(&format!("os: {os_version}\n"));

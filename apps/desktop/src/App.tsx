@@ -116,6 +116,7 @@ export default function App() {
   const [tray, setTray] = useState<TrayState>("synced");
   const [diag, setDiag] = useState<ActionResult | null>(null);
   const [language, setLanguage] = useState<LanguageState | null>(null);
+  const [version, setVersion] = useState("");
   // The newest search wins: an older, slower answer must not overwrite it
   const searchSeq = useRef(0);
 
@@ -153,6 +154,10 @@ export default function App() {
       void i18n.changeLanguage(language.effective);
     }
   }, [language, i18n]);
+
+  useEffect(() => {
+    void api.version().then(setVersion).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const texts: TrayTexts = {
@@ -339,6 +344,7 @@ export default function App() {
         <button type="button" onClick={() => void runDiagnostics()}>
           {t("diagnostics.copy")}
         </button>
+        {version && <span className="muted">{t("about.version", { version })}</span>}
         {diag && <span>{diag.ok ? t("diagnostics.copied") : t("diagnostics.failed", { code: diag.code })}</span>}
       </footer>
     </main>

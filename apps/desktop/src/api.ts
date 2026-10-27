@@ -90,6 +90,8 @@ export const api = {
   wipeLocalData: () => invoke<void>("app_wipe_local_data"),
   /** Puts text on the clipboard so that it is neither recorded nor offered to clipboard history tools. */
   copySecret: (text: string) => invoke<void>("app_copy_secret", { text }),
+  /** The version and the build id, for example `0.0.1 (v0.0.1-main.7)`. */
+  version: () => invoke<string>("app_version"),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
