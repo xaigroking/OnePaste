@@ -141,6 +141,8 @@ function StepBar({ at }: { at: 1 | 2 | 3 }) {
 function OnboardingSteps({ onDone, onStep }: { onDone: () => void; onStep: (n: 1 | 2 | 3) => void }) {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>("mode");
+  const at: 1 | 2 | 3 = step === "mode" ? 1 : step === "kit" ? 3 : 2;
+  useEffect(() => onStep(at), [at, onStep]);
   const [choice, setChoice] = useState<"local" | "server" | null>(null);
   const [code, setCode] = useState("");
   const [deviceName, setDeviceName] = useState("");
