@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPTS = os.path.join(HERE, "..", "..", "scripts")
+SCRIPTS = HERE
 
 
 def load(name):
@@ -19,7 +19,7 @@ def load(name):
     return mod
 
 
-check = load("check-update-manifest")
+check = load("check_update_manifest")
 TAG = "v0.0.1-main.7"
 REPO = "owner/repo"
 WIN = "OnePaste-%s-windows-x64-portable.zip" % TAG
@@ -35,7 +35,7 @@ def make(extra=()):
         open(n, "w").write(NOTES)
         open(s, "w").write(SUMS)
         r = subprocess.run(
-            [sys.executable, os.path.join(SCRIPTS, "make-update-manifest.py"), "--tag", TAG, "--released-at", "1790000000", "--kind", "main", "--notes-file", n, "--sums", s, "--repo", REPO, *extra],
+            [sys.executable, os.path.join(SCRIPTS, "make_update_manifest.py"), "--tag", TAG, "--released-at", "1790000000", "--kind", "main", "--notes-file", n, "--sums", s, "--repo", REPO, *extra],
             capture_output=True, text=True,
         )
         return r
@@ -66,7 +66,7 @@ def test_a_release_without_a_desktop_package_gives_no_manifest():
         s, n = os.path.join(d, "s"), os.path.join(d, "n")
         open(s, "w").write("%s  something-else.zip\n" % ("a" * 64))
         open(n, "w").write(NOTES)
-        r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "make-update-manifest.py"), "--tag", TAG, "--released-at", "1", "--kind", "main", "--notes-file", n, "--sums", s, "--repo", REPO], capture_output=True, text=True)
+        r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "make_update_manifest.py"), "--tag", TAG, "--released-at", "1", "--kind", "main", "--notes-file", n, "--sums", s, "--repo", REPO], capture_output=True, text=True)
         assert r.returncode == 1
 
 
