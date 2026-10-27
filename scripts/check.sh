@@ -242,7 +242,7 @@ python3 tools/test_update_manifest.py > /dev/null || { say "FAIL tools/test_upda
 if grep -nE 'env::var|env!\(|option_env' crates/onepaste-app/src/update.rs | grep -v 'include_str'; then
   say "FAIL crates/onepaste-app/src/update.rs reads the environment"; fail=1
 fi
-if grep -nE 'UPDATE_(URL|KEY|SOURCE)' crates/onepaste-app/src apps/desktop/src-tauri/src | grep -E 'env|getenv'; then
+if grep -rnE 'UPDATE_(URL|KEY|SOURCE)' crates/onepaste-app/src apps/desktop/src-tauri/src | grep -E 'env|getenv'; then
   say "FAIL an environment variable can change the update source"; fail=1
 fi
 
