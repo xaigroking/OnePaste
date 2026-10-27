@@ -6,8 +6,20 @@ use crate::error::Error;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub const KEYPARAMS_V: u8 = 1;
+const VAULT_PROOF_CONTEXT: &[u8] = b"onepaste/vault-proof/v1";
+
+/// Vault proof: `SHA-256("onepaste/vault-proof/v1" || MK)`.
+/// A client uses it to prove to the server that it holds the master key when registering a device; the server stores only its hash.
+/// The value is derived from the key, so callers must never log it.
+pub fn vault_proof(mk: &Key) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(VAULT_PROOF_CONTEXT);
+    h.update(mk.as_bytes());
+    h.finalize().into()
+}
 
 /// The key parameter record stored on the server and locally: the salt is public, and the wrapped MK cannot be recovered without the passphrase.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,6 +167,25 @@ mod tests {
         assert_eq!(rec2.unlock("new").unwrap(), mk);
         assert_eq!(rec2.unlock("forgotten").unwrap_err(), Error::WrongPassphrase);
         rec2.verify_mk(&mk).unwrap();
+    }
+
+    #[test]
+    fn vault_proof_is_deterministic_distinct_and_not_the_key() {
+        let a = Key::random().unwrap();
+        let b = Key::random().unwrap();
+        assert_eq!(vault_proof(&a), vault_proof(&a));
+        assert_ne!(vault_proof(&a), vault_proof(&b));
+        assert_ne!(&vault_proof(&a), a.as_bytes());
+    }
+
+    #[test]
+    fn vault_proof_matches_the_documented_construction() {
+        let mk = Key::from_bytes([7u8; 32]);
+        let mut h = Sha256::new();
+        h.update(b"onepaste/vault-proof/v1");
+        h.update([7u8; 32]);
+        let want: [u8; 32] = h.finalize().into();
+        assert_eq!(vault_proof(&mk), want);
     }
 
     #[test]

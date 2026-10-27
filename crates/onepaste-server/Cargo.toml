@@ -1,0 +1,35 @@
+[package]
+name = "onepaste-server"
+description = "OnePaste self-hosted sync server: axum + SQLite, a single binary, HTTPS only"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "onepaste_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "onepaste-server"
+path = "src/main.rs"
+
+[dependencies]
+onepaste-core = { path = "../onepaste-core" }
+axum = "0.8"
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+http-body-util = "0.1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "fmt"] }
+sha2 = "0.10"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }

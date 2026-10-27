@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/onepaste-core", "crates/onepaste-platform"]
+members = ["crates/onepaste-core", "crates/onepaste-platform", "crates/onepaste-server"]
 exclude = ["spikes/vaultcore", "apps/desktop/src-tauri"]
 
 [workspace.package]
