@@ -21,7 +21,9 @@ cleanup() {
   rm -rf "$ROOT"
 }
 trap cleanup EXIT
-trap 'echo "FAILED at step: $STEP (line $LINENO)" >&2' ERR
+# A copy of the real standard error, so the failure report is never swallowed by a "2> /dev/null" on the failing command
+exec 3>&2
+trap 'echo "FAILED at step: $STEP (line $LINENO)" >&3' ERR
 
 step() { STEP="$1"; echo "== step $1"; }
 ok() { echo "ok: $1"; }
