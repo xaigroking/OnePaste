@@ -116,3 +116,16 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .items .actions button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .items .actions button:focus-visible { outline: 2px solid var(--accent); }
+
+/* First run */
+.modes { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.mode { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.mode > span { display: flex; flex-direction: column; gap: 2px; }
+.mode.unavailable { opacity: 0.5; }
+.kit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.1em; padding: 10px; border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+.kit-input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; width: 100%; box-sizing: border-box; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+.strength.weak { color: #b91c1c; }
+.strength.fair { color: #b45309; }
+.strength.strong { color: #15803d; }
+button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }
+@media print { body * { visibility: hidden; } .kit-screen .kit, .kit-screen .kit * { visibility: visible; } .kit-screen .kit { position: absolute; left: 0; top: 0; } }

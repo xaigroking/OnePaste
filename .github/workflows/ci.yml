@@ -133,6 +133,8 @@ jobs:
         run: bash tests/e2e/crash_recovery.sh target/debug
       - name: Desktop application against the command line end-to-end test
         run: bash tests/e2e/desktop_cli.sh target/debug
+      - name: First run end-to-end test
+        run: bash tests/e2e/first_run.sh target/debug
       - name: History search end-to-end test
         run: bash tests/e2e/history_search.sh target/debug
       - name: Leak probe
@@ -182,6 +184,9 @@ jobs:
       - name: Frontend dependency license check
         shell: bash
         run: bash scripts/check-frontend-licenses.sh
+      - name: Frontend tests
+        working-directory: apps/desktop
+        run: npx --no-install vitest run
       - name: Desktop unit tests
         working-directory: apps/desktop/src-tauri
         run: cargo test

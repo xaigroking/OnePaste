@@ -1,4 +1,4 @@
-//! Tray: four states, each with its own icon and tooltip. Menu texts come from the UI layer.
+//! Tray: five states, each with its own icon and tooltip. Menu texts come from the UI layer.
 
 use crate::state::{AppState, TrayState};
 use crate::{commands, icons};

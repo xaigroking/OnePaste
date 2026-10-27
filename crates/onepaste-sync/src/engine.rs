@@ -92,6 +92,8 @@ pub struct Engine<S: Store> {
     pub(crate) pull_suspended: bool,
     pub(crate) stale_streak: HashMap<u64, u32>,
     page_size: u32,
+    /// Local-only: items are kept and edited here but nothing is queued for a server. Such an engine never sends.
+    local: bool,
 }
 
 /// Runs `f` as one storage transaction. If `f` fails, nothing it did is kept.
@@ -144,7 +146,16 @@ impl<S: Store> Engine<S> {
             pull_suspended: false,
             stale_streak: HashMap::new(),
             page_size: DEFAULT_PAGE_SIZE,
+            local: false,
         }
+    }
+
+    /// An engine that only keeps items on this computer. Nothing is queued, so there is nothing to upload; an item's
+    /// `seq` is a local counter that grows with every change, which is what lets a history index follow it.
+    pub fn new_local(store: S, mk: Key) -> Engine<S> {
+        let mut e = Engine::new(store, mk, String::new());
+        e.local = true;
+        e
     }
 
     /// Items requested per pull page (the default is 200).
@@ -154,6 +165,10 @@ impl<S: Store> Engine<S> {
 
     pub fn into_store(self) -> S {
         self.store
+    }
+
+    pub fn master_key(&self) -> &Key {
+        &self.mk
     }
 
     pub fn store_mut(&mut self) -> &mut S {
@@ -184,13 +199,19 @@ impl<S: Store> Engine<S> {
         let created = secs(now_ms);
         let env_json = seal_item(&self.mk, &id, created, created, None, payload)?.to_json()?;
         let idem = new_id_at(now_ms)?;
+        let local = self.local;
         let mk = &self.mk;
         run_tx(&mut self.store, |tx| {
             let mut meta = tx.meta()?;
             let op_id = take_op_id(&mut meta);
-            let blob = OpBlob { intent: Intent::Create, envelope: Some(env_json.clone()) };
-            tx.put_outbox(&new_op(op_id, &id, seal_blob(mk, op_id, &blob)?, &idem))?;
-            tx.put_item(&ItemRow { id: id.clone(), seq: 0, deleted: false, envelope_json: Some(env_json.clone()), mark: meta.epoch })?;
+            let seq = if local {
+                op_id as i64
+            } else {
+                let blob = OpBlob { intent: Intent::Create, envelope: Some(env_json.clone()) };
+                tx.put_outbox(&new_op(op_id, &id, seal_blob(mk, op_id, &blob)?, &idem))?;
+                0
+            };
+            tx.put_item(&ItemRow { id: id.clone(), seq, deleted: false, envelope_json: Some(env_json.clone()), mark: meta.epoch })?;
             tx.set_meta(&meta)?;
             Ok(())
         })?;
@@ -203,6 +224,7 @@ impl<S: Store> Engine<S> {
             return Err(Error::BodyImmutable);
         }
         let idem = new_id_at(now_ms)?;
+        let local = self.local;
         let mk = &self.mk;
         run_tx(&mut self.store, |tx| {
             let mut row = tx.item(id)?.ok_or(Error::NotFound)?;
@@ -216,8 +238,12 @@ impl<S: Store> Engine<S> {
             let new_json = reseal(mk, &env, secs(now_ms), &payload)?;
             let mut meta = tx.meta()?;
             let op_id = take_op_id(&mut meta);
-            let blob = OpBlob { intent: Intent::Edit { edit: edit.clone() }, envelope: Some(new_json.clone()) };
-            tx.put_outbox(&new_op(op_id, id, seal_blob(mk, op_id, &blob)?, &idem))?;
+            if local {
+                row.seq = op_id as i64;
+            } else {
+                let blob = OpBlob { intent: Intent::Edit { edit: edit.clone() }, envelope: Some(new_json.clone()) };
+                tx.put_outbox(&new_op(op_id, id, seal_blob(mk, op_id, &blob)?, &idem))?;
+            }
             row.envelope_json = Some(new_json);
             tx.put_item(&row)?;
             tx.set_meta(&meta)?;
@@ -232,11 +258,16 @@ impl<S: Store> Engine<S> {
             Some(InFlight::Push { op_id }) => Some(*op_id),
             _ => None,
         };
+        let local = self.local;
         let mk = &self.mk;
         run_tx(&mut self.store, |tx| {
             let mut row = tx.item(id)?.ok_or(Error::NotFound)?;
             if row.deleted {
                 return Err(Error::Deleted);
+            }
+            if local {
+                tx.remove_item(id)?;
+                return Ok(());
             }
             let ops: Vec<OutboxRow> = tx.outbox()?.into_iter().filter(|o| o.item_id == id).collect();
             let never_sent = row.seq == 0 && ops.iter().all(|o| o.attempts == 0 && Some(o.op_id) != inflight_op);
@@ -375,6 +406,9 @@ impl<S: Store> Engine<S> {
     }
 
     pub fn next_action(&mut self, now_ms: u64) -> Result<Action, Error> {
+        if self.local {
+            return Ok(Action::Idle);
+        }
         if self.inflight.is_some() {
             return Ok(Action::InFlight);
         }

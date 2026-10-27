@@ -5,7 +5,8 @@
 # tcpdump and sudo. Without capture rights (a developer machine) the user-space recorder tools/tcp_tap.py still sees every
 # byte the clients exchange with the server, and the tcpdump checks are reported as not run; in CI they must run.
 # The desktop application logic (the test harness) takes part in the flow, so its data directory, its history database and
-# its traffic are scanned as well.
+# its traffic are scanned as well. The vault itself is created by the harness the way the first-run screens do it, so the
+# passphrase and the recovery kit are planted too (the kit is only known once the vault exists; its patterns are added then).
 # Usage: tests/e2e/leak_probe.sh [binary-directory]   (default: target/debug)
 set -Eeuo pipefail
 
@@ -40,6 +41,8 @@ OLD_CORE_PATTERN=""
 cleanup() {
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2> /dev/null || true; done
   [ -n "${HD_PID:-}" ] && kill "$HD_PID" 2> /dev/null || true
+  [ -n "${H0_PID:-}" ] && kill "$H0_PID" 2> /dev/null || true
+  [ -n "${HL_PID:-}" ] && kill "$HL_PID" 2> /dev/null || true
   if [ "$TCPDUMP_ON" = 1 ]; then sudo -n pkill -INT -x tcpdump 2> /dev/null || true; fi
   if [ -n "$OLD_CORE_PATTERN" ]; then sudo -n sysctl -q -w "kernel.core_pattern=$OLD_CORE_PATTERN" > /dev/null 2>&1 || true; fi
   rm -rf "$ROOT"
@@ -154,6 +157,36 @@ for _ in $(seq 1 100); do grep -q '"message":"started"' "$OUT/server.out" 2> /de
 grep -q '"message":"started"' "$OUT/server.out" || die "the server did not start"
 CODE=$(grep -m1 '^onepaste1:' "$OUT/server.out")
 
+# The desktop application logic creates the vault, as the first-run screens do: probe, create (the kit is shown), confirm
+step "create the vault with the desktop application logic (new vault, recovery kit, confirmation)"
+coproc H0 { "$HARNESS" "$ROOT/H0" 2> "$OUT/harness0.err"; }
+hd0() {
+  local name=$1
+  shift
+  printf '%s\n' "$*" >&"${H0[1]}"
+  : > "$OUT/$name.out"
+  local line
+  while IFS= read -r -t 60 line <&"${H0[0]}"; do
+    if [ "$line" = "END" ]; then return 0; fi
+    printf '%s\n' "$line" >> "$OUT/$name.out"
+  done
+  die "the harness did not answer: $name"
+}
+hd0 harness0_probe probe "$CODE"
+test "$(cat "$OUT/harness0_probe.out")" = "empty" || die "the server should have no vault yet"
+hd0 harness0_create create "$CODE" "$M_PASS" desktop0
+M_KIT=$(sed -n 's/^kit //p' "$OUT/harness0_create.out")
+test "${#M_KIT}" -eq 69 || die "no recovery kit came back from the create command"
+hd0 harness0_confirm confirm
+test "$(cat "$OUT/harness0_confirm.out")" = "ok" || die "the confirmation failed"
+printf 'quit\n' >&"${H0[1]}"
+wait "$H0_PID" 2> /dev/null || true
+H0_PID=""
+# From here on the recovery kit is a planted string as well, with and without the dashes
+printf 'KIT\traw\t%s\nKIT\tno-dashes\t%s\n' "$M_KIT" "${M_KIT//-/}" >> "$PATTERNS"
+INVITE0=$("$SERVER" connect-code --data-dir "$ROOT/srv" --public-url "https://127.0.0.1:$T1" 2> /dev/null | grep -m1 '^onepaste1:')
+test -n "$INVITE0" || die "the server printed no connection code"
+
 # cli <A|B> <name> <args...>: runs the client and keeps everything it prints in $OUT/<name>.out
 cli() {
   local who=$1 name=$2
@@ -169,7 +202,7 @@ cli_stdin() {
 }
 
 step "run the whole flow with the planted strings"
-cli A join_a join "$CODE" --name "$M_DEV" --recovery-kit-out "$ROOT/kit.txt"
+cli A join_a join "$INVITE0" --name "$M_DEV"
 cli A invite invite
 INVITE=$(grep -m1 '^onepaste1:' "$OUT/invite.out")
 cli B join_b join "$INVITE" --name "device-b"
@@ -199,6 +232,8 @@ ok "flow finished"
 step "run the desktop application logic through the same server with the planted strings"
 # Searching builds the history database of A (an encrypted copy of what A holds)
 cli A search_a search "$M_TEXT"
+# The server allows ten registration-type requests a minute from one address; the flow above has used most of them
+sleep 20
 cli A invite_h invite
 INVITE_H=$(grep -m1 '^onepaste1:' "$OUT/invite_h.out")
 coproc HD { "$HARNESS" "$ROOT/H" 2> "$OUT/harness.err"; }
@@ -216,7 +251,7 @@ hd() {
   die "the harness did not answer: $name"
 }
 hd harness_join join "$INVITE_H" "$M_PASS" desktop
-test "$(cat "$OUT/harness_join.out")" = "ok"
+test "$(cat "$OUT/harness_join.out")" = "ok" || die "the desktop join answered: $(cat "$OUT/harness_join.out")"
 hd harness_sync1 sync
 hd harness_copy copy "desktop copy $M_TEXT"
 hd harness_sync2 sync
@@ -231,6 +266,28 @@ printf 'quit\n' >&"${HD[1]}"
 wait "$HD_PID" 2> /dev/null || true
 HD_PID=""
 cli A sync_a3 sync
+# A computer used in local-only mode: it records and searches, and has no device and no network use
+coproc HL { "$HARNESS" "$ROOT/HL" 2> "$OUT/harnessl.err"; }
+hl() {
+  local name=$1
+  shift
+  printf '%s\n' "$*" >&"${HL[1]}"
+  : > "$OUT/$name.out"
+  local line
+  while IFS= read -r -t 60 line <&"${HL[0]}"; do
+    if [ "$line" = "END" ]; then return 0; fi
+    printf '%s\n' "$line" >> "$OUT/$name.out"
+  done
+  die "the harness did not answer: $name"
+}
+hl harnessl_local local
+hl harnessl_copy copy "local only copy $M_TEXT"
+hl harnessl_search search "$M_TEXT"
+grep -q "$M_TEXT" "$OUT/harnessl_search.out" || die "the local-only search should find the planted text"
+hl harnessl_status status
+printf 'quit\n' >&"${HL[1]}"
+wait "$HL_PID" 2> /dev/null || true
+HL_PID=""
 test -f "$ROOT/H/history.db" || die "the desktop application did not build a history database"
 ok "desktop application flow finished"
 
@@ -291,12 +348,15 @@ step "1.2.3 client data directories, including the history databases"
 scan_for_markers "client A data directory" "$ROOT/A"
 scan_for_markers "client B data directory" "$ROOT/B"
 scan_for_markers "desktop application data directory" "$ROOT/H"
+scan_for_markers "desktop application data directory (vault creation)" "$ROOT/H0"
+scan_for_markers "desktop application data directory (local-only)" "$ROOT/HL"
+test "$(sqlite3 "$ROOT/HL/onepaste.db" "SELECT count(*) FROM meta WHERE key IN ('device_id','u','keyparams')")" -eq 0 || die "the local-only database holds a device identity"
 test -f "$ROOT/A/history.db" || die "client A has no history database to scan"
 
 step "1.2.4 everything the client commands printed"
 CLIENT_OUT="$ROOT/client_out"
 mkdir -p "$CLIENT_OUT"
-for f in join_a invite join_b add set sync_b sync_a add2 sync_b2 rm sync_a2 status revoke sync_b3 invite_h sync_a3 harness_join harness_sync1 harness_sync2 harness_sync3 harness_status; do cp "$OUT/$f.out" "$CLIENT_OUT/"; done
+for f in join_a invite join_b add set sync_b sync_a add2 sync_b2 rm sync_a2 status revoke sync_b3 invite_h sync_a3 harness0_probe harness0_confirm harness_join harness_sync1 harness_sync2 harness_sync3 harness_status harnessl_status; do cp "$OUT/$f.out" "$CLIENT_OUT/"; done
 test "$(find "$CLIENT_OUT" -type f -size +0 | wc -l)" -ge 10 || die "the client printed almost nothing"
 scan_for_markers "client output" "$CLIENT_OUT"
 scan_for_markers "client output, server-held secrets" -p "$EXTRA" "$CLIENT_OUT"
@@ -378,8 +438,10 @@ check_mode "$ROOT/A" 700
 check_mode "$ROOT/B" 700
 check_mode "$ROOT/srv" 700
 check_mode "$ROOT/H" 700
+check_mode "$ROOT/H0" 700
+check_mode "$ROOT/HL" 700
 check_mode "$ROOT/srv/tls/key.pem" 600
-for f in "$ROOT"/A/onepaste.db* "$ROOT"/B/onepaste.db* "$ROOT"/srv/onepaste.db* "$ROOT"/A/history.db* "$ROOT"/H/client.db* "$ROOT"/H/onepaste.db* "$ROOT"/H/history.db*; do
+for f in "$ROOT"/A/onepaste.db* "$ROOT"/B/onepaste.db* "$ROOT"/srv/onepaste.db* "$ROOT"/A/history.db* "$ROOT"/H/client.db* "$ROOT"/H/onepaste.db* "$ROOT"/H/history.db* "$ROOT"/H0/onepaste.db* "$ROOT"/HL/onepaste.db* "$ROOT"/HL/history.db* "$ROOT"/H0/history.db*; do
   [ -e "$f" ] && check_mode "$f" 600
 done
 ok "directories 0700, database files and the private key 0600"
@@ -390,13 +452,13 @@ CTRL="$ROOT/ctrl"
 mkdir -p "$CTRL"
 forms_found=0
 while IFS=$'\t' read -r name form pat; do
-  [ "$name" = TEXT ] || continue
+  [ "$name" = TEXT ] || [ "$name" = KIT ] || continue
   f="$CTRL/form-$form"
   printf 'noise %s noise' "$pat" > "$f"
   report=$(scan_for_markers "control $form" "$f" 2>&1 || true)
-  case "$report" in *"TEXT found as $form in"*) forms_found=$((forms_found + 1)) ;; *) die "the scanner missed the form $form" ;; esac
+  case "$report" in *"$name found as $form in"*) forms_found=$((forms_found + 1)) ;; *) die "the scanner missed the form $form" ;; esac
 done < "$PATTERNS"
-test "$forms_found" -ge 8
+test "$forms_found" -ge 10
 ok "the scanner reported all $forms_found forms of the planted text"
 
 step "1.3.2 control: a plaintext HTTP request is visible in the recorded traffic"

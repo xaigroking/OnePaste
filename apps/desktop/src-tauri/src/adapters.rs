@@ -161,4 +161,36 @@ mod tests {
         let got = next_event(&rx, |e| matches!(e, ClipEvent::Captured(_) | ClipEvent::SkippedSelf));
         assert_eq!(got, Some(ClipEvent::SkippedSelf));
     }
+
+    #[test]
+    fn local_only_mode_keeps_its_random_key_in_the_real_secure_store_and_reopens_after_a_restart() {
+        use onepaste_app::{App, AppConfig, FakeClipboard, Filter, Mode};
+        use std::sync::Arc;
+        let id = std::process::id();
+        let dir = std::env::temp_dir().join(format!("onepaste-adapter-local-{id}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let account = format!("onepaste-local-test-{id}");
+        tauri::async_runtime::block_on(async {
+            let clip = Arc::new(FakeClipboard::new());
+            let app = App::new(dir.clone(), Arc::new(PlatformSecretStore::new(&account)), clip.clone(), AppConfig::default());
+            assert_eq!(app.first_run_state().await.unwrap(), Mode::Unset);
+            app.choose_local_only().await.unwrap();
+            let key = PlatformSecretStore::new(&account).load().unwrap().expect("the random key is in the real secure store");
+            clip.user_copies(Content::Text("kept across a restart".into()));
+            std::thread::sleep(Duration::from_millis(600));
+            assert_eq!(app.search("across a restart", Filter::All, 5, 0).await.unwrap().len(), 1);
+            app.shutdown();
+            drop(app);
+            // The program starts again: the same directory, the key read back from the real secure store
+            let again = App::new(dir.clone(), Arc::new(PlatformSecretStore::new(&account)), clip, AppConfig::default());
+            assert_eq!(again.first_run_state().await.unwrap(), Mode::LocalOnly);
+            assert_eq!(again.search("across a restart", Filter::All, 5, 0).await.unwrap().len(), 1, "the history opens after the restart");
+            assert_eq!(PlatformSecretStore::new(&account).load().unwrap().unwrap().as_bytes(), key.as_bytes());
+            again.shutdown();
+            // Wiping removes the key from the real secure store too
+            again.wipe_local_data().await.unwrap();
+            assert!(PlatformSecretStore::new(&account).load().unwrap().is_none());
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
