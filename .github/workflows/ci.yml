@@ -6,7 +6,41 @@ on:
   pull_request:
     branches: [main]
 
+# A new push to the same pull request (or branch) cancels the older run, so it does not keep holding the queue
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Decides whether this pull request touches anything that can behave differently on macOS
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      macos: ${{ steps.filter.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "macos=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$BASE...$HEAD")
+          echo "changed files:"; echo "$files"
+          if printf '%s\n' "$files" | grep -Eq '^(crates/onepaste-platform/|crates/onepaste-history/|crates/onepaste-core/|apps/desktop/|Cargo\.lock$|\.github/workflows/)'; then
+            echo "macos=true" >> "$GITHUB_OUTPUT"
+            echo "A path that can differ on macOS changed: the macos job runs"
+          else
+            echo "macos=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing that can differ on macOS changed: the macos job is skipped"
+          fi
+
   pr-only:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -69,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +162,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -144,14 +178,8 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
       - name: Frontend dependency license check
-        working-directory: apps/desktop
         shell: bash
-        run: |
-          npx --no-install license-checker-rseidelsohn --summary | tee licenses.txt
-          npx --no-install license-checker-rseidelsohn --failOn "GPL;GPL-1.0;GPL-2.0;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0;GPL-3.0-only;GPL-3.0-or-later;AGPL;AGPL-1.0;AGPL-3.0;AGPL-3.0-only;AGPL-3.0-or-later;LGPL;LGPL-2.0;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;BUSL-1.1" > /dev/null
-          if grep -Ei '(^|[^A-Za-z])(A?GPL|LGPL|SSPL|BUSL)' licenses.txt; then
-            echo "FAIL: a forbidden license appears among the frontend dependencies"; exit 1
-          fi
+        run: bash scripts/check-frontend-licenses.sh
       - name: Desktop unit tests
         working-directory: apps/desktop/src-tauri
         run: cargo test
@@ -161,3 +189,17 @@ jobs:
     uses: ./.github/workflows/build-portable.yml
     with:
       label: ci-${{ github.run_number }}
+      platforms: windows
+
+  # The only macOS job. GitHub's macOS arm64 runners are scarce, so CI uses the Intel pool and only for pull requests
+  # that touch something macOS can differ on. The release workflow builds on arm64 (the build-portable default).
+  macos:
+    name: macos
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.macos == 'true'
+    uses: ./.github/workflows/build-portable.yml
+    with:
+      label: ci-${{ github.run_number }}
+      platforms: macos
+      macos_runner: macos-15-intel
+      run_tests: true
