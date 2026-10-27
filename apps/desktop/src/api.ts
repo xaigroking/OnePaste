@@ -42,6 +42,22 @@ export interface ItemView {
   syncState?: "synced" | "pending" | "local";
 }
 
+export interface DeviceView {
+  deviceId: string;
+  /** The name the user gave the device; null if it cannot be read. */
+  name: string | null;
+  /** Seconds since the epoch. */
+  createdAt: number;
+  lastSeenAt: number | null;
+  revoked: boolean;
+  thisDevice: boolean;
+}
+
+export interface DeviceList {
+  devices: DeviceView[];
+  serverUrl: string;
+}
+
 export interface AppSettings {
   autoApplyRemote: boolean;
   recordClipboard: boolean;
@@ -97,6 +113,9 @@ export const api = {
   wipeLocalData: () => invoke<void>("app_wipe_local_data"),
   /** Puts text on the clipboard so that it is neither recorded nor offered to clipboard history tools. */
   copySecret: (text: string) => invoke<void>("app_copy_secret", { text }),
+  devices: () => invoke<DeviceList>("app_devices"),
+  revokeDevice: (deviceId: string) => invoke<void>("app_revoke_device", { deviceId }),
+  newConnectionCode: () => invoke<string>("app_new_connection_code"),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),

@@ -23,9 +23,11 @@ interface Props {
   status: AppStatus | null;
   recording: boolean;
   joined: boolean;
+  /** Devices in the vault; null when not known or not applicable. */
+  deviceCount: number | null;
 }
 
-export function Sidebar({ view, onView, tray, status, recording, joined }: Props) {
+export function Sidebar({ view, onView, tray, status, recording, joined, deviceCount }: Props) {
   const { t } = useTranslation();
   return (
     <nav className="sidebar" aria-label={t("app.title")}>
@@ -44,6 +46,7 @@ export function Sidebar({ view, onView, tray, status, recording, joined }: Props
             >
               <Icon name={n.icon} />
               <span>{t(`nav.${n.id}`)}</span>
+              {n.id === "devices" && deviceCount !== null && <span className="count">{deviceCount}</span>}
             </button>
           </li>
         ))}

@@ -3,7 +3,7 @@
 use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
-use onepaste_app::{parse_filter, App, ItemView, Mode, ServerVault, Settings, Status};
+use onepaste_app::{parse_filter, App, DeviceList, ItemView, Mode, ServerVault, Settings, Status};
 use onepaste_platform::clipboard::{self, Content};
 use onepaste_platform::system;
 use serde::Serialize;
@@ -145,6 +145,24 @@ pub async fn app_join_with_kit(app: AppHandle, core: State<'_, App>, code: Strin
     let r = core.join_with_kit(&code, &kit, &device_name).await.map_err(|e| e.code());
     tray::notify_changed(&app);
     r
+}
+
+/// The devices of the vault and the server they sync through.
+#[tauri::command]
+pub async fn app_devices(core: State<'_, App>) -> Result<DeviceList, String> {
+    core.devices().await.map_err(|e| e.code())
+}
+
+/// Removes another device from the vault.
+#[tauri::command]
+pub async fn app_revoke_device(core: State<'_, App>, device_id: String) -> Result<(), String> {
+    core.revoke_device(&device_id).await.map_err(|e| e.code())
+}
+
+/// A new connection code for adding a device.
+#[tauri::command]
+pub async fn app_new_connection_code(core: State<'_, App>) -> Result<String, String> {
+    core.new_connection_code().await.map_err(|e| e.code())
 }
 
 /// Puts a secret (the recovery kit) on the clipboard with the origin marker, so it is not recorded as a history item.

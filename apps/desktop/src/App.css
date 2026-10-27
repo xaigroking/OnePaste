@@ -132,3 +132,15 @@ details summary { cursor: pointer; padding: 6px 0; color: var(--muted); }
 .strength.strong { color: #15803d; }
 button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }
 @media print { body * { visibility: hidden; } .kit-screen .kit, .kit-screen .kit * { visibility: visible; } .kit-screen .kit { position: absolute; left: 0; top: 0; } }
+
+/* Devices */
+.devices { width: 100%; border-collapse: collapse; }
+.devices th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.devices td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.devices tr:last-child td { border-bottom: 0; }
+.devices td:first-child { display: flex; align-items: center; gap: 10px; }
+.device-name { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.actions-cell { text-align: right; white-space: nowrap; }
+.actions-cell .btn + .btn { margin-left: 6px; }
+.confirm { margin-top: 10px; }
+.count { margin-left: auto; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }

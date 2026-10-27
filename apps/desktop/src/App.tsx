@@ -40,6 +40,7 @@ export default function App() {
   const [tray, setTray] = useState<TrayState>("synced");
   const [diag, setDiag] = useState<ActionResult | null>(null);
   const [language, setLanguage] = useState<LanguageState | null>(null);
+  const [deviceCount, setDeviceCount] = useState<number | null>(null);
   // The newest search wins: an older, slower answer must not overwrite it
   const searchSeq = useRef(0);
 
@@ -99,6 +100,19 @@ export default function App() {
     void api.setTexts(texts);
   }, [t]);
 
+  // The number next to "Devices" in the sidebar; only a vault on a server has devices
+  const syncedVault = status?.mode === "synced";
+  useEffect(() => {
+    if (!syncedVault) {
+      setDeviceCount(null);
+      return;
+    }
+    const load = () => void api.devices().then((l) => setDeviceCount(l.devices.filter((d) => !d.revoked).length)).catch(() => undefined);
+    load();
+    const timer = window.setInterval(load, 30000);
+    return () => window.clearInterval(timer);
+  }, [syncedVault]);
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void onChanged(() => void refresh()).then((u) => {
@@ -150,6 +164,7 @@ export default function App() {
         status={status}
         recording={settings?.recordClipboard ?? true}
         joined={joined}
+        deviceCount={deviceCount}
       />
       <main className="content">
         {joined && status?.paused && (
@@ -163,7 +178,7 @@ export default function App() {
         {activeView === "history" && (
           <HistoryView items={items} query={query} filter={filter} onQuery={setQuery} onFilter={setFilter} act={act} />
         )}
-        {activeView === "devices" && <DevicesView status={status} />}
+        {activeView === "devices" && <DevicesView status={status} onCount={setDeviceCount} />}
         {activeView === "settings" && (
           <SettingsView
             settings={settings}
