@@ -91,11 +91,6 @@ pub fn derive_key(pass: &str, salt: &[u8], params: &KdfParams) -> Result<Key, Er
     Ok(key)
 }
 
-/// Self-hosted auth token: an Argon2 run **independent** of the KEK, with a salt **issued by the server**, so the token and the encryption key are unrelated.
-pub fn derive_auth_token(pass: &str, server_salt: &[u8], params: &KdfParams) -> Result<Key, Error> {
-    derive_key(pass, server_salt, params)
-}
-
 /// AAD contexts: bind a ciphertext to its purpose and identifier so it cannot be moved elsewhere.
 pub mod aad {
     pub const MKWRAP: &[u8] = b"onepaste/mkwrap/v1";
@@ -105,6 +100,9 @@ pub mod aad {
     }
     pub fn blob(id: &str) -> Vec<u8> {
         format!("onepaste/blob/v1:{id}").into_bytes()
+    }
+    pub fn device(id: &str) -> Vec<u8> {
+        format!("onepaste/device/v1:{id}").into_bytes()
     }
 }
 
@@ -155,13 +153,6 @@ mod tests {
         let weak = KdfParams { m_kib: 64, t: 1, p: 1 };
         assert_eq!(derive_key("x", &[0u8; 16], &weak).unwrap_err(), Error::WeakKdf);
         assert!(matches!(derive_key("x", &[0u8; 8], &P), Err(Error::InvalidArgument(_))));
-    }
-
-    #[test]
-    fn auth_token_is_independent_of_kek() {
-        let kek = derive_key("pw", &[1u8; 16], &P).unwrap();
-        let tok = derive_auth_token("pw", &[2u8; 16], &P).unwrap();
-        assert_ne!(kek, tok);
     }
 
     #[test]

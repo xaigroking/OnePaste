@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OnePaste sync service API
-  version: "1"
+  version: "1.1"
   description: |
     Contract of the self-hosted sync service. The server stores only ciphertext and the metadata it needs; the passphrase and the master key are never sent to the server.
 
@@ -12,7 +12,7 @@ info:
     - Error bodies are always `{"code": "<stable error code>", "request_id": "..."}` and may carry structured fields. They contain no natural-language text; clients localize the wording.
     - Write requests (PUT, POST, DELETE) must carry an `Idempotency-Key` header. The same key with the same body returns the same response for at least 24 hours; the same key with a different body returns 422 `idempotency_conflict`.
     - The server must not log request or response bodies; logs contain only method, path, status, `request_id` and latency.
-    - Rate limits: `register` and `invite` allow 10 requests per IP per minute; failed authentication allows 20 per IP per minute, with longer back-off the more failures there are. Exceeding a limit returns 429 `rate_limited` with a `Retry-After` header.
+    - Rate limits: `register`, `invite` and `GET /vault/keyparams` with an `OnePaste-Reg-Token` allow 10 requests per IP per minute in total; failed authentication (including a wrong `vault_proof`) allows 20 per IP per minute, with longer back-off the more failures there are. Exceeding a limit returns 429 `rate_limited` with a `Retry-After` header.
 
     ## Authentication
     - Device token: `Authorization: Bearer <device_token>`. The token is 32 random bytes encoded as base64url without padding; the server stores only its SHA-256.
@@ -24,17 +24,21 @@ info:
     - A registration credential is 32 random bytes encoded as base64url; the server stores only its SHA-256. It can be used once and expires after 24 hours.
     - On first start, when the database has no device yet, the server generates a registration credential and prints the full connection code to standard output. The subcommand `onepaste-server connect-code` generates a new connection code and invalidates registration credentials that are still unused. There is no admin account and no default password.
 
+    ## Vault proof
+    - `vault_proof` = `SHA-256("onepaste/vault-proof/v1" || master key)`, sent as base64url without padding. The prefix is an ASCII literal without a trailing zero byte.
+    - The server stores only `SHA-256(vault_proof)` and compares in constant time.
+    - Registering a device, changing the passphrase and resetting it with the recovery kit all require the correct `vault_proof`; holding a connection code or a device token is not enough.
+
     ## First device flow
     1. Paste the connection code.
-    2. Set the passphrase and generate the master key locally.
-    3. `POST /devices/register`.
-    4. `PUT /vault/keyparams` with `base_version` 0.
+    2. Set the passphrase, generate the master key and the key parameter record locally.
+    3. `POST /devices/register` with `init` (the record and the `vault_proof`).
 
     ## New device flow
     1. Paste the connection code.
-    2. `POST /devices/register`.
-    3. `GET /vault/keyparams`.
-    4. Unlock the master key locally with the passphrase.
+    2. `GET /vault/keyparams` with the header `OnePaste-Reg-Token`.
+    3. Unlock the master key locally with the passphrase and confirm it with `mk_check`.
+    4. `POST /devices/register` with `vault_proof`.
 
     ## Versions and conflicts
     - The server keeps one global, increasing sequence number `seq` for the whole vault; every accepted write increments it and assigns the new value to the record.
@@ -102,7 +106,11 @@ paths:
       tags: [devices]
       operationId: registerDevice
       summary: Register a device with a registration credential
-      description: An invalid, expired or already used registration credential returns 401 `registration_invalid`.
+      description: |
+        An invalid, expired or already used registration credential returns 401 `registration_invalid`. The credential is marked as used only after the registration succeeds.
+        Vault still empty: `init` is required and the top-level `vault_proof` must be absent; the server creates the record (`version` 1), stores the hash of the `vault_proof` and creates the device in one transaction.
+        Vault already exists: the top-level `vault_proof` is required and `init` must be absent; a wrong `vault_proof` returns 401 `registration_invalid`, counts towards the failed-authentication limit and does not consume the credential.
+        Any other combination returns 400 `invalid_argument`.
       security: []
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
@@ -239,7 +247,12 @@ paths:
       tags: [vault]
       operationId: getKeyParams
       summary: Get the key parameter record
-      description: Returns the record as stored plus `version`. If there is no record yet it returns 404 `vault_empty`.
+      description: |
+        Returns the record as stored plus `version`. If there is no record yet it returns 404 `vault_empty`.
+        Besides the device token it also accepts the header `OnePaste-Reg-Token`, so that a new device can fetch the record before it registers. In that case the credential is only checked for validity, not consumed, and the request counts towards the registration rate limit.
+      security:
+        - deviceToken: []
+        - regToken: []
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
       responses:
@@ -269,8 +282,8 @@ paths:
       operationId: putKeyParams
       summary: Write the key parameter record
       description: |
-        `base_version` is 0 on first creation; when changing the passphrase or resetting it with the recovery kit it is the current `version`.
-        A mismatch returns 409 `stale` with the current record attached.
+        Only for changing the passphrase and for resetting it with the recovery kit; `base_version` is the current `version`. A mismatch returns 409 `stale` with the current record attached.
+        A wrong `vault_proof` returns 401 `unauthorized`. `base_version` 0 (creation) always returns 400 `invalid_argument`: the first record can only be created through the `init` of `POST /devices/register`.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -365,7 +378,7 @@ paths:
       operationId: listItems
       summary: Pull items by cursor
       description: |
-        Returns the items whose `seq` is greater than `after`, in ascending `seq` order.
+        Returns the items whose `seq` is greater than `after`, in ascending `seq` order. `head_seq` is read in the same transaction as the page.
         An `after` older than the tombstone retention window returns 410 `cursor_expired`.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
@@ -449,6 +462,11 @@ components:
       type: http
       scheme: bearer
       description: "Device token: 32 random bytes encoded as base64url without padding."
+    regToken:
+      type: apiKey
+      in: header
+      name: OnePaste-Reg-Token
+      description: Registration credential; accepted only by `GET /vault/keyparams`.
 
   headers:
     OnePasteProto:
@@ -614,6 +632,10 @@ components:
             $ref: "#/components/schemas/Error"
 
   schemas:
+    VaultProof:
+      type: string
+      description: "`SHA-256(\"onepaste/vault-proof/v1\" || master key)` encoded as base64url without padding."
+
     ErrorCode:
       type: string
       description: Stable error code; codes may be added but never changed.
@@ -668,10 +690,28 @@ components:
       format: int64
       description: Timestamp in seconds, used only for display and ordering, never to decide which version is newer.
 
+    RegisterInit:
+      type: object
+      description: Creates the first key parameter record together with the first device.
+      required: [record, vault_proof]
+      properties:
+        record:
+          $ref: "#/components/schemas/KeyParamsRecord"
+        vault_proof:
+          $ref: "#/components/schemas/VaultProof"
+
     RegisterRequest:
       type: object
       required: [reg_token, device_id, sealed_name]
       properties:
+        vault_proof:
+          allOf:
+            - $ref: "#/components/schemas/VaultProof"
+          description: Required when the vault already exists; must be absent when `init` is present.
+        init:
+          allOf:
+            - $ref: "#/components/schemas/RegisterInit"
+          description: Required when the vault is still empty; must be absent when `vault_proof` is present.
         reg_token:
           type: string
           description: "Registration credential: 32 random bytes encoded as base64url."
@@ -740,7 +780,7 @@ components:
     KeyParamsRecord:
       type: object
       description: The key parameter record.
-      required: [v, salt, kdf, wrapped_mk]
+      required: [v, salt, kdf, wrapped_mk, mk_check]
       properties:
         v:
           type: integer
@@ -758,7 +798,7 @@ components:
         mk_check:
           allOf:
             - $ref: "#/components/schemas/Base64"
-          description: Master key check value, used to confirm that a master key in hand belongs to this vault; old records do not have this field.
+          description: Master key check value, used to confirm that a master key in hand belongs to this vault.
 
     KeyParamsView:
       description: The key parameter record plus the version maintained by the server.
@@ -775,15 +815,17 @@ components:
 
     PutKeyParamsRequest:
       type: object
-      required: [record, base_version]
+      required: [record, base_version, vault_proof]
       properties:
         record:
           $ref: "#/components/schemas/KeyParamsRecord"
         base_version:
           type: integer
           format: int64
-          minimum: 0
-          description: The `version` the client based its change on; 0 for first creation.
+          minimum: 1
+          description: The `version` the client based its change on.
+        vault_proof:
+          $ref: "#/components/schemas/VaultProof"
 
     PutKeyParamsResponse:
       type: object
@@ -887,7 +929,7 @@ components:
 
     ItemPage:
       type: object
-      required: [items, next_after, has_more]
+      required: [items, next_after, has_more, head_seq]
       properties:
         items:
           type: array
@@ -902,6 +944,11 @@ components:
         has_more:
           type: boolean
           description: Whether more items follow.
+        head_seq:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The current global sequence number of the vault, 0 if nothing was ever written. A client that has already seen a larger `seq` knows the server was rolled back.
 
     ChangeEvent:
       type: object
