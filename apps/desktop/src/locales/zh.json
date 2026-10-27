@@ -1,24 +1,10 @@
 {
   "app": {
-    "title": "OnePaste 桌面验证"
+    "title": "OnePaste"
   },
   "hotkey": {
     "hint": "按 {{keys}} 呼出本窗口",
     "busy": "热键被占用"
-  },
-  "recents": {
-    "title": "最近记录（仅在内存中，最多 20 条）",
-    "empty": "还没有记录。复制一段文字或截一张图试试。",
-    "image": "图片 {{width}}×{{height}}",
-    "clickHint": "点击一条可写回剪贴板"
-  },
-  "secure": {
-    "title": "安全存储测试",
-    "write": "写入测试密钥",
-    "read": "读取",
-    "delete": "删除",
-    "ok": "成功",
-    "fail": "失败：{{code}}"
   },
   "log": {
     "title": "事件日志",
@@ -31,7 +17,27 @@
     "hotkey_busy": "热键注册失败（被占用）",
     "sensitive_skipped": "已跳过：敏感标记",
     "settings_save_failed": "无法保存语言设置",
-    "watcher_failed": "监听器启动失败"
+    "watcher_failed": "监听器启动失败",
+    "joined": "已加入库",
+    "captured": "已记录一条复制的内容",
+    "uploaded": "已上传改动",
+    "downloaded": "已下载新内容",
+    "applied_remote": "已把另一台设备的内容放上剪贴板",
+    "skipped_sensitive": "已跳过：敏感标记",
+    "skipped_self": "已跳过：是 OnePaste 自己写入的",
+    "skipped_duplicate": "已跳过：与上一次复制相同",
+    "image_too_large": "图片太大，无法同步",
+    "sync_paused": "同步已停止",
+    "woke_from_sleep": "系统从休眠中唤醒",
+    "upload_failed": "一次上传失败",
+    "download_failed": "一次下载失败",
+    "conflict": "有一个改动冲突",
+    "capture_failed": "无法记录这次复制",
+    "apply_failed": "无法写入剪贴板",
+    "history_refresh_failed": "无法更新历史记录",
+    "sync_engine_error": "同步出错",
+    "clipboard_monitor_failed": "剪贴板监听无法启动",
+    "start_failed": "无法开始同步"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -47,7 +53,6 @@
   },
   "tray": {
     "open": "打开窗口",
-    "toggle": "切换状态（验证用）",
     "diagnostics": "复制诊断信息",
     "quit": "退出",
     "statusLine": "状态：{state}",
@@ -61,5 +66,57 @@
   },
   "webview2": {
     "missing": "没有找到 Microsoft Edge WebView2 运行时，OnePaste 无法显示窗口。请先安装它，然后重新打开 OnePaste。"
+  },
+  "join": {
+    "title": "加入你的库",
+    "intro": "粘贴已经持有这个库的设备给出的连接码，并输入它的口令。口令只用一次，不会保存。",
+    "code": "连接码",
+    "passphrase": "口令",
+    "deviceName": "本设备的名称",
+    "submit": "加入",
+    "working": "正在加入…",
+    "errors": {
+      "wrong_passphrase": "口令不对。没有做任何改动。",
+      "vault_empty": "这个服务器还没有库。请先在支持创建的设备上创建，再用它的连接码加入。",
+      "invalid_connection_code": "这不是有效的连接码。",
+      "unreachable": "连不上服务器。请检查地址和网络。",
+      "registration_invalid": "连接码已过期或已经用过。请重新获取一个。",
+      "other": "加入失败（{{code}}）。"
+    }
+  },
+  "paused": {
+    "revoked": "这台设备已被从库中移除，同步已停止。请在另一台设备上重新获取连接码，再加入一次。",
+    "server_rollback": "服务器上的数据比这台设备已经见过的还旧，同步已停止。请在命令行运行 \"onepaste resync\" 来恢复。",
+    "other": "同步已停止（{{code}}）。"
+  },
+  "queue": {
+    "stuck": "有 {{conflict}} 个改动冲突，{{failed}} 个上传失败。"
+  },
+  "search": {
+    "placeholder": "搜索历史记录",
+    "filter": {
+      "all": "全部",
+      "favorites": "收藏",
+      "text": "文本",
+      "images": "图片"
+    }
+  },
+  "results": {
+    "empty": "还没有内容。复制一段文字或一张图片，它就会出现在这里。",
+    "noMatch": "没有匹配的内容。"
+  },
+  "item": {
+    "image": "图片 {{width}}×{{height}}，{{size}}",
+    "copy": "复制",
+    "favorite": "收藏",
+    "unfavorite": "取消收藏",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "delete": "删除"
+  },
+  "settings": {
+    "title": "设置",
+    "autoApply": "把其他设备上复制的内容放进这台电脑的剪贴板",
+    "record": "记录我在这台电脑上复制的内容"
   }
 }

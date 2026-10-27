@@ -486,3 +486,25 @@ async fn logs_diagnostics_and_files_hold_neither_content_nor_the_master_key() {
     }
     assert!(scanned >= 3, "client database, history database and settings were scanned ({scanned} files)");
 }
+
+// ---- the desktop shell runs these on its own task runtime ----------------------------------------------------------
+
+/// The shell cannot be built on every machine that runs these tests, so what it needs from this crate is checked here at
+/// compile time: every command future can be moved to another thread, and the application object is shared freely.
+#[test]
+fn the_futures_of_the_commands_can_run_on_any_thread() {
+    fn send<T: Send>(_: &T) {}
+    fn shared<T: Send + Sync + Clone + 'static>() {}
+    shared::<App>();
+    let app = App::new(temp_dir("send"), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), quiet());
+    send(&app.start());
+    send(&app.join("", "", ""));
+    send(&app.status());
+    send(&app.search("", Filter::All, 1, 0));
+    send(&app.copy(""));
+    send(&app.set_flags("", None, None, None));
+    send(&app.delete(""));
+    send(&app.diagnostics());
+    send(&app.sync_now());
+    send(&app.on_clip_event(ClipEvent::SkippedSelf));
+}

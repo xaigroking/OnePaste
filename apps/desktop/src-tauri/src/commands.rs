@@ -3,24 +3,11 @@
 use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
+use onepaste_app::{parse_filter, App, ItemView, Settings, Status};
 use onepaste_platform::clipboard::{self, Content};
-use onepaste_platform::{secure_store, system};
-use rand_core::{OsRng, RngCore};
+use onepaste_platform::system;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
-
-const TEST_ACCOUNT: &str = "spike-test-key";
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecentDto {
-    id: u64,
-    kind: &'static str,
-    preview: String,
-    width: u32,
-    height: u32,
-    ts_ms: u64,
-}
 
 #[derive(Serialize)]
 pub struct ActionResult {
@@ -78,46 +65,13 @@ pub fn set_language(app: AppHandle, preference: Preference) -> LanguageState {
     language_state(&state)
 }
 
+/// The shell's own events (start, hotkey, watchers) together with the application's (join, capture, sync).
 #[tauri::command]
-pub fn get_recents(state: State<AppState>) -> Vec<RecentDto> {
-    let g = state.0.lock().unwrap();
-    g.recents
-        .iter()
-        .map(|r| match &r.content {
-            Content::Text(t) => RecentDto {
-                id: r.id,
-                kind: "text",
-                preview: t.lines().next().unwrap_or("").to_string(),
-                width: 0,
-                height: 0,
-                ts_ms: r.ts_ms,
-            },
-            Content::Image(i) => RecentDto {
-                id: r.id,
-                kind: "image",
-                preview: String::new(),
-                width: i.width,
-                height: i.height,
-                ts_ms: r.ts_ms,
-            },
-        })
-        .collect()
-}
-
-/// Puts a recent item back on the clipboard. The write carries the origin marker, so no duplicate entry appears in the list.
-#[tauri::command]
-pub fn copy_back(state: State<AppState>, id: u64) -> Result<(), String> {
-    let content = {
-        let g = state.0.lock().unwrap();
-        g.recents.iter().find(|r| r.id == id).map(|r| r.content.clone())
-    };
-    let content = content.ok_or_else(|| "not_found".to_string())?;
-    clipboard::write(&content).map_err(|e| e.code())
-}
-
-#[tauri::command]
-pub fn get_log(state: State<AppState>) -> Vec<LogEntry> {
-    state.0.lock().unwrap().log.iter().cloned().collect()
+pub fn get_log(state: State<AppState>, core: State<App>) -> Vec<LogEntry> {
+    let mut all: Vec<LogEntry> = state.0.lock().unwrap().log.iter().cloned().collect();
+    all.extend(core.event_log().into_iter().map(|e| LogEntry { ts_ms: e.ts_ms, kind: e.kind, detail: e.detail }));
+    all.sort_by_key(|e| e.ts_ms);
+    all
 }
 
 #[tauri::command]
@@ -136,32 +90,62 @@ pub fn set_texts(app: AppHandle, texts: TrayTexts) {
     tray::refresh(&app);
 }
 
-/// Secure storage test: returns only success or failure plus an error code, never the key contents.
+/// Joins an existing vault. The passphrase is used once; the master key goes into the system secure store.
 #[tauri::command]
-pub fn secure_action(action: String) -> ActionResult {
-    match action.as_str() {
-        "write" => {
-            let mut secret = [0u8; secure_store::SECRET_LEN];
-            OsRng.fill_bytes(&mut secret);
-            ActionResult::from(secure_store::write(TEST_ACCOUNT, &secret))
-        }
-        "read" => ActionResult::from(secure_store::read(TEST_ACCOUNT)),
-        "delete" => ActionResult::from(secure_store::delete(TEST_ACCOUNT)),
-        _ => ActionResult { ok: false, code: "invalid_action".into() },
-    }
+pub async fn app_join(core: State<'_, App>, code: String, passphrase: String, device_name: String) -> Result<(), String> {
+    core.join(&code, &passphrase, &device_name).await.map_err(|e| e.code())
+}
+
+#[tauri::command]
+pub async fn app_status(core: State<'_, App>) -> Result<Status, String> {
+    Ok(core.status().await)
+}
+
+#[tauri::command]
+pub async fn app_search(core: State<'_, App>, query: String, filter: String, limit: usize, offset: usize) -> Result<Vec<ItemView>, String> {
+    core.search(&query, parse_filter(&filter), limit, offset).await.map_err(|e| e.code())
+}
+
+/// Puts an item back on the clipboard. The write carries the origin marker, so no new item appears.
+#[tauri::command]
+pub async fn app_copy(core: State<'_, App>, item_id: String) -> Result<(), String> {
+    core.copy(&item_id).await.map_err(|e| e.code())
+}
+
+#[tauri::command]
+pub async fn app_set_flags(core: State<'_, App>, item_id: String, favorite: Option<bool>, pinned: Option<bool>, note: Option<String>) -> Result<(), String> {
+    core.set_flags(&item_id, favorite, pinned, note).await.map_err(|e| e.code())
+}
+
+#[tauri::command]
+pub async fn app_delete(core: State<'_, App>, item_id: String) -> Result<(), String> {
+    core.delete(&item_id).await.map_err(|e| e.code())
+}
+
+#[tauri::command]
+pub fn app_get_settings(core: State<App>) -> Settings {
+    core.settings()
+}
+
+#[tauri::command]
+pub fn app_set_settings(core: State<App>, settings: Settings) -> Result<(), String> {
+    core.set_settings(settings).map_err(|e| e.code())
 }
 
 /// Puts the diagnostics text on the clipboard. It carries the origin marker, so it does not show up as a list entry.
-pub fn copy_diagnostics_impl(app: &AppHandle) -> ActionResult {
+/// The text holds versions, states, counts and event kinds; never clipboard content or keys.
+pub async fn copy_diagnostics_impl(app: &AppHandle) -> ActionResult {
+    let core = app.state::<App>().inner().clone();
+    let from_app = core.diagnostics().await;
     let text = {
         let s = app.state::<AppState>();
         let g = s.0.lock().unwrap();
-        diag::build(&g, &system::os_version())
+        format!("{}{}", diag::build(&g, &system::os_version()), from_app)
     };
     ActionResult::from(clipboard::write(&Content::Text(text)))
 }
 
 #[tauri::command]
-pub fn copy_diagnostics(app: AppHandle) -> ActionResult {
-    copy_diagnostics_impl(&app)
+pub async fn copy_diagnostics(app: AppHandle) -> ActionResult {
+    copy_diagnostics_impl(&app).await
 }
