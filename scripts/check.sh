@@ -246,4 +246,15 @@ if grep -nE 'UPDATE_(URL|KEY|SOURCE)' crates/onepaste-app/src apps/desktop/src-t
   say "FAIL an environment variable can change the update source"; fail=1
 fi
 
+# 16) No license claims in anything a user reads (scripts/lib/license-claims.sh lists the words and the files)
+# shellcheck source=scripts/lib/license-claims.sh
+. scripts/lib/license-claims.sh
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  if hits=$(license_claim_files | xargs -r env LC_ALL=C.UTF-8 grep -nEi -- "$LICENSE_CLAIM_REGEX"); then
+    say "FAIL license wording in a file a user reads (the license is not decided; nothing may mention it):"; say "$hits"; fail=1
+  fi
+else
+  skip "not inside a git repository, so the license wording gate cannot run"
+fi
+
 [ "$fail" -eq 0 ] && echo "check.sh: OK" || { echo "check.sh: FAILED" >&2; exit 1; }
