@@ -1,3 +1,4 @@
+// Probe: a comment-only change under crates/onepaste-server, to see which CI jobs run.
 //! OnePaste self-hosted sync server: axum + SQLite, HTTPS only. The server stores ciphertext and never decrypts anything.
 
 pub mod api;
