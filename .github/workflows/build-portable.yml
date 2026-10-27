@@ -305,6 +305,8 @@ jobs:
           echo "The program was still running after 10 seconds"
       - name: Life cycle smoke test (start, start again, quit; three rounds)
         run: python3 tools/smoke_lifecycle.py smoke --mac-open
+      - name: The signature still holds after the program has run from the package
+        run: codesign --verify --deep --strict --verbose=2 smoke/OnePaste.app
       - uses: actions/upload-artifact@v4
         with:
           name: portable-macos-universal
