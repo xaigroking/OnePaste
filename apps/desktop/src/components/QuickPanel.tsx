@@ -2,20 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onQuickOpened } from "../api";
 import type { Filter, ItemView } from "../api";
-import { formatRelative, formatSize, isLink } from "../format";
+import { formatRelative, formatSize } from "../format";
+import { kindIcon } from "./HistoryView";
 import { Icon } from "./Icon";
-import type { IconName } from "./Icon";
 import { Badge, Chip } from "./ui";
 
 /** The types the panel offers. Links, files and code have no type of their own in the history yet, so they show nothing. */
 export type PanelFilter = Filter | "links" | "files" | "code";
 export const PANEL_FILTERS: PanelFilter[] = ["all", "text", "links", "images", "files", "code", "favorites"];
 const BACKED: PanelFilter[] = ["all", "text", "images", "favorites"];
-
-function kindIcon(it: ItemView): IconName {
-  if (it.kind === "image") return "image";
-  return isLink(it.preview) ? "link" : "text";
-}
 
 /** The quick panel: search, type chips, a numbered list, and a bar that lists the keys. */
 export function QuickPanel() {

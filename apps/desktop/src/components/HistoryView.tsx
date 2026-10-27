@@ -10,7 +10,7 @@ import { Badge, Button, Chip } from "./ui";
 // Links, files and code have no type of their own in the history yet: their chips are there and show nothing
 const FILTERS: Filter[] = ["all", "favorites", "text", "links", "images", "files", "code"];
 
-function kindIcon(it: ItemView): IconName {
+export function kindIcon(it: ItemView): IconName {
   if (it.kind === "image") return "image";
   // A masked item (a secret the clipboard marked as sensitive) shows as a row of dots
   if (/^[\u2022\u25cf*]+$/.test(it.preview)) return "lock";
