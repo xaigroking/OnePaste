@@ -24,3 +24,4 @@ EXPOSE 8443
 # The server has no health endpoint, so the check is a TCP connection to its own listen port
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/onepaste-server", "healthcheck"]
 ENTRYPOINT ["/onepaste-server"]
+# Probe comment
