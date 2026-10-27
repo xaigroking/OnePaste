@@ -268,5 +268,8 @@
     "wipeWarningLocal": "This deletes the whole history and the key on this computer. It cannot be undone.",
     "wipeConfirm": "Delete everything on this computer",
     "failed": "That did not work ({{code}})."
+  },
+  "about": {
+    "version": "Version {{version}}"
   }
 }

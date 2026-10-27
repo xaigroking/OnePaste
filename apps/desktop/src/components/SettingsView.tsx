@@ -17,6 +17,8 @@ interface Props {
   status: AppStatus | null;
   /** This computer keeps its history to itself: there is nothing to sync or to recover. */
   localOnly: boolean;
+  /** The version and the build id, for the About card. */
+  version: string;
   onWiped: () => void;
   log: LogEntry[];
   diag: ActionResult | null;
@@ -132,6 +134,7 @@ export function SettingsView(p: Props) {
 
       <Card title={t("settings.about")}>
         <p className="muted">{t("settings.aboutBody")}</p>
+        {p.version && <p className="muted small">{t("about.version", { version: p.version })}</p>}
       </Card>
     </div>
   );

@@ -41,6 +41,7 @@ export default function App() {
   const [diag, setDiag] = useState<ActionResult | null>(null);
   const [language, setLanguage] = useState<LanguageState | null>(null);
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
+  const [version, setVersion] = useState("");
   // The newest search wins: an older, slower answer must not overwrite it
   const searchSeq = useRef(0);
 
@@ -83,6 +84,10 @@ export default function App() {
     if (next !== i18n.language) void i18n.changeLanguage(next);
     applyDocumentLanguage(next);
   }, [language, i18n]);
+
+  useEffect(() => {
+    void api.version().then(setVersion).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const texts: TrayTexts = {
@@ -188,6 +193,7 @@ export default function App() {
             hotkey={hotkey}
             hotkeyText={HOTKEY_TEXT}
             status={status}
+            version={version}
             localOnly={status?.mode === "local_only"}
             onWiped={() => void refresh()}
             log={log}

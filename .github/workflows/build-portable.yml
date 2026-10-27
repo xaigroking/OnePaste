@@ -4,6 +4,9 @@ name: build-portable
 # OnePaste.app zip for macOS. Each zip also holds READ-ME-FIRST.txt (copied from packaging/) with the steps
 # to allow the app to open the first time. Nothing is installed and no administrator rights are needed.
 #
+# With include_tools the same jobs (plus one for Linux) also package the server and the command line client, as one zip
+# per platform that holds onepaste-server, onepaste and a READ-ME-FIRST.txt.
+#
 # macOS signing is optional and needs no code change:
 #   * Without the repository secrets below the app is signed ad hoc and not notarized (the current state).
 #   * To switch to a Developer ID signature with notarization, add all of these repository secrets
@@ -44,6 +47,11 @@ on:
         type: string
         required: false
         default: macos-latest
+      include_tools:
+        description: Also build and package the server and the command line client (releases do, ordinary CI does not)
+        type: boolean
+        required: false
+        default: false
       run_tests:
         description: Also run the platform, history and desktop tests and the license check in the macOS job
         type: boolean
@@ -104,10 +112,31 @@ jobs:
           python tools/check_portable_zip.py "dist/$name-portable.zip" OnePaste.exe READ-ME-FIRST.txt
           rm -rf "dist/$name"
           ls -l dist
+      - name: Build and package the server and the command line client
+        if: inputs.include_tools
+        shell: bash
+        env:
+          ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked -p onepaste-server -p onepaste-cli --target x86_64-pc-windows-msvc
+          name="OnePaste-${LABEL}-tools-windows-x64"
+          mkdir -p "dist/$name"
+          cp target/x86_64-pc-windows-msvc/release/onepaste-server.exe target/x86_64-pc-windows-msvc/release/onepaste.exe "dist/$name/"
+          cp packaging/READ-ME-FIRST.tools-windows.txt "dist/$name/READ-ME-FIRST.txt"
+          for exe in onepaste-server onepaste; do
+            version=$("dist/$name/$exe.exe" --version)
+            echo "$version"
+            if [ -n "$ONEPASTE_BUILD_TAG" ]; then grep -qF "($ONEPASTE_BUILD_TAG)" <<<"$version" || { echo "FAIL: $exe does not show the build id"; exit 1; }; fi
+          done
+          python tools/make_zip.py "dist/$name" "dist/$name-portable.zip"
+          python tools/check_portable_zip.py "dist/$name-portable.zip" onepaste-server.exe onepaste.exe READ-ME-FIRST.txt
+          rm -rf "dist/$name"
+          ls -l dist
       - name: Smoke test (unzip, start, stay alive for 10 seconds)
         shell: pwsh
         run: |
-          $zip = Get-ChildItem dist -Filter *-portable.zip | Select-Object -First 1
+          $zip = Get-ChildItem dist -Filter *-portable.zip | Where-Object { $_.Name -notlike '*-tools-*' } | Select-Object -First 1
           Expand-Archive -Path $zip.FullName -DestinationPath smoke
           $exe = Get-ChildItem smoke -Recurse -Filter OnePaste.exe | Select-Object -First 1
           $p = Start-Process -FilePath $exe.FullName -PassThru
@@ -226,6 +255,33 @@ jobs:
             grep -q 'Signature=adhoc' <<<"$details" || { echo "FAIL: expected an ad hoc signature"; exit 1; }
           fi
           ls -l dist
+      - name: Build and package the server and the command line client (universal)
+        if: inputs.include_tools
+        env:
+          ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
+        run: |
+          set -euo pipefail
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --locked -p onepaste-server -p onepaste-cli --target "$t"
+          done
+          name="OnePaste-${LABEL}-tools-macos-universal"
+          mkdir -p "dist/$name"
+          for exe in onepaste-server onepaste; do
+            lipo -create -output "dist/$name/$exe" "target/aarch64-apple-darwin/release/$exe" "target/x86_64-apple-darwin/release/$exe"
+            # Joining the two builds drops their signatures; an ad hoc signature is what Apple silicon needs to run it
+            codesign --force --sign - "dist/$name/$exe"
+            archs=$(lipo -archs "dist/$name/$exe")
+            echo "$exe: $archs"
+            case "$archs" in *x86_64*arm64*|*arm64*x86_64*) ;; *) echo "FAIL: $exe is not universal"; exit 1;; esac
+            version=$("dist/$name/$exe" --version)
+            echo "$version"
+            if [ -n "$ONEPASTE_BUILD_TAG" ]; then grep -qF "($ONEPASTE_BUILD_TAG)" <<<"$version" || { echo "FAIL: $exe does not show the build id"; exit 1; }; fi
+          done
+          cp packaging/READ-ME-FIRST.tools-macos.txt "dist/$name/READ-ME-FIRST.txt"
+          python3 tools/make_zip.py "dist/$name" "dist/$name-portable.zip"
+          python3 tools/check_portable_zip.py "dist/$name-portable.zip" onepaste-server onepaste READ-ME-FIRST.txt
+          rm -rf "dist/$name"
+          ls -l dist
       - name: Smoke test (unzip, start, stay alive for 10 seconds)
         run: |
           set -uo pipefail
@@ -241,6 +297,44 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: portable-macos-universal
+          path: dist/*-portable.zip
+          retention-days: ${{ inputs.retention_days }}
+          if-no-files-found: error
+
+  tools-linux-x64:
+    name: tools-linux-x64
+    if: inputs.include_tools && inputs.platforms == 'all'
+    runs-on: ubuntu-latest
+    env:
+      LABEL: ${{ inputs.label }}
+      ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build the server and the command line client
+        run: cargo build --release --locked -p onepaste-server -p onepaste-cli
+      - name: Package and check
+        run: |
+          set -euo pipefail
+          name="OnePaste-${LABEL}-tools-linux-x64"
+          mkdir -p "dist/$name"
+          cp target/release/onepaste-server target/release/onepaste "dist/$name/"
+          cp packaging/READ-ME-FIRST.tools-linux.txt "dist/$name/READ-ME-FIRST.txt"
+          for exe in onepaste-server onepaste; do
+            version=$("dist/$name/$exe" --version)
+            echo "$version"
+            if [ -n "$ONEPASTE_BUILD_TAG" ]; then grep -qF "($ONEPASTE_BUILD_TAG)" <<<"$version" || { echo "FAIL: $exe does not show the build id"; exit 1; }; fi
+          done
+          python3 tools/make_zip.py "dist/$name" "dist/$name-portable.zip"
+          python3 tools/check_portable_zip.py "dist/$name-portable.zip" onepaste-server onepaste READ-ME-FIRST.txt
+          rm -rf "dist/$name"
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-tools-linux-x64
           path: dist/*-portable.zip
           retention-days: ${{ inputs.retention_days }}
           if-no-files-found: error

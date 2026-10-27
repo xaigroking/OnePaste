@@ -1,0 +1,156 @@
+name: release-main
+
+# Every merge into main that changes code, apps, packaging, the lock file or the workflows builds and publishes a
+# pre-release named v<version>-main.<N>. Nobody makes a tag: this workflow does, after the build has succeeded.
+# Named releases (v<version>-beta.N) are still made by hand and handled by release.yml, which ignores these tags.
+#
+# Runs are queued, never cancelled while running. GitHub keeps one waiting run per group, so when several merges
+# arrive during one build only the newest waits; it still covers them all, because the notes and the decision
+# whether to publish look at everything since the previous release, not at one push.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.filter.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          set -euo pipefail
+          . scripts/lib/release-paths.sh
+          # The files changed since the previous release (any tag), so a merge whose run was replaced by a newer one
+          # in the queue is not forgotten
+          prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          if [ -z "$prev" ]; then
+            echo "No earlier release: publishing"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$prev" HEAD)
+          echo "previous release: $prev"
+          echo "changed files since then:"; echo "$files"
+          if printf '%s\n' "$files" | needs_release; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "Something that ships changed: a pre-release is published"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Only documents, tests or scripts changed: no pre-release"
+          fi
+
+  plan:
+    name: plan
+    needs: changes
+    if: needs.changes.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the tags
+        run: git fetch --force --tags origin
+      - id: plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          . scripts/lib/release-paths.sh
+          version=$(python3 -c 'import json; print(json.load(open("apps/desktop/package.json"))["version"])')
+          n=$(git tag --list | next_main_number "$version")
+          tag="v${version}-main.${n}"
+          prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          echo "tag: $tag (previous release: ${prev:-none})"
+          bash scripts/make-release-notes.sh "$tag" "$GITHUB_SHA" "$prev" > notes.md
+          git fetch --force origin main:refs/remotes/origin/main
+          bash scripts/release-check.sh "$tag" --commit "$GITHUB_SHA" --notes-file notes.md
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build
+    needs: plan
+    uses: ./.github/workflows/build-portable.yml
+    with:
+      label: ${{ needs.plan.outputs.tag }}
+      build_tag: ${{ needs.plan.outputs.tag }}
+      retention_days: 1
+      include_tools: true
+    secrets: inherit
+
+  publish:
+    name: publish pre-release
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      pull-requests: read
+    env:
+      TAG: ${{ needs.plan.outputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the tags
+        run: git fetch --force --tags origin
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: portable-*
+          path: staged
+          merge-multiple: true
+      - name: Collect the files, write the checksums and the release notes
+        run: |
+          set -euo pipefail
+          bash scripts/collect-release.sh "$TAG" staged out downloads.md
+          prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          bash scripts/make-release-notes.sh "$TAG" "$GITHUB_SHA" "$prev" > notes.md
+          { echo; cat downloads.md; } >> notes.md
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-path: |
+            out/*.zip
+      - name: Make the annotated tag and publish the pre-release
+        run: |
+          set -euo pipefail
+          git -c user.name="OnePaste release workflow" -c user.email="release@users.noreply.github.com" \
+            tag -a "$TAG" "$GITHUB_SHA" -m "Automatic pre-release of main at $GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" --verify-tag --prerelease \
+            --title "OnePaste $TAG" --notes-file notes.md \
+            out/*.zip out/SHA256SUMS.txt
+      - name: Keep the newest 10 automatic pre-releases
+        run: |
+          set -euo pipefail
+          . scripts/lib/release-paths.sh
+          # Only names of the form v<version>-main.<N> can be listed here; named releases are never touched
+          old=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | prune_list 10)
+          if [ -z "$old" ]; then
+            echo "Nothing to delete: 10 or fewer automatic pre-releases exist"
+            exit 0
+          fi
+          echo "Deleting these old automatic pre-releases:"
+          echo "$old"
+          for t in $old; do
+            case "$(tag_kind "$t")" in main) ;; *) echo "refusing to delete $t"; exit 1 ;; esac
+            gh release delete "$t" --cleanup-tag --yes
+          done
