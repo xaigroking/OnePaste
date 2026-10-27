@@ -5,6 +5,7 @@ import { applyTheme, formatClock, loadTheme } from "../format";
 import { LANGUAGES, languageInfo, resolveLanguage } from "../i18n";
 import type { ThemeChoice } from "../format";
 import { Badge, Button, Card, Chip, Switch } from "./ui";
+import { SecurityCard } from "./SecurityCard";
 
 interface Props {
   settings: AppSettings | null;
@@ -14,6 +15,9 @@ interface Props {
   hotkey: HotkeyState;
   hotkeyText: string;
   status: AppStatus | null;
+  /** This computer keeps its history to itself: there is nothing to sync or to recover. */
+  localOnly: boolean;
+  onWiped: () => void;
   log: LogEntry[];
   diag: ActionResult | null;
   onDiagnostics: () => void;
@@ -70,11 +74,13 @@ export function SettingsView(p: Props) {
             onChange={(v) => p.onSettings({ ...p.settings!, recordClipboard: v })}
             label={t("settings.record")}
           />
-          <Switch
-            checked={p.settings.autoApplyRemote}
-            onChange={(v) => p.onSettings({ ...p.settings!, autoApplyRemote: v })}
-            label={t("settings.autoApply")}
-          />
+          {!p.localOnly && (
+            <Switch
+              checked={p.settings.autoApplyRemote}
+              onChange={(v) => p.onSettings({ ...p.settings!, autoApplyRemote: v })}
+              label={t("settings.autoApply")}
+            />
+          )}
         </Card>
       )}
 
@@ -98,6 +104,8 @@ export function SettingsView(p: Props) {
         </div>
         {p.hotkey === "busy" && <p className="notice notice-warn">{t("hotkey.busy")}</p>}
       </Card>
+
+      <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped} />
 
       <Card title={t("settings.privacy")}>
         <p className="muted">{t("settings.privacyBody")}</p>

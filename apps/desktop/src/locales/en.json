@@ -41,7 +41,11 @@
     "history_refresh_failed": "Could not update the history",
     "sync_engine_error": "A sync error occurred",
     "clipboard_monitor_failed": "The clipboard monitor could not start",
-    "start_failed": "Could not start syncing"
+    "start_failed": "Could not start syncing",
+    "joined_with_recovery_kit": "Joined the vault with the recovery kit",
+    "vault_created": "Created a new vault",
+    "local_only_chosen": "Chose to keep the history on this computer only",
+    "local_data_wiped": "Cleared the data on this computer"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -53,7 +57,8 @@
     "paused": "Recording off",
     "stopped": "Stopped",
     "active": "Active",
-    "pendingCount": "{{count}} waiting to upload"
+    "pendingCount": "{{count}} waiting to upload",
+    "local": "Local only"
   },
   "diagnostics": {
     "copy": "Copy diagnostics",
@@ -75,24 +80,6 @@
   },
   "webview2": {
     "missing": "The Microsoft Edge WebView2 runtime was not found, so OnePaste cannot show its window. Please install it and then start OnePaste again."
-  },
-  "join": {
-    "title": "Join your vault",
-    "intro": "Paste the connection code from the device that already holds your vault, and type its passphrase. The passphrase is used once and never saved.",
-    "code": "Connection code",
-    "passphrase": "Passphrase",
-    "deviceName": "Name of this device",
-    "submit": "Join",
-    "working": "Joining\u2026",
-    "errors": {
-      "wrong_passphrase": "The passphrase is wrong. Nothing was changed.",
-      "vault_empty": "This server has no vault yet. Create one first on a device that supports it, then join with its connection code.",
-      "invalid_connection_code": "This is not a valid connection code.",
-      "unreachable": "The server cannot be reached. Check the address and your network.",
-      "registration_invalid": "The connection code has expired or was already used. Ask for a new one.",
-      "other": "Joining failed ({{code}})."
-    },
-    "note": "The key stays in your system's secure store. The server only ever sees encrypted data."
   },
   "paused": {
     "revoked": "This device was removed from the vault, so syncing has stopped. Ask for a new connection code from another device and join again.",
@@ -171,5 +158,86 @@
     "thisBadge": "This device",
     "idHint": "Device ID",
     "soon": "The list of your other devices will appear here once the app can read it from the vault."
+  },
+  "onboarding": {
+    "next": "Next",
+    "back": "Back",
+    "working": "Please wait\u2026",
+    "passphrase": "Passphrase",
+    "deviceName": "Name of this device",
+    "mode": {
+      "title": "How do you want to use OnePaste?",
+      "local": "Only on this computer",
+      "localHint": "Keep a searchable history of what you copy here. Nothing is synced.",
+      "server": "Connect to my own server",
+      "serverHint": "Sync your history between your computers through a server you run.",
+      "hosted": "Hosted by OnePaste",
+      "hostedHint": "Not available yet."
+    },
+    "code": {
+      "title": "Connect to your server",
+      "intro": "Enter the connection code your server gave you.",
+      "serverHelp": "To start a server and get a connection code, see \"Run your own server\" in the README on the OnePaste project page.",
+      "code": "Connection code"
+    },
+    "unlock": {
+      "title": "This server already has a vault",
+      "intro": "Type the passphrase of your vault to add this computer. The passphrase is used once and never saved.",
+      "submit": "Join",
+      "forgot": "I forgot my passphrase, I have a recovery kit"
+    },
+    "kitJoin": {
+      "title": "Join with a recovery kit",
+      "intro": "Paste the recovery kit you saved when the vault was created.",
+      "label": "Recovery kit",
+      "submit": "Join"
+    },
+    "passphraseStep": {
+      "title": "Choose a passphrase",
+      "intro": "This server has no vault yet, so a new one will be created. Choose a passphrase you will remember. You will need it to add your other computers.",
+      "again": "Type it again",
+      "mismatch": "The two passphrases are different.",
+      "generate": "Make one for me",
+      "strength": {
+        "weak": "Weak: use at least 8 characters.",
+        "fair": "Fair: longer is better.",
+        "strong": "Strong."
+      }
+    },
+    "kit": {
+      "title": "Your recovery kit",
+      "warning": "This string is your key. If you forget your passphrase and lose it, your data cannot be recovered.",
+      "copy": "Copy",
+      "save": "Save as file",
+      "print": "Print",
+      "copied": "Copied. Paste it somewhere safe, then clear your clipboard.",
+      "saved": "I have saved it somewhere offline",
+      "done": "Done"
+    },
+    "errors": {
+      "wrong_passphrase": "The passphrase is wrong. Nothing was changed.",
+      "wrong_recovery_kit": "This recovery kit is not valid for this vault. Check that it was copied completely.",
+      "vault_exists": "This server already has a vault. Go back and join it instead.",
+      "invalid_connection_code": "This is not a valid connection code.",
+      "unreachable": "The server cannot be reached. Check the address and your network.",
+      "registration_invalid": "The connection code has expired or was already used. Get a new one from the server and start again.",
+      "rate_limited": "Too many attempts. Wait a minute and try again.",
+      "already_set_up": "OnePaste is already set up on this computer.",
+      "no_pending_setup": "The setup was interrupted. Start again.",
+      "other": "That did not work ({{code}})."
+    }
+  },
+  "security": {
+    "title": "Security and privacy",
+    "showKit": "Show recovery kit",
+    "showKitWarning": "Anyone who sees the recovery kit can read your data. Make sure no one is looking at your screen.",
+    "showKitConfirm": "Show it",
+    "hideKit": "Hide",
+    "cancel": "Cancel",
+    "wipe": "Clear data on this computer",
+    "wipeWarning": "This deletes the history and the key on this computer and returns OnePaste to its first start. Your server and your other computers are not changed.",
+    "wipeWarningLocal": "This deletes the whole history and the key on this computer. It cannot be undone.",
+    "wipeConfirm": "Delete everything on this computer",
+    "failed": "That did not work ({{code}})."
   }
 }

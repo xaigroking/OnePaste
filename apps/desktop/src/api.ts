@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-export type TrayState = "synced" | "syncing" | "offline" | "error";
+export type TrayState = "synced" | "syncing" | "offline" | "error" | "local";
+export type Mode = "unset" | "local_only" | "synced";
 export type HotkeyState = "registered" | "busy" | "unknown";
 
 export type Filter = "all" | "favorites" | "text" | "images";
@@ -9,6 +10,7 @@ export type Filter = "all" | "favorites" | "text" | "images";
 /** What the application reports about the vault and the sync. */
 export interface AppStatus {
   joined: boolean;
+  mode: Mode;
   tray: TrayState;
   /** "revoked" or "server_rollback" when syncing is stopped. */
   paused: string | null;
@@ -78,10 +80,23 @@ export interface TrayTexts {
   syncing: string;
   offline: string;
   error: string;
+  local: string;
 }
 
 export const api = {
   join: (code: string, passphrase: string, deviceName: string) => invoke<void>("app_join", { code, passphrase, deviceName }),
+  firstRunState: () => invoke<Mode>("app_first_run_state"),
+  chooseLocalOnly: () => invoke<void>("app_choose_local_only"),
+  probeServer: (code: string) => invoke<"existing" | "empty">("app_probe_server", { code }),
+  generatePassphrase: () => invoke<string>("app_generate_passphrase"),
+  createVault: (code: string, passphrase: string, deviceName: string) => invoke<string>("app_create_vault", { code, passphrase, deviceName }),
+  confirmKitSaved: () => invoke<void>("app_confirm_kit_saved"),
+  cancelSetup: () => invoke<void>("app_cancel_setup"),
+  joinWithKit: (code: string, kit: string, deviceName: string) => invoke<void>("app_join_with_kit", { code, kit, deviceName }),
+  showKit: () => invoke<string>("app_show_kit"),
+  wipeLocalData: () => invoke<void>("app_wipe_local_data"),
+  /** Puts text on the clipboard so that it is neither recorded nor offered to clipboard history tools. */
+  copySecret: (text: string) => invoke<void>("app_copy_secret", { text }),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),

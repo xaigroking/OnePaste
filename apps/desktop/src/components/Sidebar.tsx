@@ -13,8 +13,8 @@ const NAV: { id: View; icon: IconName }[] = [
   { id: "settings", icon: "settings" },
 ];
 
-const TRAY_TONE: Record<TrayState, Tone> = { synced: "ok", syncing: "neutral", offline: "warn", error: "danger" };
-const TRAY_ICON: Record<TrayState, IconName> = { synced: "check", syncing: "refresh", offline: "wifi-off", error: "alert" };
+const TRAY_TONE: Record<TrayState, Tone> = { synced: "ok", syncing: "neutral", offline: "warn", error: "danger", local: "neutral" };
+const TRAY_ICON: Record<TrayState, IconName> = { synced: "check", syncing: "refresh", offline: "wifi-off", error: "alert", local: "monitor" };
 
 interface Props {
   view: View;

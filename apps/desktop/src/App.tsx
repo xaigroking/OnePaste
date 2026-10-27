@@ -18,7 +18,7 @@ import { applyTheme, loadTheme } from "./format";
 import { applyDocumentLanguage, resolveLanguage } from "./i18n";
 import { DevicesView } from "./components/DevicesView";
 import { HistoryView } from "./components/HistoryView";
-import { JoinForm } from "./components/JoinForm";
+import { Onboarding } from "./onboarding";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
 import type { View } from "./components/Sidebar";
@@ -48,6 +48,8 @@ export default function App() {
   }, []);
 
   const refresh = useCallback(async () => {
+    // Opens what is already set up before anything is asked, so the first-run screens do not flash up on a normal start
+    await api.firstRunState().catch(() => null);
     const [st, l, h, tr, lang, se] = await Promise.all([
       api.status(),
       api.log(),
@@ -92,6 +94,7 @@ export default function App() {
       syncing: t("status.syncing"),
       offline: t("status.offline"),
       error: t("status.error"),
+      local: t("status.local"),
     };
     void api.setTexts(texts);
   }, [t]);
@@ -133,7 +136,7 @@ export default function App() {
   if (status && !joined && view !== "settings") {
     return (
       <div className="app app-solo">
-        <JoinForm onJoined={() => void refresh()} />
+        <Onboarding onDone={() => void refresh()} />
       </div>
     );
   }
@@ -170,6 +173,8 @@ export default function App() {
             hotkey={hotkey}
             hotkeyText={HOTKEY_TEXT}
             status={status}
+            localOnly={status?.mode === "local_only"}
+            onWiped={() => void refresh()}
             log={log}
             diag={diag}
             onDiagnostics={() => void runDiagnostics()}

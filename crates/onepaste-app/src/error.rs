@@ -11,6 +11,14 @@ pub enum AppError {
     WrongPassphrase,
     #[error("the server has no vault yet; creating one is not available here")]
     VaultEmpty,
+    #[error("the recovery kit is not valid or belongs to another vault")]
+    WrongRecoveryKit,
+    #[error("this program is already set up")]
+    AlreadySetUp,
+    #[error("there is no setup waiting to be confirmed")]
+    NoPendingSetup,
+    #[error("this mode has no recovery kit")]
+    NoRecoveryKit,
     #[error("the connection code is not valid")]
     InvalidConnectionCode,
     #[error("the server cannot be reached")]
@@ -44,6 +52,10 @@ impl AppError {
             AppError::NotJoined => "not_joined".into(),
             AppError::WrongPassphrase => "wrong_passphrase".into(),
             AppError::VaultEmpty => "vault_empty".into(),
+            AppError::WrongRecoveryKit => "wrong_recovery_kit".into(),
+            AppError::AlreadySetUp => "already_set_up".into(),
+            AppError::NoPendingSetup => "no_pending_setup".into(),
+            AppError::NoRecoveryKit => "no_recovery_kit".into(),
             AppError::InvalidConnectionCode => "invalid_connection_code".into(),
             AppError::Unreachable => "unreachable".into(),
             AppError::Server(c) => c.clone(),
@@ -65,6 +77,7 @@ impl From<ClientError> for AppError {
         match e {
             ClientError::WrongPassphrase => AppError::WrongPassphrase,
             ClientError::VaultEmpty => AppError::VaultEmpty,
+            ClientError::WrongRecoveryKit => AppError::WrongRecoveryKit,
             ClientError::BadConnectionCode => AppError::InvalidConnectionCode,
             ClientError::Transport(_) => AppError::Unreachable,
             ClientError::Server { code, .. } => AppError::Server(code),

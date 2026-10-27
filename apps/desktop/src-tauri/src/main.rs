@@ -39,6 +39,17 @@ fn main() {
         .manage(core.clone())
         .invoke_handler(tauri::generate_handler![
             commands::app_join,
+            commands::app_first_run_state,
+            commands::app_choose_local_only,
+            commands::app_probe_server,
+            commands::app_generate_passphrase,
+            commands::app_create_vault,
+            commands::app_confirm_kit_saved,
+            commands::app_cancel_setup,
+            commands::app_join_with_kit,
+            commands::app_show_kit,
+            commands::app_copy_secret,
+            commands::app_wipe_local_data,
             commands::app_status,
             commands::app_search,
             commands::app_copy,
@@ -72,6 +83,7 @@ fn main() {
                     onepaste_app::TrayState::Syncing => TrayState::Syncing,
                     onepaste_app::TrayState::Offline => TrayState::Offline,
                     onepaste_app::TrayState::Error => TrayState::Error,
+                    onepaste_app::TrayState::Local => TrayState::Local,
                 };
                 tray::set_state(&for_tray, tray_state);
             });

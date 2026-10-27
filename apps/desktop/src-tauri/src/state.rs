@@ -20,6 +20,8 @@ pub enum TrayState {
     Syncing,
     Offline,
     Error,
+    /// Local-only mode: nothing is synced, on purpose.
+    Local,
 }
 
 impl TrayState {
@@ -29,6 +31,7 @@ impl TrayState {
             TrayState::Syncing => "syncing",
             TrayState::Offline => "offline",
             TrayState::Error => "error",
+            TrayState::Local => "local",
         }
     }
 }
@@ -62,6 +65,7 @@ pub struct TrayTexts {
     pub syncing: String,
     pub offline: String,
     pub error: String,
+    pub local: String,
 }
 
 impl TrayTexts {
@@ -71,6 +75,7 @@ impl TrayTexts {
             TrayState::Syncing => &self.syncing,
             TrayState::Offline => &self.offline,
             TrayState::Error => &self.error,
+            TrayState::Local => &self.local,
         }
     }
 }
@@ -118,7 +123,8 @@ impl AppState {
             synced: placeholder.clone(),
             syncing: placeholder.clone(),
             offline: placeholder.clone(),
-            error: placeholder,
+            error: placeholder.clone(),
+            local: placeholder,
         };
         AppState(Mutex::new(Inner {
             log: VecDeque::new(),

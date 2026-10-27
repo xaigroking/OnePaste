@@ -52,7 +52,7 @@ impl World {
         let code = server.first_connect_code.clone().unwrap();
         let first = join(
             &dir.join("cli"),
-            JoinOptions { code, device_name: "cli".into(), passphrase: Some(PASS.into()), recovery_kit_out: None, existing_only: false },
+            JoinOptions { code, device_name: "cli".into(), passphrase: Some(PASS.into()), recovery_kit_out: None, existing_only: false, recovery_kit: None },
         )
         .await
         .unwrap();

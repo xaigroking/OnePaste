@@ -3,7 +3,7 @@
 use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
-use onepaste_app::{parse_filter, App, ItemView, Settings, Status};
+use onepaste_app::{parse_filter, App, ItemView, Mode, ServerVault, Settings, Status};
 use onepaste_platform::clipboard::{self, Content};
 use onepaste_platform::system;
 use serde::Serialize;
@@ -94,6 +94,77 @@ pub fn set_texts(app: AppHandle, texts: TrayTexts) {
 #[tauri::command]
 pub async fn app_join(core: State<'_, App>, code: String, passphrase: String, device_name: String) -> Result<(), String> {
     core.join(&code, &passphrase, &device_name).await.map_err(|e| e.code())
+}
+
+/// Where the first-run screens begin: `unset`, `local_only` or `synced`.
+#[tauri::command]
+pub async fn app_first_run_state(core: State<'_, App>) -> Result<Mode, String> {
+    core.first_run_state().await.map_err(|e| e.code())
+}
+
+/// Keeps the history on this computer only.
+#[tauri::command]
+pub async fn app_choose_local_only(app: AppHandle, core: State<'_, App>) -> Result<(), String> {
+    let r = core.choose_local_only().await.map_err(|e| e.code());
+    tray::notify_changed(&app);
+    r
+}
+
+/// Asks the server behind a connection code whether its vault exists. Registers nothing.
+#[tauri::command]
+pub async fn app_probe_server(core: State<'_, App>, code: String) -> Result<ServerVault, String> {
+    core.probe_server(&code).await.map_err(|e| e.code())
+}
+
+#[tauri::command]
+pub fn app_generate_passphrase() -> Result<String, String> {
+    App::generate_passphrase().map_err(|e| e.code())
+}
+
+/// Makes a new vault in memory and returns its recovery kit for the screen. Nothing is registered yet.
+#[tauri::command]
+pub async fn app_create_vault(core: State<'_, App>, code: String, passphrase: String, device_name: String) -> Result<String, String> {
+    core.create_vault(&code, &passphrase, &device_name).await.map_err(|e| e.code())
+}
+
+/// The user saved the recovery kit: now the vault is registered on the server.
+#[tauri::command]
+pub async fn app_confirm_kit_saved(app: AppHandle, core: State<'_, App>) -> Result<(), String> {
+    let r = core.confirm_kit_saved().await.map_err(|e| e.code());
+    tray::notify_changed(&app);
+    r
+}
+
+#[tauri::command]
+pub fn app_cancel_setup(core: State<App>) {
+    core.cancel_setup();
+}
+
+#[tauri::command]
+pub async fn app_join_with_kit(app: AppHandle, core: State<'_, App>, code: String, kit: String, device_name: String) -> Result<(), String> {
+    let r = core.join_with_kit(&code, &kit, &device_name).await.map_err(|e| e.code());
+    tray::notify_changed(&app);
+    r
+}
+
+/// Puts a secret (the recovery kit) on the clipboard with the origin marker, so it is not recorded as a history item.
+#[tauri::command]
+pub fn app_copy_secret(text: String) -> ActionResult {
+    ActionResult::from(clipboard::write(&Content::Text(text)))
+}
+
+/// The recovery kit of the joined vault, computed from the key in the secure store.
+#[tauri::command]
+pub fn app_show_kit(core: State<App>) -> Result<String, String> {
+    core.show_kit().map_err(|e| e.code())
+}
+
+/// Deletes everything this program keeps on this computer and returns to the first run.
+#[tauri::command]
+pub async fn app_wipe_local_data(app: AppHandle, core: State<'_, App>) -> Result<(), String> {
+    let r = core.wipe_local_data().await.map_err(|e| e.code());
+    tray::set_state(&app, crate::state::TrayState::Synced);
+    r
 }
 
 #[tauri::command]

@@ -2,7 +2,8 @@
 //! commands on standard input. Each command prints its result and then a line `END`. Only built with the
 //! `test-harness` feature; a release build does not contain it.
 //!
-//! Commands: join <code> <passphrase> <name> | copy <text> | copy-image | copy-sensitive <text> | sync |
+//! Commands: probe <code> | create <code> <passphrase> <name> (prints the kit) | confirm | cancel | join-kit <code> <kit> <name> |
+//! local | show-kit | wipe | mode | join <code> <passphrase> <name> | copy <text> | copy-image | copy-sensitive <text> | sync |
 //! list | search <query> | click <n> | clipboard | status | flag <n> favorite|pinned true|false | note <n> <text> |
 //! rm <n> | quit
 
@@ -51,6 +52,33 @@ async fn main() {
                     Err(e) => err(e),
                 }
             }
+            "probe" => match app.probe_server(rest).await {
+                Ok(ServerVault::Existing) => "existing\n".to_string(),
+                Ok(ServerVault::Empty) => "empty\n".to_string(),
+                Err(e) => err(e),
+            },
+            "create" => {
+                let mut p = rest.splitn(3, ' ');
+                let (code, pass, name) = (p.next().unwrap_or(""), p.next().unwrap_or(""), p.next().unwrap_or("harness"));
+                match app.create_vault(code, pass, name).await {
+                    Ok(kit) => format!("kit {kit}\n"),
+                    Err(e) => err(e),
+                }
+            }
+            "confirm" => app.confirm_kit_saved().await.map(|_| "ok\n".to_string()).unwrap_or_else(err),
+            "cancel" => {
+                app.cancel_setup();
+                "ok\n".to_string()
+            }
+            "join-kit" => {
+                let mut p = rest.splitn(3, ' ');
+                let (code, kit, name) = (p.next().unwrap_or(""), p.next().unwrap_or(""), p.next().unwrap_or("harness"));
+                app.join_with_kit(code, kit, name).await.map(|_| "ok\n".to_string()).unwrap_or_else(err)
+            }
+            "local" => app.choose_local_only().await.map(|_| "ok\n".to_string()).unwrap_or_else(err),
+            "show-kit" => app.show_kit().map(|k| format!("kit {k}\n")).unwrap_or_else(err),
+            "wipe" => app.wipe_local_data().await.map(|_| "ok\n".to_string()).unwrap_or_else(err),
+            "mode" => format!("{}\n", serde_json::to_string(&app.mode()).unwrap_or_default()),
             "copy" => {
                 clipboard.user_copies(Content::Text(rest.to_string()));
                 tokio::time::sleep(Duration::from_millis(400)).await;

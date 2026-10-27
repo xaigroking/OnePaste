@@ -2,12 +2,14 @@
 
 use crate::error::AppError;
 use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, SecretStore};
-use crate::settings::Settings;
+use crate::settings::{Settings, StateFile, STATE_FILE_NAME};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use onepaste_client::{join, now_ms, JoinOptions, Session};
+use onepaste_client::{db_path, join, now_ms, prepare_new_vault, probe, JoinOptions, NewVault, Session, SqliteStore, VaultState, DB_FILE};
+use onepaste_core::crypto::Key;
+use onepaste_core::recovery;
 use onepaste_core::envelope::{open_item, Envelope, ItemPayload};
 use onepaste_history::{Filter, HistoryStore, ItemSource};
-use onepaste_sync::{Action, Edit, Event, PauseReason};
+use onepaste_sync::{Action, Edit, Engine as SyncEngine, Event, PauseReason};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{HashSet, VecDeque};
@@ -21,8 +23,6 @@ use tokio::task::JoinHandle;
 const MAX_ITEM_BYTES: usize = 8 * 1024 * 1024;
 const MAX_LOG: usize = 200;
 const PREVIEW_CHARS: usize = 120;
-/// Presence of this file in the data directory means the first sync after joining is done.
-const STATE_FILE: &str = "app-state.json";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -31,12 +31,35 @@ pub enum TrayState {
     Syncing,
     Offline,
     Error,
+    /// Local-only mode: nothing is synced, and that is on purpose. Not the same as offline.
+    Local,
+}
+
+/// How this computer uses OnePaste.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Mode {
+    /// Not set up yet: the first-run screens are next.
+    Unset,
+    /// The history stays on this computer.
+    LocalOnly,
+    /// Synced through the user's own server.
+    Synced,
+}
+
+/// What the server behind a connection code holds.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerVault {
+    Existing,
+    Empty,
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub joined: bool,
+    pub mode: Mode,
     pub tray: TrayState,
     /// `revoked` or `server_rollback` when syncing is stopped.
     pub paused: Option<String>,
@@ -100,6 +123,7 @@ struct Shared {
     last_fp: Option<[u8; 32]>,
     device_id: String,
     joined: bool,
+    mode: Mode,
     started: bool,
     /// The first sync after joining has finished. Until then an item that arrives is history, not news.
     initial_sync_done: bool,
@@ -112,6 +136,10 @@ struct Inner {
     clipboard: Arc<dyn ClipboardPort>,
     cfg: AppConfig,
     session: Mutex<Option<Session>>,
+    /// The engine of a local-only setup: it keeps items but has no device, no token and no queue.
+    local: Mutex<Option<SyncEngine<SqliteStore>>>,
+    /// A new vault whose recovery kit is on screen. Nothing of it is on the server or on disk until it is confirmed.
+    pending: StdMutex<Option<NewVault>>,
     history: StdMutex<Option<HistoryStore>>,
     shared: StdMutex<Shared>,
     wake: Notify,
@@ -161,6 +189,8 @@ impl App {
             clipboard,
             cfg,
             session: Mutex::new(None),
+            local: Mutex::new(None),
+            pending: StdMutex::new(None),
             history: StdMutex::new(None),
             shared: StdMutex::new(Shared {
                 settings,
@@ -170,6 +200,7 @@ impl App {
                 last_fp: None,
                 device_id: String::new(),
                 joined: false,
+                mode: Mode::Unset,
                 started: false,
                 initial_sync_done: false,
                 listener: None,
@@ -218,6 +249,7 @@ impl App {
     fn quick_status(&self, g: &Shared) -> Status {
         Status {
             joined: g.joined,
+            mode: g.mode,
             tray: g.tray,
             paused: g.paused.map(|p| paused_code(p).to_string()),
             pending: 0,
@@ -238,19 +270,58 @@ impl App {
         Ok(())
     }
 
-    // ---- joining and starting --------------------------------------------------------------------------------------
+    // ---- first run, joining and starting ---------------------------------------------------------------------------
 
-    /// Whether a master key is in the secure store and a vault was joined on this computer.
+    /// A passphrase for the user who has none in mind: 100 bits, in groups that are easy to copy.
+    pub fn generate_passphrase() -> Result<String, AppError> {
+        onepaste_core::passphrase::generate().map_err(|e| AppError::Other(e.code().to_string()))
+    }
+
+    /// Whether the program is set up (in either mode) on this computer.
     pub fn is_joined(&self) -> bool {
         lock(&self.0.shared).joined
+    }
+
+    pub fn mode(&self) -> Mode {
+        lock(&self.0.shared).mode
+    }
+
+    /// Opens what is already set up and says where the first-run screens should begin. Harmless to call again.
+    pub async fn first_run_state(&self) -> Result<Mode, AppError> {
+        self.start().await?;
+        Ok(self.mode())
+    }
+
+    /// Fails if this computer is already set up. Otherwise clears what an interrupted setup may have left behind: files
+    /// that no key in the secure store opens are of no use to anyone.
+    async fn require_unset(&self) -> Result<(), AppError> {
+        if self.start().await? {
+            return Err(AppError::AlreadySetUp);
+        }
+        self.remove_local_files();
+        Ok(())
+    }
+
+    fn remove_local_files(&self) {
+        for name in [DB_FILE, "history.db", crate::settings::FILE_NAME, STATE_FILE_NAME] {
+            for suffix in ["", "-wal", "-shm", "-journal", ".tmp"] {
+                let _ = std::fs::remove_file(self.0.dir.join(format!("{name}{suffix}")));
+            }
+        }
+    }
+
+    /// Asks the server behind the code whether its vault exists. Registers nothing and stores nothing.
+    pub async fn probe_server(&self, code: &str) -> Result<ServerVault, AppError> {
+        Ok(match probe(code).await? {
+            VaultState::Existing => ServerVault::Existing,
+            VaultState::Empty => ServerVault::Empty,
+        })
     }
 
     /// Joins an existing vault with the connection code and the passphrase. The passphrase is used once and dropped;
     /// the master key goes into the secure store. A wrong passphrase registers nothing.
     pub async fn join(&self, code: &str, passphrase: &str, device_name: &str) -> Result<(), AppError> {
-        if self.is_joined() {
-            return Err(AppError::Other("already_joined".into()));
-        }
+        self.require_unset().await?;
         let result = join(
             &self.0.dir,
             JoinOptions {
@@ -259,6 +330,7 @@ impl App {
                 passphrase: Some(passphrase.to_string()),
                 recovery_kit_out: None,
                 existing_only: true,
+                recovery_kit: None,
             },
         )
         .await
@@ -269,8 +341,114 @@ impl App {
         Ok(())
     }
 
+    /// Joins an existing vault with the recovery kit instead of the passphrase. A kit that is malformed or belongs to
+    /// another vault registers nothing and stores no key.
+    pub async fn join_with_kit(&self, code: &str, kit: &str, device_name: &str) -> Result<(), AppError> {
+        self.require_unset().await?;
+        let result = join(
+            &self.0.dir,
+            JoinOptions {
+                code: code.to_string(),
+                device_name: device_name.to_string(),
+                passphrase: None,
+                recovery_kit_out: None,
+                existing_only: true,
+                recovery_kit: Some(kit.to_string()),
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
+        self.0.secrets.save(&result.master_key)?;
+        self.log("joined_with_recovery_kit", None);
+        self.start().await?;
+        Ok(())
+    }
+
+    /// Makes a new vault for an empty server and returns its recovery kit for the screen. Nothing is registered and
+    /// nothing is written: the vault exists only in memory until [`App::confirm_kit_saved`]. Leaving now changes nothing.
+    pub async fn create_vault(&self, code: &str, passphrase: &str, device_name: &str) -> Result<String, AppError> {
+        if self.start().await? {
+            return Err(AppError::AlreadySetUp);
+        }
+        let vault = prepare_new_vault(code, passphrase, device_name).await?;
+        let kit = vault.recovery_kit().to_string();
+        *lock(&self.0.pending) = Some(vault);
+        Ok(kit)
+    }
+
+    /// The user has saved the recovery kit: only now is the vault registered on the server.
+    pub async fn confirm_kit_saved(&self) -> Result<(), AppError> {
+        self.require_unset().await?;
+        let result = {
+            let vault = lock(&self.0.pending).take().ok_or(AppError::NoPendingSetup)?;
+            let r = vault.register(&self.0.dir).await;
+            if r.is_err() {
+                // Nothing was saved, so the same vault can be tried again
+                *lock(&self.0.pending) = Some(vault);
+            }
+            r.map_err(AppError::from)?
+        };
+        self.0.secrets.save(&result.master_key)?;
+        self.log("vault_created", None);
+        self.start().await?;
+        Ok(())
+    }
+
+    /// Drops a vault that was prepared but not confirmed (the user went back).
+    pub fn cancel_setup(&self) {
+        *lock(&self.0.pending) = None;
+    }
+
+    /// Keeps the history on this computer only: a random key goes into the secure store, no device is created and the
+    /// network is never used.
+    pub async fn choose_local_only(&self) -> Result<(), AppError> {
+        self.require_unset().await?;
+        let key = Key::random().map_err(|e| AppError::Other(e.code().to_string()))?;
+        self.0.secrets.save(&key)?;
+        StateFile { local_only: true, ..Default::default() }.save(&self.0.dir)?;
+        self.log("local_only_chosen", None);
+        self.start().await?;
+        Ok(())
+    }
+
+    /// The recovery kit of the joined vault, computed from the key in the secure store. Local-only mode has none.
+    pub fn show_kit(&self) -> Result<String, AppError> {
+        if self.mode() != Mode::Synced {
+            return Err(AppError::NoRecoveryKit);
+        }
+        let key = self.0.secrets.load()?.ok_or(AppError::NotJoined)?;
+        Ok(recovery::encode(&key))
+    }
+
+    /// Deletes everything this program keeps on this computer: both databases, the two small files and the key in the
+    /// secure store. The server is not touched. Afterwards the program is as on the first run.
+    pub async fn wipe_local_data(&self) -> Result<(), AppError> {
+        self.shutdown();
+        *self.0.session.lock().await = None;
+        *self.0.local.lock().await = None;
+        *lock(&self.0.history) = None;
+        *lock(&self.0.pending) = None;
+        self.0.secrets.delete()?;
+        self.remove_local_files();
+        {
+            let mut g = lock(&self.0.shared);
+            g.settings = Settings::default();
+            g.joined = false;
+            g.started = false;
+            g.mode = Mode::Unset;
+            g.device_id.clear();
+            g.last_fp = None;
+            g.paused = None;
+            g.tray = TrayState::Synced;
+            g.initial_sync_done = false;
+        }
+        self.log("local_data_wiped", None);
+        self.notify_status();
+        Ok(())
+    }
+
     /// Opens the vault with the key from the secure store (no passphrase) and starts the background work. Does nothing
-    /// if no key is stored yet. Calling it again is harmless.
+    /// if no key is stored yet. Calling it again is harmless. Returns whether the program is set up.
     pub async fn start(&self) -> Result<bool, AppError> {
         {
             let g = lock(&self.0.shared);
@@ -281,6 +459,28 @@ impl App {
         let Some(mk) = self.0.secrets.load()? else {
             return Ok(false);
         };
+        let state = StateFile::load(&self.0.dir);
+        if state.local_only {
+            let engine = SyncEngine::new_local(SqliteStore::open(&db_path(&self.0.dir)).map_err(AppError::from)?, Key::from_bytes(*mk.as_bytes()));
+            let history = HistoryStore::open(&self.0.dir, &mk).map_err(AppError::from)?;
+            *self.0.local.lock().await = Some(engine);
+            *lock(&self.0.history) = Some(history);
+            {
+                let mut g = lock(&self.0.shared);
+                g.joined = true;
+                g.started = true;
+                g.mode = Mode::LocalOnly;
+                g.tray = TrayState::Local;
+            }
+            self.start_monitor();
+            self.notify_status();
+            return Ok(true);
+        }
+        // A key without a joined vault is what an interrupted setup leaves; the screens start over
+        let joined_here = SqliteStore::open(&db_path(&self.0.dir)).ok().and_then(|s| s.meta_get("device_id").ok().flatten()).is_some();
+        if !joined_here {
+            return Ok(false);
+        }
         let session = Session::open_with_key(&self.0.dir, &mk).map_err(AppError::from)?;
         let device_id = session.info.device_id.clone();
         let history = HistoryStore::open(&self.0.dir, &mk).map_err(AppError::from)?;
@@ -290,8 +490,9 @@ impl App {
             let mut g = lock(&self.0.shared);
             g.joined = true;
             g.started = true;
+            g.mode = Mode::Synced;
             g.device_id = device_id;
-            g.initial_sync_done = self.0.dir.join(STATE_FILE).exists();
+            g.initial_sync_done = state.initial_sync_done;
         }
         self.start_monitor();
         if self.0.cfg.background_sync {
@@ -301,6 +502,17 @@ impl App {
         }
         self.notify_status();
         Ok(true)
+    }
+
+    /// Runs `f` on the engine of whichever mode is active.
+    async fn with_engine<R>(&self, f: impl FnOnce(&mut SyncEngine<SqliteStore>) -> R) -> Result<R, AppError> {
+        if let Some(s) = self.0.session.lock().await.as_mut() {
+            return Ok(f(&mut s.engine));
+        }
+        if let Some(e) = self.0.local.lock().await.as_mut() {
+            return Ok(f(e));
+        }
+        Err(AppError::NotJoined)
     }
 
     fn notify_status(&self) {
@@ -353,9 +565,9 @@ impl App {
             self.log("skipped_duplicate", None);
             return Ok(());
         }
-        let device = lock(&self.0.shared).device_id.clone();
+        let device = Some(lock(&self.0.shared).device_id.clone()).filter(|d| !d.is_empty());
         let (payload, kind, size) = match &content {
-            Content::Text(t) => (ItemPayload { kind: "text".into(), content: Some(t.clone()), device: Some(device), ..Default::default() }, "text", t.len()),
+            Content::Text(t) => (ItemPayload { kind: "text".into(), content: Some(t.clone()), device, ..Default::default() }, "text", t.len()),
             Content::Image { png, width, height } => {
                 let encoded = B64.encode(png);
                 // The ciphertext is about the size of the encoded content; the server refuses anything above its limit
@@ -363,7 +575,7 @@ impl App {
                     self.log("image_too_large", Some(format!("{} bytes", png.len())));
                     return Err(AppError::ImageTooLarge);
                 }
-                let mut p = ItemPayload { kind: "image".into(), content: Some(encoded), device: Some(device), ..Default::default() };
+                let mut p = ItemPayload { kind: "image".into(), content: Some(encoded), device, ..Default::default() };
                 p.extra.insert("width".into(), (*width).into());
                 p.extra.insert("height".into(), (*height).into());
                 p.extra.insert("mime".into(), "image/png".into());
@@ -371,11 +583,7 @@ impl App {
                 (p, "image", png.len())
             }
         };
-        {
-            let mut g = self.0.session.lock().await;
-            let s = g.as_mut().ok_or(AppError::NotJoined)?;
-            s.engine.enqueue_create(now_ms(), &payload).map_err(AppError::from)?;
-        }
+        self.with_engine(|e| e.enqueue_create(now_ms(), &payload)).await?.map_err(AppError::from)?;
         lock(&self.0.shared).last_fp = Some(fp);
         self.log("captured", Some(format!("{kind}, {size} bytes")));
         self.0.wake.notify_one();
@@ -404,6 +612,9 @@ impl App {
     /// Runs one sync round now and returns when it is over. The vault session is locked only while the engine is
     /// consulted, never while a request is in flight, so capturing and searching stay responsive.
     pub async fn sync_now(&self) -> Result<(), AppError> {
+        if self.mode() == Mode::LocalOnly {
+            return Ok(());
+        }
         match self.sync_round().await {
             RoundEnd::Idle => Ok(()),
             RoundEnd::Offline => Err(AppError::Unreachable),
@@ -481,7 +692,7 @@ impl App {
         }
         if first_sync && matches!(end, RoundEnd::Idle) {
             // From the next round on, what arrives is news
-            if std::fs::write(self.0.dir.join(STATE_FILE), b"{\"initialSyncDone\":true}").is_ok() {
+            if (StateFile { initial_sync_done: true, local_only: false }).save(&self.0.dir).is_ok() {
                 lock(&self.0.shared).initial_sync_done = true;
             }
         }
@@ -601,13 +812,22 @@ impl App {
     }
 
     async fn refresh_history(&self) -> Result<(), AppError> {
-        let mut g = self.0.session.lock().await;
-        let Some(s) = g.as_mut() else { return Ok(()) };
-        let mk = onepaste_core::crypto::Key::from_bytes(*s.master_key().as_bytes());
-        let mut h = lock(&self.0.history);
-        let Some(h) = h.as_mut() else { return Ok(()) };
-        h.refresh(s.engine.store_mut(), &mk)?;
-        Ok(())
+        let history = &self.0.history;
+        let r = self
+            .with_engine(|e| {
+                let mk = e.master_key().clone();
+                let mut h = lock(history);
+                match h.as_mut() {
+                    Some(h) => h.refresh(e.store_mut(), &mk).map(|_| ()),
+                    None => Ok(()),
+                }
+            })
+            .await;
+        match r {
+            Ok(r) => Ok(r?),
+            Err(AppError::NotJoined) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
     // ---- commands --------------------------------------------------------------------------------------------------
@@ -641,11 +861,9 @@ impl App {
         for hit in hits {
             let (mut width, mut height) = (0, 0);
             if hit.kind == "image" {
-                if let Some(s) = self.0.session.lock().await.as_mut() {
-                    if let Ok(p) = s.engine.get_item(&hit.item_id) {
-                        width = p.extra.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                        height = p.extra.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                    }
+                if let Ok(Ok(p)) = self.with_engine(|e| e.get_item(&hit.item_id)).await {
+                    width = p.extra.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                    height = p.extra.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                 }
             }
             out.push(ItemView {
@@ -665,39 +883,32 @@ impl App {
 
     /// Puts an item back on the clipboard. The write carries the origin marker, so it does not become a new item.
     pub async fn copy(&self, item_id: &str) -> Result<(), AppError> {
-        let content = {
-            let mut g = self.0.session.lock().await;
-            let s = g.as_mut().ok_or(AppError::NotJoined)?;
-            let payload = s.engine.get_item(item_id).map_err(|_| AppError::NotFound)?;
-            content_of(&payload).ok_or(AppError::NotFound)?
-        };
+        let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
+        let content = content_of(&payload).ok_or(AppError::NotFound)?;
         self.0.clipboard.write(&content, true)
     }
 
     pub async fn set_flags(&self, item_id: &str, favorite: Option<bool>, pinned: Option<bool>, note: Option<String>) -> Result<(), AppError> {
-        {
-            let mut g = self.0.session.lock().await;
-            let s = g.as_mut().ok_or(AppError::NotJoined)?;
+        self.with_engine(|e| -> Result<(), onepaste_sync::Error> {
             if let Some(v) = favorite {
-                s.engine.enqueue_edit(now_ms(), item_id, Edit::Favorite(v)).map_err(AppError::from)?;
+                e.enqueue_edit(now_ms(), item_id, Edit::Favorite(v))?;
             }
             if let Some(v) = pinned {
-                s.engine.enqueue_edit(now_ms(), item_id, Edit::Pinned(v)).map_err(AppError::from)?;
+                e.enqueue_edit(now_ms(), item_id, Edit::Pinned(v))?;
             }
             if let Some(n) = note {
-                s.engine.enqueue_edit(now_ms(), item_id, Edit::Note(if n.is_empty() { None } else { Some(n) })).map_err(AppError::from)?;
+                e.enqueue_edit(now_ms(), item_id, Edit::Note(if n.is_empty() { None } else { Some(n) }))?;
             }
-        }
+            Ok(())
+        })
+        .await?
+        .map_err(AppError::from)?;
         self.0.wake.notify_one();
         Ok(())
     }
 
     pub async fn delete(&self, item_id: &str) -> Result<(), AppError> {
-        {
-            let mut g = self.0.session.lock().await;
-            let s = g.as_mut().ok_or(AppError::NotJoined)?;
-            s.engine.enqueue_delete(now_ms(), item_id).map_err(AppError::from)?;
-        }
+        self.with_engine(|e| e.enqueue_delete(now_ms(), item_id)).await?.map_err(AppError::from)?;
         self.0.wake.notify_one();
         Ok(())
     }
@@ -707,7 +918,7 @@ impl App {
         let st = self.status().await;
         let log = self.event_log();
         let mut out = String::new();
-        out.push_str(&format!("joined: {}\n", st.joined));
+        out.push_str(&format!("joined: {}\nmode: {:?}\n", st.joined, st.mode));
         out.push_str(&format!("tray: {:?}\n", st.tray));
         out.push_str(&format!("paused: {}\n", st.paused.as_deref().unwrap_or("no")));
         out.push_str(&format!("queued changes: {} pending, {} conflict, {} failed\n", st.pending, st.conflict, st.failed));
