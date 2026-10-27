@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # The link between a commit and its pull request can lag a few seconds behind a merge, so retry up to 6 times
-          for i in 1 2 3 4 5 6; do
+          for _ in 1 2 3 4 5 6; do
             count=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq 'length')
             if [ "$count" != "0" ]; then
               echo "The commit was merged through a pull request"
