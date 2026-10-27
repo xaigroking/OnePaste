@@ -12,6 +12,24 @@ OnePaste is not code-signed yet, so Windows and macOS both ask you to allow it t
 3. Click `Open Anyway` next to the message about `OnePaste`, then confirm (it may ask for your password or Touch ID).
 4. If the message says the app "is damaged and can't be opened", run `xattr -cr <path>/OnePaste.app` in Terminal and try again.
 
+## Run your own server
+
+`onepaste-server` is a single program that serves HTTPS with its own certificate; the app pins that certificate, so you do not need a domain name or a certificate authority.
+
+1. Start it, telling it the address other computers will use to reach it (the first start also creates the certificate and the database in the data directory):
+
+   ```
+   onepaste-server --data-dir ./onepaste-data --public-url https://192.168.1.20:8443
+   ```
+
+   `--listen` sets the address and port it listens on (default `0.0.0.0:8443`). The same settings can be given with the environment variables `ONEPASTE_DATA_DIR`, `ONEPASTE_LISTEN` and `ONEPASTE_PUBLIC_URL`.
+2. The **connection code** is printed on the first start, on a line that begins with `onepaste1:`. To get a new one later, run the same program with `connect-code` (a new code replaces the unused older ones):
+
+   ```
+   onepaste-server connect-code --data-dir ./onepaste-data --public-url https://192.168.1.20:8443
+   ```
+3. In the app, choose "Connect to my own server" and paste the connection code. Every further computer needs its own connection code.
+
 ## 简体中文
 
 ### 首次启动

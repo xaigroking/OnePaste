@@ -186,6 +186,7 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
                 passphrase: env_passphrase(),
                 recovery_kit_out: recovery_kit_out.clone(),
                 existing_only: false,
+                recovery_kit: None,
             };
             let res = match join(&data_dir(&cli), opts.clone()).await {
                 Err(ClientError::PassphraseRequired) => {

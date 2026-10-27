@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onChanged } from "./api";
+import { Onboarding } from "./onboarding";
 import type {
   ActionResult,
   AppSettings,
@@ -30,51 +31,75 @@ function formatSize(bytes: number): string {
   return `${bytes} B`;
 }
 
-/** The joining form: connection code, passphrase, device name. The passphrase is used once and never stored. */
-function JoinForm({ onJoined }: { onJoined: () => void }) {
+/** Security and privacy: show the recovery kit again, and wipe what this computer holds. Both ask first. */
+function SecuritySection({ localOnly, onWiped }: { localOnly: boolean; onWiped: () => void }) {
   const { t } = useTranslation();
-  const [code, setCode] = useState("");
-  const [passphrase, setPassphrase] = useState("");
-  const [deviceName, setDeviceName] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [kit, setKit] = useState<string | null>(null);
+  const [wiping, setWiping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
+  const reveal = async () => {
     try {
-      await api.join(code.trim(), passphrase, deviceName.trim() || "OnePaste desktop");
-      setPassphrase("");
-      onJoined();
+      setKit(await api.showKit());
     } catch (e) {
       setError(String(e));
-    } finally {
-      setBusy(false);
+    }
+  };
+  const wipe = async () => {
+    try {
+      await api.wipeLocalData();
+      setWiping(false);
+      onWiped();
+    } catch (e) {
+      setError(String(e));
     }
   };
 
   return (
     <section>
-      <h2>{t("join.title")}</h2>
-      <p className="muted">{t("join.intro")}</p>
-      <label className="field">
-        <span>{t("join.code")}</span>
-        <input value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} autoComplete="off" />
-      </label>
-      <label className="field">
-        <span>{t("join.passphrase")}</span>
-        <input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" />
-      </label>
-      <label className="field">
-        <span>{t("join.deviceName")}</span>
-        <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} autoComplete="off" />
-      </label>
-      <div className="row">
-        <button type="button" disabled={busy || !code.trim() || !passphrase} onClick={() => void submit()}>
-          {busy ? t("join.working") : t("join.submit")}
-        </button>
-      </div>
-      {error && <p className="banner">{t(`join.errors.${error}`, { defaultValue: t("join.errors.other", { code: error }) })}</p>}
+      <h2>{t("security.title")}</h2>
+      {!localOnly && (
+        <>
+          {kit === null ? (
+            !asking ? (
+              <div className="row">
+                <button type="button" onClick={() => setAsking(true)}>{t("security.showKit")}</button>
+              </div>
+            ) : (
+              <>
+                <p className="banner">{t("security.showKitWarning")}</p>
+                <div className="row">
+                  <button type="button" onClick={() => void reveal()}>{t("security.showKitConfirm")}</button>
+                  <button type="button" onClick={() => setAsking(false)}>{t("security.cancel")}</button>
+                </div>
+              </>
+            )
+          ) : (
+            <>
+              <pre className="kit">{kit}</pre>
+              <div className="row">
+                <button type="button" onClick={() => void api.copySecret(kit)}>{t("onboarding.kit.copy")}</button>
+                <button type="button" onClick={() => { setKit(null); setAsking(false); }}>{t("security.hideKit")}</button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+      {!wiping ? (
+        <div className="row">
+          <button type="button" onClick={() => setWiping(true)}>{t("security.wipe")}</button>
+        </div>
+      ) : (
+        <>
+          <p className="banner">{t(localOnly ? "security.wipeWarningLocal" : "security.wipeWarning")}</p>
+          <div className="row">
+            <button type="button" onClick={() => void wipe()}>{t("security.wipeConfirm")}</button>
+            <button type="button" onClick={() => setWiping(false)}>{t("security.cancel")}</button>
+          </div>
+        </>
+      )}
+      {error && <p className="banner">{t("security.failed", { code: error })}</p>}
     </section>
   );
 }
@@ -95,6 +120,8 @@ export default function App() {
   const searchSeq = useRef(0);
 
   const refresh = useCallback(async () => {
+    // Opens what is already set up before anything is asked, so the first-run screens do not flash up on a normal start
+    await api.firstRunState().catch(() => null);
     const [st, l, h, tr, lang, se] = await Promise.all([
       api.status(),
       api.log(),
@@ -138,6 +165,7 @@ export default function App() {
       syncing: t("status.syncing"),
       offline: t("status.offline"),
       error: t("status.error"),
+      local: t("status.local"),
     };
     void api.setTexts(texts);
   }, [t]);
@@ -171,6 +199,7 @@ export default function App() {
   };
 
   const joined = status?.joined ?? false;
+  const localOnly = status?.mode === "local_only";
   const emptyKey = query.trim() || filter !== "all" ? "results.noMatch" : "results.empty";
 
   return (
@@ -191,7 +220,7 @@ export default function App() {
         </select>
       </label>
 
-      {status && !joined && <JoinForm onJoined={() => void refresh()} />}
+      {status && !joined && <Onboarding onDone={() => void refresh()} />}
 
       {joined && status && (
         <>
@@ -264,14 +293,16 @@ export default function App() {
           {settings && (
             <section>
               <h2>{t("settings.title")}</h2>
-              <label className="row">
-                <input
-                  type="checkbox"
-                  checked={settings.autoApplyRemote}
-                  onChange={(e) => void changeSetting({ ...settings, autoApplyRemote: e.target.checked })}
-                />
-                <span>{t("settings.autoApply")}</span>
-              </label>
+              {!localOnly && (
+                <label className="row">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoApplyRemote}
+                    onChange={(e) => void changeSetting({ ...settings, autoApplyRemote: e.target.checked })}
+                  />
+                  <span>{t("settings.autoApply")}</span>
+                </label>
+              )}
               <label className="row">
                 <input
                   type="checkbox"
@@ -282,6 +313,8 @@ export default function App() {
               </label>
             </section>
           )}
+
+          <SecuritySection localOnly={localOnly} onWiped={() => void refresh()} />
         </>
       )}
 

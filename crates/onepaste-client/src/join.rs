@@ -6,7 +6,7 @@ use crate::session::db_path;
 use crate::sqlite::SqliteStore;
 use crate::transport::Transport;
 use base64::{engine::general_purpose::STANDARD as B64, engine::general_purpose::URL_SAFE_NO_PAD as B64URL, Engine};
-use onepaste_core::crypto::{self, aad, KdfParams};
+use onepaste_core::crypto::{self, aad, Key, KdfParams};
 use onepaste_core::keys::{vault_proof, KeyParams};
 use onepaste_core::{passphrase, recovery};
 use onepaste_sync::{HttpRequest, Method};
@@ -22,6 +22,9 @@ pub struct JoinOptions {
     pub recovery_kit_out: Option<PathBuf>,
     /// Refuse to create a vault: if the server has none yet, fail with `VaultEmpty` before anything is registered.
     pub existing_only: bool,
+    /// A recovery kit instead of the passphrase, for an existing vault. The master key it holds is checked against the
+    /// vault before anything is registered; a kit that is malformed or belongs to another vault is `WrongRecoveryKit`.
+    pub recovery_kit: Option<String>,
 }
 
 pub struct JoinResult {
@@ -79,12 +82,117 @@ fn write_new_private(path: &Path, data: &str) -> Result<(), ClientError> {
     Ok(())
 }
 
+/// What the server holds behind a connection code.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VaultState {
+    Existing,
+    Empty,
+}
+
+/// Asks the server whether the vault behind the code exists. Registers nothing.
+pub async fn probe(code: &str) -> Result<VaultState, ClientError> {
+    let code = ConnectionCode::parse(code)?;
+    let transport = Transport::new(&code.u, &code.fp);
+    let got = transport.send(&request(Method::Get, "/v1/vault/keyparams", vec![("OnePaste-Reg-Token", code.t.clone())], None)).await?;
+    match got.status {
+        200 => Ok(VaultState::Existing),
+        404 if code_of(&got.body) == "vault_empty" => Ok(VaultState::Empty),
+        status => Err(ClientError::Server { status, code: code_of(&got.body) }),
+    }
+}
+
+/// A new vault that exists only in memory: the key parameters and the master key are made, nothing is registered. The
+/// caller shows the recovery kit to the user and calls [`NewVault::register`] only after the user has saved it.
+pub struct NewVault {
+    code: ConnectionCode,
+    record: KeyParams,
+    mk: Key,
+    kit: String,
+    device_name: String,
+}
+
+impl NewVault {
+    /// The text to hand to the user. Never log it.
+    pub fn recovery_kit(&self) -> &str {
+        &self.kit
+    }
+
+    /// Registers the first device, which creates the vault on the server, and saves the device state in `dir`. If it
+    /// fails (no network, say), nothing was saved and it can be called again.
+    pub async fn register(&self, dir: &Path) -> Result<JoinResult, ClientError> {
+        let mut store = SqliteStore::open(&db_path(dir))?;
+        if store.meta_get("device_id")?.is_some() {
+            return Err(ClientError::AlreadyJoined);
+        }
+        let transport = Transport::new(&self.code.u, &self.code.fp);
+        let device_id = register_device(&mut store, &self.code, &transport, &self.record, &self.mk, true, &self.device_name).await?;
+        Ok(JoinResult { device_id, new_vault: true, generated_passphrase: None, recovery_kit: None, master_key: self.mk.clone() })
+    }
+}
+
+/// Makes a new vault for an empty server. Nothing is written and nothing is registered. If the server already has a
+/// vault the answer is a `vault_exists` server error.
+pub async fn prepare_new_vault(code: &str, passphrase: &str, device_name: &str) -> Result<NewVault, ClientError> {
+    let code = ConnectionCode::parse(code)?;
+    let transport = Transport::new(&code.u, &code.fp);
+    let got = transport.send(&request(Method::Get, "/v1/vault/keyparams", vec![("OnePaste-Reg-Token", code.t.clone())], None)).await?;
+    match got.status {
+        404 if code_of(&got.body) == "vault_empty" => {}
+        200 => return Err(ClientError::Server { status: 409, code: "vault_exists".into() }),
+        status => return Err(ClientError::Server { status, code: code_of(&got.body) }),
+    }
+    let (record, mk) = KeyParams::create(passphrase, KdfParams::DEFAULT)?;
+    let kit = recovery::encode(&mk);
+    Ok(NewVault { code, record, mk, kit, device_name: device_name.to_string() })
+}
+
+/// Registers this device and saves everything it needs in one transaction; the token is kept encrypted. Returns the
+/// device id.
+async fn register_device(
+    store: &mut SqliteStore,
+    code: &ConnectionCode,
+    transport: &Transport,
+    record: &KeyParams,
+    mk: &Key,
+    new_vault: bool,
+    device_name: &str,
+) -> Result<String, ClientError> {
+    let device_id = onepaste_core::id::new_id()?;
+    let sealed_name = B64.encode(crypto::seal(mk, &aad::device(&device_id), device_name.as_bytes())?);
+    let proof = B64URL.encode(vault_proof(mk));
+    let mut body = json!({ "reg_token": code.t, "device_id": device_id, "sealed_name": sealed_name });
+    if new_vault {
+        body["init"] = json!({ "record": record, "vault_proof": proof });
+    } else {
+        body["vault_proof"] = json!(proof);
+    }
+    let reg = transport
+        .send(&request(Method::Post, "/v1/devices/register", vec![("Idempotency-Key", onepaste_core::id::new_id()?), ("Content-Type", "application/json".into())], Some(body)))
+        .await?;
+    if reg.status != 200 {
+        return Err(ClientError::Server { status: reg.status, code: code_of(&reg.body) });
+    }
+    let token = serde_json::from_slice::<Value>(&reg.body)
+        .ok()
+        .and_then(|v| v.get("device_token")?.as_str().map(str::to_string))
+        .ok_or_else(|| ClientError::Other("malformed registration answer".into()))?;
+    let sealed_token = crypto::seal(mk, aad::DEVTOKEN, token.as_bytes())?;
+    let record_json = serde_json::to_string(record).map_err(|_| ClientError::Other("record".into()))?;
+    store.save(
+        &[("u", code.u.as_str()), ("fp", code.fp.as_str()), ("device_id", device_id.as_str()), ("keyparams", record_json.as_str())],
+        &[("devtoken", sealed_token.as_slice())],
+    )?;
+    Ok(device_id)
+}
+
 pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientError> {
     let code = ConnectionCode::parse(&opts.code)?;
     // Refuse before anything else, and before any network request, to overwrite an existing file
     if opts.recovery_kit_out.as_ref().is_some_and(|p| p.symlink_metadata().is_ok()) {
         return Err(ClientError::KitFileExists);
     }
+    // A kit that is not even well formed is refused before the network is used
+    let kit_key = opts.recovery_kit.as_deref().map(recovery::decode).transpose()?;
     let mut store = SqliteStore::open(&db_path(dir))?;
     if store.meta_get("device_id")?.is_some() {
         return Err(ClientError::AlreadyJoined);
@@ -93,18 +201,22 @@ pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientErr
 
     // 1. Ask for the key parameter record with the registration credential alone
     let got = transport.send(&request(Method::Get, "/v1/vault/keyparams", vec![("OnePaste-Reg-Token", code.t.clone())], None)).await?;
-    let device_id = onepaste_core::id::new_id()?;
     let (record, mk, new_vault, generated, kit) = match got.status {
         200 => {
-            let pass = opts.passphrase.as_deref().ok_or(ClientError::PassphraseRequired)?;
             let record: KeyParams = serde_json::from_slice(&got.body).map_err(|_| ClientError::Other("malformed key parameter record".into()))?;
-            // A wrong passphrase stops here, before anything is registered
-            let mk = record.unlock(pass)?;
+            let mk = match kit_key {
+                Some(mk) => mk,
+                None => {
+                    let pass = opts.passphrase.as_deref().ok_or(ClientError::PassphraseRequired)?;
+                    // A wrong passphrase stops here, before anything is registered
+                    record.unlock(pass)?
+                }
+            };
             record.verify_mk(&mk)?;
             (record, mk, false, None, None)
         }
         404 if code_of(&got.body) == "vault_empty" => {
-            if opts.existing_only {
+            if opts.existing_only || kit_key.is_some() {
                 return Err(ClientError::VaultEmpty);
             }
             let (pass, generated) = match opts.passphrase {
@@ -131,31 +243,6 @@ pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientErr
     }
 
     // 3. Register the device
-    let sealed_name = B64.encode(crypto::seal(&mk, &aad::device(&device_id), opts.device_name.as_bytes())?);
-    let proof = B64URL.encode(vault_proof(&mk));
-    let mut body = json!({ "reg_token": code.t, "device_id": device_id, "sealed_name": sealed_name });
-    if new_vault {
-        body["init"] = json!({ "record": record, "vault_proof": proof });
-    } else {
-        body["vault_proof"] = json!(proof);
-    }
-    let reg = transport
-        .send(&request(Method::Post, "/v1/devices/register", vec![("Idempotency-Key", onepaste_core::id::new_id()?), ("Content-Type", "application/json".into())], Some(body)))
-        .await?;
-    if reg.status != 200 {
-        return Err(ClientError::Server { status: reg.status, code: code_of(&reg.body) });
-    }
-    let token = serde_json::from_slice::<Value>(&reg.body)
-        .ok()
-        .and_then(|v| v.get("device_token")?.as_str().map(str::to_string))
-        .ok_or_else(|| ClientError::Other("malformed registration answer".into()))?;
-
-    // 4. Save everything the device needs in one transaction; the token is kept encrypted
-    let sealed_token = crypto::seal(&mk, aad::DEVTOKEN, token.as_bytes())?;
-    let record_json = serde_json::to_string(&record).map_err(|_| ClientError::Other("record".into()))?;
-    store.save(
-        &[("u", code.u.as_str()), ("fp", code.fp.as_str()), ("device_id", device_id.as_str()), ("keyparams", record_json.as_str())],
-        &[("devtoken", sealed_token.as_slice())],
-    )?;
+    let device_id = register_device(&mut store, &code, &transport, &record, &mk, new_vault, &opts.device_name).await?;
     Ok(JoinResult { device_id, new_vault, generated_passphrase: generated, recovery_kit: kit_for_output, master_key: mk })
 }

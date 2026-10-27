@@ -37,14 +37,19 @@
     "history_refresh_failed": "无法更新历史记录",
     "sync_engine_error": "同步出错",
     "clipboard_monitor_failed": "剪贴板监听无法启动",
-    "start_failed": "无法开始同步"
+    "start_failed": "无法开始同步",
+    "joined_with_recovery_kit": "已用恢复套件加入库",
+    "vault_created": "已新建库",
+    "local_only_chosen": "已选择只在本机保存历史",
+    "local_data_wiped": "已清空本机数据"
   },
   "status": {
     "label": "托盘状态：{{state}}",
     "synced": "已同步",
     "syncing": "同步中",
     "offline": "离线",
-    "error": "出错"
+    "error": "出错",
+    "local": "仅本机"
   },
   "diagnostics": {
     "copy": "复制诊断信息",
@@ -66,23 +71,6 @@
   },
   "webview2": {
     "missing": "没有找到 Microsoft Edge WebView2 运行时，OnePaste 无法显示窗口。请先安装它，然后重新打开 OnePaste。"
-  },
-  "join": {
-    "title": "加入你的库",
-    "intro": "粘贴已经持有这个库的设备给出的连接码，并输入它的口令。口令只用一次，不会保存。",
-    "code": "连接码",
-    "passphrase": "口令",
-    "deviceName": "本设备的名称",
-    "submit": "加入",
-    "working": "正在加入…",
-    "errors": {
-      "wrong_passphrase": "口令不对。没有做任何改动。",
-      "vault_empty": "这个服务器还没有库。请先在支持创建的设备上创建，再用它的连接码加入。",
-      "invalid_connection_code": "这不是有效的连接码。",
-      "unreachable": "连不上服务器。请检查地址和网络。",
-      "registration_invalid": "连接码已过期或已经用过。请重新获取一个。",
-      "other": "加入失败（{{code}}）。"
-    }
   },
   "paused": {
     "revoked": "这台设备已被从库中移除，同步已停止。请在另一台设备上重新获取连接码，再加入一次。",
@@ -118,5 +106,86 @@
     "title": "设置",
     "autoApply": "把其他设备上复制的内容放进这台电脑的剪贴板",
     "record": "记录我在这台电脑上复制的内容"
+  },
+  "onboarding": {
+    "next": "下一步",
+    "back": "返回",
+    "working": "请稍候…",
+    "passphrase": "口令",
+    "deviceName": "这台设备的名称",
+    "mode": {
+      "title": "你想怎样使用 OnePaste？",
+      "local": "仅本机",
+      "localHint": "只在这台电脑上记录可搜索的剪贴板历史，不同步。",
+      "server": "连接我自己的服务器",
+      "serverHint": "通过你自己运行的服务器，在你的几台电脑之间同步历史。",
+      "hosted": "官方托管",
+      "hostedHint": "暂未开放。"
+    },
+    "code": {
+      "title": "连接你的服务器",
+      "intro": "填入服务器给你的连接码。",
+      "serverHelp": "怎样启动服务器并拿到连接码，请看 OnePaste 项目页 README 里的“Run your own server”一节。",
+      "code": "连接码"
+    },
+    "unlock": {
+      "title": "这个服务器上已经有一个库",
+      "intro": "输入库的口令，把这台电脑加进去。口令只用一次，不会保存。",
+      "submit": "加入",
+      "forgot": "我忘了口令，我有恢复套件"
+    },
+    "kitJoin": {
+      "title": "用恢复套件加入",
+      "intro": "粘贴创建库时保存的恢复套件。",
+      "label": "恢复套件",
+      "submit": "加入"
+    },
+    "passphraseStep": {
+      "title": "设置口令",
+      "intro": "这个服务器上还没有库，将为你新建一个。请设一个你记得住的口令，以后添加其他电脑时需要它。",
+      "again": "再输入一遍",
+      "mismatch": "两次输入的口令不一样。",
+      "generate": "帮我生成",
+      "strength": {
+        "weak": "太弱：至少 8 个字符。",
+        "fair": "一般：越长越好。",
+        "strong": "强。"
+      }
+    },
+    "kit": {
+      "title": "你的恢复套件",
+      "warning": "这串字符就是你的钥匙。忘记口令又丢失它，数据无法恢复。",
+      "copy": "复制",
+      "save": "保存为文件",
+      "print": "打印",
+      "copied": "已复制。请粘贴到安全的地方保存，然后清空剪贴板。",
+      "saved": "我已把它保存在离线的地方",
+      "done": "完成"
+    },
+    "errors": {
+      "wrong_passphrase": "口令不对，没有做任何改动。",
+      "wrong_recovery_kit": "这个恢复套件不属于这个库，请检查是否完整复制。",
+      "vault_exists": "这个服务器上已经有库了。请返回，改为加入它。",
+      "invalid_connection_code": "这不是有效的连接码。",
+      "unreachable": "连不上服务器。请检查地址和网络。",
+      "registration_invalid": "连接码已过期或已被使用。请在服务器上重新获取，然后从头开始。",
+      "rate_limited": "尝试次数太多，请等一分钟再试。",
+      "already_set_up": "这台电脑上已经设置过 OnePaste 了。",
+      "no_pending_setup": "设置被中断了，请重新开始。",
+      "other": "没有成功（{{code}}）。"
+    }
+  },
+  "security": {
+    "title": "安全与隐私",
+    "showKit": "查看恢复套件",
+    "showKitWarning": "任何看到恢复套件的人都能解密你的数据。请确认没有人在看你的屏幕。",
+    "showKitConfirm": "显示",
+    "hideKit": "隐藏",
+    "cancel": "取消",
+    "wipe": "清空本机数据",
+    "wipeWarning": "这会删除这台电脑上的历史和密钥，OnePaste 回到首次启动的状态。你的服务器和其他电脑不受影响。",
+    "wipeWarningLocal": "这会删除这台电脑上的全部历史和密钥，无法撤销。",
+    "wipeConfirm": "删除这台电脑上的一切",
+    "failed": "没有成功（{{code}}）。"
   }
 }

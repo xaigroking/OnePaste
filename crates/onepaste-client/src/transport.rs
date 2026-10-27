@@ -9,6 +9,13 @@ use tokio::sync::mpsc::UnboundedSender;
 #[cfg(feature = "fault-injection")]
 static FAULT_FIRED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+static REQUESTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many requests this process has started so far (to any server). Local-only mode must leave it unchanged.
+pub fn requests_started() -> u64 {
+    REQUESTS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 #[derive(Clone)]
 pub struct Transport {
     http: reqwest::Client,
@@ -21,6 +28,7 @@ impl Transport {
     }
 
     async fn send_inner(&self, req: &HttpRequest) -> Result<HttpResponse, ClientError> {
+        REQUESTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let method = match req.method {
             Method::Get => reqwest::Method::GET,
             Method::Put => reqwest::Method::PUT,
@@ -57,6 +65,7 @@ impl Transport {
     }
 
     pub async fn open_events(&self, token: &str) -> Result<reqwest::Response, ClientError> {
+        REQUESTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let resp = self
             .http
             .get(format!("{}/v1/events", self.base))
