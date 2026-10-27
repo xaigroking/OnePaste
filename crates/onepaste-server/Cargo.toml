@@ -17,6 +17,9 @@ path = "src/main.rs"
 # Test-only fault injection (never enabled in release builds)
 fault-injection = []
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dependencies]
 onepaste-core = { path = "../onepaste-core" }
 axum = "0.8"

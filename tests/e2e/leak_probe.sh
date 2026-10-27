@@ -272,6 +272,9 @@ fi
 step "1.2.6 crash scene"
 cores=$(find "$ROOT/cores" "$ROOT/cwd" -maxdepth 1 -name 'core*' -type f | wc -l)
 echo "core files found: $cores"
+if [ -n "$OLD_CORE_PATTERN" ]; then
+  test "$cores" -eq 0 || die "a crashed process left a core dump, which holds the passphrase and the plaintext"
+fi
 printf 'placeholder\n' > "$ROOT/cwd/.scanned"
 scan_for_markers "crash scene" "$ROOT/A" "$ROOT/cwd" "$ROOT/cores" "$ROOT/tmp" "$OUT/crash.out"
 

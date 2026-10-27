@@ -44,6 +44,7 @@ fn build_config(cli: &Cli) -> Result<Config, String> {
 
 #[tokio::main]
 async fn main() {
+    onepaste_server::harden::disable_core_dumps();
     let cli = match parse_args() {
         Ok(c) => c,
         Err(msg) => {

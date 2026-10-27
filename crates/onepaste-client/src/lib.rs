@@ -4,6 +4,7 @@
 mod conn;
 mod crash;
 mod error;
+mod harden;
 mod join;
 pub mod pin;
 mod session;
@@ -13,6 +14,7 @@ mod transport;
 pub use conn::ConnectionCode;
 pub use crash::crash_point;
 pub use error::ClientError;
+pub use harden::disable_core_dumps;
 pub use join::{join, JoinOptions, JoinResult};
 pub use session::{db_path, now_ms, Info, RunEnd, RunReport, Session, DB_FILE};
 pub use sqlite::SqliteStore;

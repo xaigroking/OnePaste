@@ -4,6 +4,7 @@ pub mod api;
 pub mod config;
 pub mod crash;
 pub mod error;
+pub mod harden;
 pub mod ratelimit;
 pub mod store;
 pub mod tls;

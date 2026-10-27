@@ -289,6 +289,7 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    onepaste_client::disable_core_dumps();
     let cli = Cli::parse();
     match run(cli).await {
         Ok(code) => ExitCode::from(code),
