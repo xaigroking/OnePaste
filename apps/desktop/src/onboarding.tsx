@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { Button } from "./components/ui";
@@ -77,7 +77,7 @@ export function KitScreen({
   return (
     <div className="kit-screen">
       <h2>{t("onboarding.kit.title")}</h2>
-      <p className="notice notice-warn">{t("onboarding.kit.warning")}</p>
+      <p className="notice notice-danger">{t("onboarding.kit.warning")}</p>
       <pre className="kit" data-testid="kit">
         {kit}
       </pre>
@@ -116,16 +116,29 @@ type Step = "mode" | "code" | "unlock" | "kitJoin" | "passphrase" | "kit";
 
 /** The first-run flow. Going back is possible everywhere before the vault is registered. */
 export function Onboarding({ onDone }: { onDone: () => void }) {
+  const [at, setAt] = useState<1 | 2 | 3>(1);
   return (
     <div className="join-wrap">
       <section className="card join-card">
-        <OnboardingSteps onDone={onDone} />
+        <StepBar at={at} />
+        <OnboardingSteps onDone={onDone} onStep={setAt} />
       </section>
     </div>
   );
 }
 
-function OnboardingSteps({ onDone }: { onDone: () => void }) {
+/** Three segments: the way to use it, the passphrase and recovery kit, and the end. Filled up to the current step. */
+function StepBar({ at }: { at: 1 | 2 | 3 }) {
+  return (
+    <div className="steps" aria-hidden="true">
+      {[1, 2, 3].map((n) => (
+        <span key={n} className={n <= at ? "step step-done" : "step"} />
+      ))}
+    </div>
+  );
+}
+
+function OnboardingSteps({ onDone, onStep }: { onDone: () => void; onStep: (n: 1 | 2 | 3) => void }) {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>("mode");
   const [choice, setChoice] = useState<"local" | "server" | null>(null);

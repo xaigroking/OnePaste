@@ -125,7 +125,7 @@ details summary { cursor: pointer; padding: 6px 0; color: var(--muted); }
 .mode { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
 .mode > span { display: flex; flex-direction: column; gap: 2px; }
 .mode.unavailable { opacity: 0.5; }
-.kit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.1em; padding: 10px; border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+.kit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.1em; padding: 14px 10px; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: var(--radius-control); white-space: pre-wrap; word-break: break-all; text-align: center; user-select: all; }
 .kit-input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; width: 100%; box-sizing: border-box; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
 .strength.weak { color: #b91c1c; }
 .strength.fair { color: #b45309; }
@@ -138,7 +138,7 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .devices th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .devices td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .devices tr:last-child td { border-bottom: 0; }
-.devices td:first-child { display: flex; align-items: center; gap: 10px; }
+.cell-name { display: flex; align-items: center; gap: 10px; }
 .device-name { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .actions-cell { text-align: right; white-space: nowrap; }
 .actions-cell .btn + .btn { margin-left: 6px; }
@@ -170,3 +170,8 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .topbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: -4px 0 -2px; }
 .nav-bottom { margin-top: auto; }
 .sidebar .nav { flex: 1; }
+
+/* First run: the step bar */
+.steps { display: flex; gap: 6px; margin: 0 0 16px; }
+.step { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.step-done { background: var(--accent); }
