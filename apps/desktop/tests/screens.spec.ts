@@ -40,6 +40,25 @@ const SCREENS: Screen[] = [
       await page.getByRole("heading", { name: l.updates.title }).scrollIntoViewIfNeeded();
       if (state === "error") await page.getByRole("button", { name: l.updates.checkNow }).click();
     } },
+  { name: "img", screen: "img", size: WINDOW, states: [],
+    drive: async (page) => {
+      await page.getByRole("option").nth(4).click();
+      await page.getByTestId("image-meta").waitFor();
+      await page.waitForTimeout(500);
+    } },
+  { name: "viewer", screen: "viewer", size: WINDOW, states: [],
+    drive: async (page) => {
+      await page.getByRole("option").nth(4).click();
+      await page.getByRole("img").last().click();
+      await page.getByRole("dialog").waitFor();
+      await page.waitForTimeout(300);
+    } },
+  { name: "longtext", screen: "longtext", size: WINDOW, states: [] },
+  { name: "textview", screen: "textview", size: WINDOW, states: [],
+    drive: async (page, lang) => {
+      await page.getByRole("button", { name: locale(lang).text.expand }).click();
+      await page.getByRole("dialog").waitFor();
+    } },
   { name: "tray", screen: "tray", size: { width: 330, height: 360 }, states: [] },
   { name: "state", screen: "state", size: WINDOW, states: [] },
   { name: "ob1", screen: "ob1", size: WINDOW, states: ["loading", "error"],
