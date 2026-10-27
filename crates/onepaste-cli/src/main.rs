@@ -77,6 +77,9 @@ enum Cmd {
     Revoke { device_id: String },
     /// Forget the local copy and pull everything again (use after the server was rolled back)
     Resync,
+    /// Test only: read an envelope from standard input and try to open it with a random wrong key
+    #[cfg(feature = "fault-injection")]
+    ProbeEnvelope,
 }
 
 fn data_dir(cli: &Cli) -> PathBuf {
@@ -259,6 +262,21 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
             s.call(Method::Delete, &format!("/v1/devices/{device_id}"), None).await?;
             println!("Revoked {device_id}");
             Ok(0)
+        }
+        #[cfg(feature = "fault-injection")]
+        Cmd::ProbeEnvelope => {
+            let mut raw = String::new();
+            std::io::stdin().read_to_string(&mut raw).map_err(|e| ClientError::Other(e.to_string()))?;
+            let env: onepaste_core::envelope::Envelope = serde_json::from_str(raw.trim()).map_err(|_| ClientError::Other("not an envelope".into()))?;
+            let wrong = crypto::Key::random()?;
+            match onepaste_core::envelope::open_item(&wrong, &env) {
+                Err(onepaste_core::Error::DecryptFailed) => {
+                    println!("decrypt failed with a wrong key");
+                    Ok(0)
+                }
+                Ok(_) => Err(ClientError::Other("an envelope opened with a random key".into())),
+                Err(e) => Err(e.into()),
+            }
         }
         Cmd::Resync => {
             let mut s = open(&cli)?;

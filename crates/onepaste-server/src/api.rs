@@ -66,6 +66,8 @@ async fn common(State(s): St, ConnectInfo(addr): ConnectInfo<SocketAddr>, req: R
     let method = req.method().clone();
     let path = req.uri().path().to_string();
     let proto_ok = req.headers().get("onepaste-proto").and_then(|v| v.to_str().ok()) == Some(PROTO);
+    // Only metadata is ever logged: never headers, query strings or bodies
+    tracing::trace!(method = %method, path = %path, request_id = %rid, "request received");
 
     let mut resp = if !proto_ok {
         ApiError::new(StatusCode::BAD_REQUEST, "unsupported_version").with("min", json!(1)).with("max", json!(1)).into_response()
@@ -156,6 +158,7 @@ fn bearer(h: &HeaderMap) -> Option<[u8; 32]> {
 fn auth(s: &AppState, h: &HeaderMap) -> Result<(String, [u8; 32]), ApiError> {
     let tok = bearer(h).ok_or_else(ApiError::unauthorized)?;
     let id = s.store.auth_device(&sha256(&tok), s.clock.now())?;
+    tracing::trace!(device = %id, "device authenticated");
     Ok((id, tok))
 }
 

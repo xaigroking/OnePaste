@@ -152,6 +152,7 @@ impl Server {
 }
 
 fn run_cleanup(s: &AppState) {
+    tracing::debug!("maintenance run");
     if s.store.cleanup(s.clock.now(), s.cfg.tombstone_retention_secs, s.cfg.idempotency_ttl_secs).is_err() {
         tracing::error!(kind = "cleanup", "maintenance failed");
     }

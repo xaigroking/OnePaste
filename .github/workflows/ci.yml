@@ -97,6 +97,10 @@ jobs:
         run: bash tests/e2e/two_clients.sh target/debug
       - name: Crash recovery end-to-end test
         run: bash tests/e2e/crash_recovery.sh target/debug
+      - name: Leak probe
+        run: |
+          command -v tcpdump > /dev/null || { sudo apt-get update && sudo apt-get install -y tcpdump; }
+          bash tests/e2e/leak_probe.sh target/debug
       - name: Build the release binaries without any feature
         run: cargo build --release -p onepaste-server -p onepaste-cli
       - name: Check that the release binaries hold no fault injection
