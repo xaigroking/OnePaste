@@ -145,9 +145,12 @@ impl Server {
         new_code(&self.state.store, &self.state.cfg, &self.public_url, &self.fingerprint, self.clock.now())
     }
 
+    /// Stops the server and returns once its tasks are gone and the database is closed (Windows refuses to touch a
+    /// file that is still open).
     pub async fn shutdown(self) {
         self.handle.shutdown();
         self.cleanup.abort();
+        let _ = self.cleanup.await;
         let _ = self.task.await;
     }
 }

@@ -414,12 +414,25 @@ async fn a_server_that_went_back_in_time_stops_the_sync_with_a_rollback_state() 
     assert_eq!(d.app.status().await.items, 3);
     // The server comes back with the old data
     w.server.take().unwrap().shutdown().await;
-    std::fs::remove_dir_all(w.dir.join("srv")).unwrap();
+    retry("removing the server data", || std::fs::remove_dir_all(w.dir.join("srv")));
     copy_dir(&backup, &w.dir.join("srv"));
     w.server = Some(Server::start(server_config(&w.dir, w.port)).await.unwrap());
     assert_eq!(d.app.sync_now().await.unwrap_err().code(), "server_rollback");
     let st = d.app.status().await;
     assert_eq!((st.tray, st.paused.as_deref()), (TrayState::Error, Some("server_rollback")));
+}
+
+/// Retries for a few seconds: on Windows a file can stay locked for a moment after the program that used it let go.
+fn retry<T>(what: &str, mut f: impl FnMut() -> std::io::Result<T>) -> T {
+    let mut last = None;
+    for _ in 0..50 {
+        match f() {
+            Ok(v) => return v,
+            Err(e) => last = Some(e),
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    panic!("{what} failed: {:?}", last);
 }
 
 fn copy_dir(from: &Path, to: &Path) {
@@ -430,7 +443,7 @@ fn copy_dir(from: &Path, to: &Path) {
         if e.file_type().unwrap().is_dir() {
             copy_dir(&e.path(), &target);
         } else {
-            std::fs::copy(e.path(), target).unwrap();
+            retry("copying a file", || std::fs::copy(e.path(), &target));
         }
     }
 }
