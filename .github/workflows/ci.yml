@@ -3,8 +3,8 @@ name: ci
 on:
   push:
     branches: [main]
+  # Any base branch, so a pull request that builds on another one is checked as well
   pull_request:
-    branches: [main]
 
 # A new push to the same pull request (or branch) cancels the older run, so it does not keep holding the queue
 concurrency:
