@@ -123,7 +123,8 @@ impl AppState {
             synced: placeholder.clone(),
             syncing: placeholder.clone(),
             offline: placeholder.clone(),
-            error: placeholder,
+            error: placeholder.clone(),
+            local: placeholder,
         };
         AppState(Mutex::new(Inner {
             log: VecDeque::new(),
