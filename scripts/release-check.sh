@@ -77,6 +77,19 @@ if [ -n "$commit" ]; then
   fi
 fi
 
+# 4b) Order: the first launch steps must come before the list of changes, so nobody has to scroll to find them
+if [ -n "$notes" ]; then
+  heading_line() {
+    grep -nEi "^#{1,6}[[:space:]]+([^[:alnum:][:space:]]+[[:space:]]+)?${1}([[:space:]].*)?$" <<<"$notes" | head -n1 | cut -d: -f1
+  }
+  read_first=$(heading_line "Read first"); first_launch=$(heading_line "First launch"); whats_new=$(heading_line "What's new")
+  if [ -n "$read_first" ] && [ -n "$first_launch" ] && [ -n "$whats_new" ]; then
+    if [ "$first_launch" -lt "$read_first" ] || [ "$first_launch" -gt "$whats_new" ]; then
+      bad "section order: \"First launch\" must come after \"Read first\" and before \"What's new\""
+    fi
+  fi
+fi
+
 # 5) Release notes must be English only, and free of internal information and AI names
 #    (same pattern as check.sh item 12)
 if [ -n "$notes" ]; then

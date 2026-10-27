@@ -1,0 +1,21 @@
+OnePaste on macOS: allow it to open the first time
+==================================================
+
+OnePaste is not signed with an Apple Developer ID, so macOS blocks it the first
+time you open it. This is expected, and the app is not damaged. To allow it:
+
+1. Double-click OnePaste.app. A dialog says Apple cannot verify the app.
+   Click Done.
+2. Open System Settings -> Privacy & Security, and scroll down to the
+   Security section.
+3. Click Open Anyway next to the message about OnePaste, then confirm
+   (it may ask for your password or Touch ID).
+4. If the message says the app "is damaged and can't be opened", run this in
+   Terminal and try again (replace <path> with the folder that contains the app):
+
+       xattr -cr <path>/OnePaste.app
+
+You only have to do this once.
+
+OnePaste is a desktop validation build. It does not sync and does not save any
+data. See the release page for what it does and how to remove it completely.

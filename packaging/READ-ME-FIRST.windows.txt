@@ -1,0 +1,15 @@
+OnePaste on Windows: allow it to open the first time
+====================================================
+
+OnePaste is not signed, so Windows may warn you the first time you open it.
+This is expected. To allow it:
+
+1. Double-click OnePaste.exe.
+2. If SmartScreen says "Windows protected your PC", click More info, then click
+   Run anyway.
+
+Nothing is installed and no administrator rights are needed. You only have to
+do this once.
+
+OnePaste is a desktop validation build. It does not sync and does not save any
+data. See the release page for what it does and how to remove it completely.
