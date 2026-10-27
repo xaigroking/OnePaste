@@ -34,7 +34,7 @@ const never = <T,>() => new Promise<T>(() => undefined);
 
 const ITEMS: ItemView[] = [
   { itemId: "i1", kind: "text", preview: "Review moved to 3 pm Friday, room B2 \u5468\u4e94\u8bc4\u5ba1\u4f1a\u6539\u5230\u4e0b\u5348\u4e09\u70b9", favorite: false, pinned: true, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Chat", createdAtMs: NOW - 1 * MIN, syncState: "synced" },
-  { itemId: "i2", kind: "text", preview: "https://example.org/docs/web/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
+  { itemId: "i2", kind: "text", preview: "https://example.org/help/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
   { itemId: "i3", kind: "text", preview: "docker run -d -p 8787:8787 -v onepaste-data:/data onepaste/server", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Terminal", createdAtMs: NOW - 8 * MIN, syncState: "synced" },
   { itemId: "i4", kind: "text", preview: "••••••••••••", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Password manager", createdAtMs: NOW - 15 * MIN, syncState: "local" },
   { itemId: "i5", kind: "image", preview: "", favorite: false, pinned: false, note: "", width: 1280, height: 720, size: 86016, sourceDevice: "Office Mac", sourceApp: "Screenshot", createdAtMs: NOW - 60 * MIN, syncState: "synced" },
