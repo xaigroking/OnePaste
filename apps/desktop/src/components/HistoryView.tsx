@@ -8,10 +8,12 @@ import type { IconName } from "./Icon";
 import { Badge, Button, Chip } from "./ui";
 
 // Links, files and code have no type of their own in the history yet: their chips are there and show nothing
-const FILTERS: Filter[] = ["all", "text", "links", "images", "files", "code", "favorites"];
+const FILTERS: Filter[] = ["all", "favorites", "text", "links", "images", "files", "code"];
 
 function kindIcon(it: ItemView): IconName {
   if (it.kind === "image") return "image";
+  // A masked item (a secret the clipboard marked as sensitive) shows as a row of dots
+  if (/^[\u2022\u25cf*]+$/.test(it.preview)) return "lock";
   return isLink(it.preview) ? "link" : "text";
 }
 
@@ -169,6 +171,9 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
       <aside className="detail" aria-label={t("detail.title")}>
         <div className="detail-head">
           <h2>{t("detail.title")}</h2>
+          {selected?.syncState === "synced" && <Badge tone="ok">{t("sync.synced")}</Badge>}
+          {selected?.syncState === "pending" && <Badge tone="warn">{t("sync.pending")}</Badge>}
+          {selected?.syncState === "local" && <Badge>{t("sync.localOnly")}</Badge>}
         </div>
         {selected ? (
           <>
@@ -182,6 +187,15 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
                 <p>{selected.preview}</p>
               )}
             </div>
+            {(selected.sourceDevice || selected.sourceApp || selected.createdAtMs) && (
+              <p className="muted small">
+                {t("detail.from", {
+                  source: [selected.sourceDevice, selected.sourceApp, selected.createdAtMs ? formatRelative(selected.createdAtMs, i18n.language) : undefined]
+                    .filter(Boolean)
+                    .join(" \u00b7 "),
+                })}
+              </p>
+            )}
             <div className="detail-actions">
               <Button variant="primary" className="grow" onClick={() => void act(api.copy(selected.itemId))}>
                 {t("item.copy")}

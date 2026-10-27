@@ -24,6 +24,7 @@ const STATE = q.get("state") ?? "base";
 const LANG = q.get("lang") === "zh" ? "zh" : "en";
 const NOW = Date.UTC(2026, 9, 26, 10, 30, 0);
 const MIN = 60_000;
+(window as unknown as { __now: number }).__now = NOW;
 
 const called = (name: string) => {
   const w = window as unknown as { __called?: string[] };

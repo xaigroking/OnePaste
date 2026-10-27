@@ -162,7 +162,8 @@
     "notePlaceholder": "添加备注…",
     "delete": "删除（同步到所有设备）",
     "deleteConfirm": "再点一次，在所有设备上删除",
-    "none": "选择一条记录查看详情。"
+    "none": "选择一条记录查看详情。",
+    "from": "来自 {{source}}"
   },
   "devices": {
     "thisDevice": "本机",

@@ -51,8 +51,7 @@ test("first run: choosing local-only works with the keyboard alone", async ({ pa
   await page.getByRole("radio", { name: /Only on this computer/ }).focus();
   await page.keyboard.press("Space");
   await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-  // The disabled hosted option is skipped; the next stop is the Next button
+  // The radio group is one stop and the disabled hosted option is skipped: the next stop is the Next button
   await expect(page.getByRole("button", { name: "Next" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["chooseLocalOnly"]);

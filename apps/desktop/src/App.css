@@ -166,3 +166,7 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .tray-preview hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .tray-status { display: flex; align-items: center; gap: 10px; padding: 6px 16px; }
 .tray-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; }
+
+.topbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: -4px 0 -2px; }
+.nav-bottom { margin-top: auto; }
+.sidebar .nav { flex: 1; }

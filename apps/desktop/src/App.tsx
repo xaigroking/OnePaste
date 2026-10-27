@@ -21,6 +21,7 @@ import { HistoryView } from "./components/HistoryView";
 import { Onboarding } from "./onboarding";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
 import type { View } from "./components/Sidebar";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
@@ -196,13 +197,11 @@ export default function App() {
       <Sidebar
         view={activeView}
         onView={setView}
-        tray={tray}
-        status={status}
-        recording={settings?.recordClipboard ?? true}
         joined={joined}
         deviceCount={deviceCount}
       />
       <main className="content">
+        {joined && <TopBar tray={tray} status={status} recording={settings?.recordClipboard ?? true} />}
         {joined && status?.paused && (
           <p className="notice notice-danger" role="alert">
             {t(`paused.${status.paused}`, { defaultValue: t("paused.other", { code: status.paused }) })}

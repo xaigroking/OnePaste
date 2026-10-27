@@ -8,9 +8,14 @@ export function formatClock(tsMs: number): string {
   return new Date(tsMs).toLocaleTimeString([], { hour12: false });
 }
 
+/** The current time. The screenshot tests fix it (window.__now) so relative times never change. */
+function now(): number {
+  return (window as unknown as { __now?: number }).__now ?? Date.now();
+}
+
 /** A short relative time such as "5 min ago", using the UI language. */
 export function formatRelative(tsMs: number, lang: string): string {
-  const diff = Date.now() - tsMs;
+  const diff = now() - tsMs;
   const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
   const min = Math.round(diff / 60000);
   if (min < 1) return rtf.format(0, "second");

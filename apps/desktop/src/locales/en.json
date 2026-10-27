@@ -162,7 +162,8 @@
     "notePlaceholder": "Add a note...",
     "delete": "Delete (syncs to all devices)",
     "deleteConfirm": "Click again to delete everywhere",
-    "none": "Select an item to see its details."
+    "none": "Select an item to see its details.",
+    "from": "From {{source}}"
   },
   "devices": {
     "thisDevice": "This device",
