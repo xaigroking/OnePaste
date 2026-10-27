@@ -5,7 +5,7 @@
 # The Chinese words are written as code points so that this file holds no Chinese text. They are: source public, open
 # source, non-commercial, commercial use, license, and the compounds that mean a license agreement. The Chinese word for
 # "protocol" alone is not a license word (it is in "protocol version"), so only the compounds are listed.
-_license_claims_cjk=$'源码公开|开源|非商业|商业使用|许可证|(开源|授权|许可|使用)协议'
+_license_claims_cjk=$'\u6e90\u7801\u516c\u5f00|\u5f00\u6e90|\u975e\u5546\u4e1a|\u5546\u4e1a\u4f7f\u7528|\u8bb8\u53ef\u8bc1|(\u5f00\u6e90|\u6388\u6743|\u8bb8\u53ef|\u4f7f\u7528)\u534f\u8bae'
 LICENSE_CLAIM_REGEX='source-available|open[- ]?source|non-?commercial|commercial use|polyform|\bA?GPL\b|MIT licen[sc]e|Apache-2\.0|licen[sc]e|'"$_license_claims_cjk"
 
 # The files a user reads: the translation files, the README, the packaging texts (READ-ME-FIRST, release notes templates),
