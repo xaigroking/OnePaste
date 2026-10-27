@@ -1,0 +1,139 @@
+// A stand-in for ./api used only by the screenshot and keyboard tests (vite build --mode mock). It serves fixed data, so
+// every screen looks the same on every run. The scene comes from the address: ?lang=zh|en&state=base|empty|loading|error
+// &screen=main|dev|set|qp|tray|state|ob1|ob2.
+import type {
+  ActionResult,
+  AppSettings,
+  AppStatus,
+  DeviceList,
+  Filter,
+  HotkeyState,
+  ItemView,
+  LanguagePreference,
+  LanguageState,
+  LogEntry,
+  Mode,
+  Page,
+  TrayState,
+  TrayTexts,
+} from "./api";
+
+const q = new URLSearchParams(window.location.search);
+const SCREEN = q.get("screen") ?? "main";
+const STATE = q.get("state") ?? "base";
+const LANG = q.get("lang") === "zh" ? "zh" : "en";
+const NOW = Date.UTC(2026, 9, 26, 10, 30, 0);
+const MIN = 60_000;
+
+const called = (name: string) => {
+  const w = window as unknown as { __called?: string[] };
+  w.__called = [...(w.__called ?? []), name];
+};
+
+const never = <T,>() => new Promise<T>(() => undefined);
+
+const ITEMS: ItemView[] = [
+  { itemId: "i1", kind: "text", preview: "Review moved to 3 pm Friday, room B2 \u5468\u4e94\u8bc4\u5ba1\u4f1a\u6539\u5230\u4e0b\u5348\u4e09\u70b9", favorite: false, pinned: true, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Chat", createdAtMs: NOW - 1 * MIN, syncState: "synced" },
+  { itemId: "i2", kind: "text", preview: "https://example.org/docs/web/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
+  { itemId: "i3", kind: "text", preview: "docker run -d -p 8787:8787 -v onepaste-data:/data onepaste/server", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Terminal", createdAtMs: NOW - 8 * MIN, syncState: "synced" },
+  { itemId: "i4", kind: "text", preview: "••••••••••••", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Password manager", createdAtMs: NOW - 15 * MIN, syncState: "local" },
+  { itemId: "i5", kind: "image", preview: "", favorite: false, pinned: false, note: "", width: 1280, height: 720, size: 86016, sourceDevice: "Office Mac", sourceApp: "Screenshot", createdAtMs: NOW - 60 * MIN, syncState: "synced" },
+  { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
+];
+
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true };
+
+const status = (): AppStatus => {
+  const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
+  const mode: Mode = joined ? "synced" : "unset";
+  const paused = SCREEN === "state" ? "revoked" : null;
+  return { joined, mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
+};
+
+const devices = (): DeviceList => ({
+  serverUrl: "https://192.168.1.20:8443",
+  devices: [
+    { deviceId: "d1", name: "My laptop", createdAt: NOW / 1000 - 86400 * 30, lastSeenAt: NOW / 1000, revoked: false, thisDevice: true },
+    { deviceId: "d2", name: "Office Mac", createdAt: NOW / 1000 - 86400 * 20, lastSeenAt: NOW / 1000 - 120, revoked: false, thisDevice: false },
+    { deviceId: "d3", name: "Old phone", createdAt: NOW / 1000 - 86400 * 90, lastSeenAt: NOW / 1000 - 86400 * 12, revoked: true, thisDevice: false },
+  ],
+});
+
+export const api = {
+  languageState: async (): Promise<LanguageState> => ({ preference: "system", effective: LANG, systemLocale: LANG }),
+  setLanguage: async (preference: LanguagePreference): Promise<LanguageState> => ({ preference, effective: LANG, systemLocale: LANG }),
+  firstRunState: async (): Promise<Mode> => status().mode,
+  status: async () => status(),
+  search: (query: string, filter: Filter, _limit: number, _offset: number): Promise<ItemView[]> => {
+    if (STATE === "loading") return never();
+    if (STATE === "error") return Promise.reject("storage");
+    if (STATE === "empty") return Promise.resolve([]);
+    const text = query.trim().toLowerCase();
+    return Promise.resolve(
+      ITEMS.filter((i) => (filter === "favorites" ? i.favorite : filter === "text" ? i.kind === "text" : filter === "images" ? i.kind === "image" : true)).filter(
+        (i) => !text || i.preview.toLowerCase().includes(text),
+      ),
+    );
+  },
+  copy: async (itemId: string) => {
+    (window as unknown as { __copied: string[] }).__copied = [...((window as unknown as { __copied?: string[] }).__copied ?? []), itemId];
+  },
+  hideQuickPanel: async () => {
+    (window as unknown as { __hidden: boolean }).__hidden = true;
+  },
+  setFlags: async () => undefined,
+  remove: async () => undefined,
+  settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
+  setSettings: async () => undefined,
+  log: async (): Promise<LogEntry[]> => [
+    { tsMs: NOW - 5 * MIN, kind: "started", detail: null },
+    { tsMs: NOW - 3 * MIN, kind: "captured", detail: "text, 42 bytes" },
+  ],
+  hotkey: async (): Promise<HotkeyState> => (SCREEN === "set" && STATE === "error" ? "busy" : "registered"),
+  trayState: async (): Promise<TrayState> => status().tray,
+  setTexts: async (_texts: TrayTexts) => undefined,
+  setDeviceCount: async () => undefined,
+  copyDiagnostics: async (): Promise<ActionResult> => ({ ok: true, code: "ok" }),
+  devices: async (): Promise<DeviceList> => {
+    if (STATE === "loading") return never();
+    if (STATE === "error") return Promise.reject("unreachable");
+    if (STATE === "empty") return { serverUrl: "https://192.168.1.20:8443", devices: devices().devices.slice(0, 1) };
+    return devices();
+  },
+  revokeDevice: async () => undefined,
+  newConnectionCode: async () => "onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9",
+  version: async () => "0.0.1 (v0.0.1-main.1)",
+  probeServer: async () => {
+    called("probeServer");
+    if (STATE === "loading") return never<"existing" | "empty">();
+    if (STATE === "error") return Promise.reject("invalid_connection_code");
+    return "empty" as const;
+  },
+  generatePassphrase: async () => "7K3M-QX9D-4HFA-W2JB-N8RT",
+  createVault: async () => "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01",
+  confirmKitSaved: async () => undefined,
+  cancelSetup: async () => undefined,
+  chooseLocalOnly: async () => {
+    called("chooseLocalOnly");
+  },
+  join: async () => undefined,
+  joinWithKit: async () => undefined,
+  showKit: async () => "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01",
+  wipeLocalData: async () => undefined,
+  copySecret: async () => undefined,
+};
+
+export async function onChanged(_handler: () => void): Promise<() => void> {
+  return () => undefined;
+}
+
+/** The scene's page is opened once, as the tray menu would. */
+export async function onNavigate(handler: (page: Page) => void): Promise<() => void> {
+  const page: Page | null = SCREEN === "dev" ? "devices" : SCREEN === "set" ? "settings" : null;
+  if (page) window.setTimeout(() => handler(page), 0);
+  return () => undefined;
+}
+
+export async function onQuickOpened(_handler: () => void): Promise<() => void> {
+  return () => undefined;
+}

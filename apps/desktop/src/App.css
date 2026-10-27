@@ -144,3 +144,25 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .actions-cell .btn + .btn { margin-left: 6px; }
 .confirm { margin-top: 10px; }
 .count { margin-left: auto; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+
+/* Quick panel */
+.qp { display: flex; flex-direction: column; height: 100%; padding: 14px 14px 0; gap: 10px; background: var(--bg); }
+.qp-search { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1.5px solid var(--accent); border-radius: var(--radius-card); padding: 0 12px; color: var(--muted); }
+.qp-search input { flex: 1; border: 0; background: transparent; padding: 12px 0; outline: none; color: var(--fg); font-size: 15px; }
+.qp-chips { flex: none; }
+.qp-rows { list-style: none; margin: 0 -14px; padding: 4px 8px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.qp-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: default; }
+.qp-row-selected { background: var(--accent-soft); }
+.qp-num { flex: none; width: 14px; text-align: right; font-size: 12px; color: var(--muted); }
+.qp-message { flex: 1; margin: 0; }
+.qp-keys { flex: none; margin: 0 -14px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.qp-keys kbd { margin-right: 2px; }
+.setting-soon { opacity: .6; }
+.setting-soon .soon-tag { margin-left: 8px; }
+.switch-row input:disabled + .switch-track { opacity: .5; cursor: not-allowed; }
+
+/* The tray menu drawing used by the screenshot tests only */
+.tray-preview { width: 300px; margin: 12px; padding: 8px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+.tray-preview hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+.tray-status { display: flex; align-items: center; gap: 10px; padding: 6px 16px; }
+.tray-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; }

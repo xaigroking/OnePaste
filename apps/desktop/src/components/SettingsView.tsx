@@ -60,6 +60,8 @@ export function SettingsView(p: Props) {
             {preference !== "system" && !languageInfo(preference) && <option value={preference}>{preference}</option>}
           </select>
         </label>
+        <Switch checked={false} disabled onChange={() => undefined} label={t("settingsMore.startup")} hint={t("settingsMore.soon")} />
+        <p className="muted small">{t("settingsMore.trayNote")}</p>
         <p className="muted small">
           {preference === "system"
             ? t("language.auto", { name: languageInfo(resolveLanguage(p.language?.effective))?.nativeName })
@@ -74,6 +76,18 @@ export function SettingsView(p: Props) {
             onChange={(v) => p.onSettings({ ...p.settings!, recordClipboard: v })}
             label={t("settings.record")}
           />
+          <Switch checked disabled onChange={() => undefined} label={t("settingsMore.skipSecrets")} hint={t("settingsMore.soon")} />
+          <Switch checked disabled onChange={() => undefined} label={t("settingsMore.respectMarker")} hint={t("settingsMore.soon")} />
+          <div className="setting setting-soon">
+            <span>{t("settingsMore.excludedApps")}</span>
+            <Badge>{t("settingsMore.soon")}</Badge>
+          </div>
+          <div className="setting setting-soon">
+            <span>{t("settingsMore.sizeLimit")}</span>
+            <span className="muted">
+              {t("settingsMore.sizeLimitValue")} <Badge>{t("settingsMore.soon")}</Badge>
+            </span>
+          </div>
           {!p.localOnly && (
             <Switch
               checked={p.settings.autoApplyRemote}
@@ -85,6 +99,10 @@ export function SettingsView(p: Props) {
       )}
 
       <Card title={t("settings.sync")}>
+        <div className="setting">
+          <span>{t("settingsMore.syncMethod")}</span>
+          <span className="muted">{p.localOnly ? t("settingsMore.syncLocal") : t("settingsMore.syncServer")}</span>
+        </div>
         <div className="setting">
           <span>{t("settings.syncState")}</span>
           <Badge tone={p.status?.paused ? "danger" : "ok"}>{p.status?.paused ? t("status.stopped") : t("status.active")}</Badge>
@@ -102,10 +120,26 @@ export function SettingsView(p: Props) {
           <span>{t("settings.showWindow")}</span>
           <kbd>{p.hotkeyText}</kbd>
         </div>
+        <p className="muted small">{t("settingsMore.hotkeyHint")}</p>
         {p.hotkey === "busy" && <p className="notice notice-warn">{t("hotkey.busy")}</p>}
       </Card>
 
       <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped} />
+
+      <Card title={t("settingsMore.advanced")}>
+        <div className="setting setting-soon">
+          <span>{t("settingsMore.autoLock")}</span>
+          <Badge>{t("settingsMore.soon")}</Badge>
+        </div>
+        <div className="setting setting-soon">
+          <span>{t("settingsMore.changePassphrase")}</span>
+          <Badge>{t("settingsMore.soon")}</Badge>
+        </div>
+        <div className="setting">
+          <span>{t("settingsMore.telemetry")}</span>
+          <span className="muted">{t("settingsMore.telemetryOff")}</span>
+        </div>
+      </Card>
 
       <Card title={t("settings.privacy")}>
         <p className="muted">{t("settings.privacyBody")}</p>

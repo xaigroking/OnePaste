@@ -7,7 +7,7 @@
     "title": "OnePaste"
   },
   "hotkey": {
-    "hint": "按 {{keys}} 呼出本窗口",
+    "hint": "按 {{keys}} 呼出快速面板",
     "busy": "热键被占用"
   },
   "log": {
@@ -67,10 +67,16 @@
   },
   "tray": {
     "open": "打开窗口",
-    "diagnostics": "复制诊断信息",
     "quit": "退出",
     "statusLine": "状态：{state}",
-    "tooltip": "OnePaste · {state}"
+    "tooltip": "OnePaste · {state}",
+    "quickPanel": "快速面板",
+    "pause": "暂停监听剪贴板",
+    "resume": "恢复监听剪贴板",
+    "syncNow": "立即同步",
+    "devices": "设备…",
+    "settings": "设置…",
+    "devicesCount": "{count} 台设备"
   },
   "language": {
     "label": "语言",
@@ -95,13 +101,18 @@
       "all": "全部",
       "favorites": "收藏",
       "text": "文本",
-      "images": "图片"
+      "images": "图片",
+      "links": "链接",
+      "files": "文件",
+      "code": "代码"
     },
     "filterLabel": "按类型筛选"
   },
   "results": {
     "empty": "还没有内容。复制一段文字或一张图片，它就会出现在这里。",
-    "noMatch": "没有匹配的内容。"
+    "noMatch": "没有匹配的内容。",
+    "loading": "正在读取历史…",
+    "error": "读不出历史（{{code}}）。你的数据在这台电脑上是安全的。请稍后再试，或重启 OnePaste。"
   },
   "item": {
     "image": "图片 {{width}}×{{height}}，{{size}}",
@@ -129,7 +140,7 @@
     "queue": "队列",
     "queueValue": "{{pending}} 条待上传，{{conflict}} 条冲突，{{failed}} 条失败",
     "shortcuts": "快捷键",
-    "showWindow": "显示 OnePaste",
+    "showWindow": "快速面板",
     "privacy": "隐私与诊断",
     "privacyBody": "剪贴板内容不会写入日志或诊断信息。诊断只列出事件类型、大小和错误码。",
     "about": "关于",
@@ -268,5 +279,36 @@
     "wipeWarningLocal": "这会删除这台电脑上的全部历史和密钥，无法撤销。",
     "wipeConfirm": "删除这台电脑上的一切",
     "failed": "没有成功（{{code}}）。"
+  },
+  "qp": {
+    "title": "快速面板",
+    "placeholder": "搜索剪贴板历史…",
+    "loading": "搜索中…",
+    "error": "搜索没有成功（{{code}}）。数据是安全的。按 Esc 关闭后再试。",
+    "keys": "键盘快捷键",
+    "keySelect": "选择",
+    "keyCopy": "复制",
+    "keyPick": "快选",
+    "keyFilter": "筛选",
+    "keyClose": "关闭"
+  },
+  "settingsMore": {
+    "soon": "即将推出",
+    "startup": "登录系统时启动 OnePaste",
+    "trayNote": "关闭窗口后 OnePaste 继续在托盘运行，要退出请用托盘菜单。",
+    "skipSecrets": "不记录疑似密钥与令牌的内容",
+    "respectMarker": "尊重系统的“排除出历史”标记",
+    "excludedApps": "不记录这些应用的复制",
+    "sizeLimit": "单条记录大小上限",
+    "sizeLimitValue": "8 MB",
+    "autoLock": "一段时间后自动锁定",
+    "telemetry": "使用统计与崩溃报告",
+    "telemetryOff": "已关闭。OnePaste 从不发送。",
+    "changePassphrase": "修改口令",
+    "advanced": "高级",
+    "hotkeyHint": "热键用来呼出快速面板，暂时不能更改。",
+    "syncMethod": "方式",
+    "syncLocal": "仅本机",
+    "syncServer": "你自己的服务器"
   }
 }

@@ -7,7 +7,8 @@ import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { Badge, Button, Chip } from "./ui";
 
-const FILTERS: Filter[] = ["all", "favorites", "text", "images"];
+// Links, files and code have no type of their own in the history yet: their chips are there and show nothing
+const FILTERS: Filter[] = ["all", "text", "links", "images", "files", "code", "favorites"];
 
 function kindIcon(it: ItemView): IconName {
   if (it.kind === "image") return "image";
@@ -27,9 +28,11 @@ interface Props {
   onQuery: (q: string) => void;
   onFilter: (f: Filter) => void;
   act: (work: Promise<void>) => Promise<void>;
+  loadState: "loading" | "ready" | "error";
+  loadError: string;
 }
 
-export function HistoryView({ items, query, filter, onQuery, onFilter, act }: Props) {
+export function HistoryView({ items, query, filter, onQuery, onFilter, act, loadState, loadError }: Props) {
   const { t, i18n } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -94,7 +97,16 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act }: Pr
           ))}
         </div>
 
-        {items.length === 0 ? (
+        {loadState === "error" ? (
+          <p className="notice notice-danger" role="alert">
+            {t("results.error", { code: loadError })}
+          </p>
+        ) : loadState === "loading" ? (
+          <div className="empty" aria-busy="true">
+            <Icon name="refresh" size={30} />
+            <p>{t("results.loading")}</p>
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty">
             <Icon name="clipboard" size={34} />
             <p>{t(emptyKey)}</p>

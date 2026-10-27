@@ -5,7 +5,8 @@ export type TrayState = "synced" | "syncing" | "offline" | "error" | "local";
 export type Mode = "unset" | "local_only" | "synced";
 export type HotkeyState = "registered" | "busy" | "unknown";
 
-export type Filter = "all" | "favorites" | "text" | "images";
+export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files" | "code";
+export type Page = "history" | "devices" | "settings";
 
 /** What the application reports about the vault and the sync. */
 export interface AppStatus {
@@ -88,7 +89,6 @@ export interface ActionResult {
 /** Tray texts: supplied by the UI layer through i18next; the Rust side contains no visible text. */
 export interface TrayTexts {
   open: string;
-  diagnostics: string;
   quit: string;
   statusLine: string;
   tooltip: string;
@@ -97,6 +97,14 @@ export interface TrayTexts {
   offline: string;
   error: string;
   local: string;
+  paused: string;
+  quickPanel: string;
+  pause: string;
+  resume: string;
+  syncNow: string;
+  devices: string;
+  settings: string;
+  devicesCount: string;
 }
 
 export const api = {
@@ -116,6 +124,8 @@ export const api = {
   devices: () => invoke<DeviceList>("app_devices"),
   revokeDevice: (deviceId: string) => invoke<void>("app_revoke_device", { deviceId }),
   newConnectionCode: () => invoke<string>("app_new_connection_code"),
+  hideQuickPanel: () => invoke<void>("hide_quick_panel"),
+  setDeviceCount: (count: number | null) => invoke<void>("set_device_count", { count }),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
@@ -137,4 +147,14 @@ export const api = {
 /** Notifies the UI to fetch again when the Rust-side state changed. */
 export function onChanged(handler: () => void): Promise<() => void> {
   return listen("onepaste://changed", handler);
+}
+
+/** The shell asks the window to show one of its pages (from the tray menu). */
+export function onNavigate(handler: (page: Page) => void): Promise<() => void> {
+  return listen<Page>("onepaste://navigate", (e) => handler(e.payload));
+}
+
+/** The quick panel was brought up again (by the hotkey or the tray menu). */
+export function onQuickOpened(handler: () => void): Promise<() => void> {
+  return listen("onepaste://quick-opened", handler);
 }

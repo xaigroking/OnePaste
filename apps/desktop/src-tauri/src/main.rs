@@ -6,6 +6,7 @@ mod commands;
 mod diag;
 mod hotkey;
 mod icons;
+mod quick;
 mod lang;
 mod state;
 mod tray;
@@ -50,6 +51,8 @@ fn main() {
             commands::app_show_kit,
             commands::app_copy_secret,
             commands::app_devices,
+            commands::hide_quick_panel,
+            commands::set_device_count,
             commands::app_revoke_device,
             commands::app_new_connection_code,
             commands::app_wipe_local_data,
@@ -75,6 +78,7 @@ fn main() {
 
             let handle = app.handle().clone();
             tray::build(&handle)?;
+            quick::create(&handle)?;
             hotkey::register(&handle);
             let watchers = watchers::start(&handle, &core);
             app.manage(watchers);
@@ -103,9 +107,16 @@ fn main() {
         })
         // Closing the window only hides it to the tray; quitting is only possible from the tray menu.
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                // The quick panel goes away when the user clicks elsewhere
+                WindowEvent::Focused(false) if window.label() == quick::LABEL => {
+                    let _ = window.hide();
+                }
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

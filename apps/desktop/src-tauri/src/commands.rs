@@ -147,6 +147,19 @@ pub async fn app_join_with_kit(app: AppHandle, core: State<'_, App>, code: Strin
     r
 }
 
+/// Hides the quick panel (after a copy, or on Escape).
+#[tauri::command]
+pub fn hide_quick_panel(app: AppHandle) {
+    crate::quick::hide(&app);
+}
+
+/// The window reports how many devices the vault has, for the tray's status line.
+#[tauri::command]
+pub fn set_device_count(app: AppHandle, count: Option<usize>) {
+    app.state::<AppState>().0.lock().unwrap().device_count = count;
+    tray::refresh(&app);
+}
+
 /// The devices of the vault and the server they sync through.
 #[tauri::command]
 pub async fn app_devices(core: State<'_, App>) -> Result<DeviceList, String> {
@@ -217,8 +230,11 @@ pub fn app_get_settings(core: State<App>) -> Settings {
 }
 
 #[tauri::command]
-pub fn app_set_settings(core: State<App>, settings: Settings) -> Result<(), String> {
-    core.set_settings(settings).map_err(|e| e.code())
+pub fn app_set_settings(app: AppHandle, core: State<App>, settings: Settings) -> Result<(), String> {
+    let r = core.set_settings(settings).map_err(|e| e.code());
+    // The tray shows the paused state and its menu text follows the setting
+    tray::refresh(&app);
+    r
 }
 
 /// Puts the diagnostics text on the clipboard. It carries the origin marker, so it does not show up as a list entry.
