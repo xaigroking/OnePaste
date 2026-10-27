@@ -3,24 +3,26 @@ use onepaste_server::{connect_code, Server};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-const USAGE: &str = "Usage: onepaste-server [connect-code] [--data-dir <dir>] [--listen <addr>] [--public-url <url>] [--version]\n\
+const USAGE: &str = "Usage: onepaste-server [connect-code | healthcheck] [--data-dir <dir>] [--listen <addr>] [--public-url <url>] [--version]\n\
 Environment: ONEPASTE_DATA_DIR, ONEPASTE_LISTEN, ONEPASTE_PUBLIC_URL (command line arguments win)\n\
 RUST_LOG=<trace|debug|info|warn|error> sets the log level (default: info)";
 
 struct Cli {
     connect_code: bool,
+    healthcheck: bool,
     data_dir: Option<String>,
     listen: Option<String>,
     public_url: Option<String>,
 }
 
 fn parse_args() -> Result<Cli, String> {
-    let mut cli = Cli { connect_code: false, data_dir: None, listen: None, public_url: None };
+    let mut cli = Cli { connect_code: false, healthcheck: false, data_dir: None, listen: None, public_url: None };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut value = |name: &str| args.next().ok_or_else(|| format!("{name} needs a value"));
         match a.as_str() {
             "connect-code" => cli.connect_code = true,
+            "healthcheck" => cli.healthcheck = true,
             "--data-dir" => cli.data_dir = Some(value("--data-dir")?),
             "--listen" => cli.listen = Some(value("--listen")?),
             "--public-url" => cli.public_url = Some(value("--public-url")?),
@@ -67,6 +69,12 @@ async fn main() {
             std::process::exit(2);
         }
     };
+    // For a container health check: succeeds if something accepts connections on the listen port of this server
+    if cli.healthcheck {
+        let target = SocketAddr::from(([127, 0, 0, 1], cfg.listen.port()));
+        let up = std::net::TcpStream::connect_timeout(&target, std::time::Duration::from_secs(2)).is_ok();
+        std::process::exit(if up { 0 } else { 1 });
+    }
     #[cfg(feature = "fault-injection")]
     if let Some(n) = std::env::var("ONEPASTE_TOMBSTONE_RETENTION_SECS").ok().and_then(|v| v.parse().ok()) {
         cfg.tombstone_retention_secs = n;
@@ -92,6 +100,26 @@ async fn main() {
         }
     };
     tracing::info!(listen = %server.addr, fingerprint = %server.fingerprint, "started");
-    let _ = tokio::signal::ctrl_c().await;
+    wait_for_stop().await;
     server.shutdown().await;
+}
+
+/// Waits for Ctrl-C or, on Unix, for the termination signal that `docker stop` and service managers send. As the first
+/// process of a container, a program that ignores that signal is killed after a timeout instead of closing its database.
+async fn wait_for_stop() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        match signal(SignalKind::terminate()) {
+            Ok(mut term) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = term.recv() => {}
+                }
+                return;
+            }
+            Err(_) => {}
+        }
+    }
+    let _ = tokio::signal::ctrl_c().await;
 }
