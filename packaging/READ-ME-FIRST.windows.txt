@@ -11,5 +11,6 @@ This is expected. To allow it:
 Nothing is installed and no administrator rights are needed. You only have to
 do this once.
 
-OnePaste is a desktop validation build. It does not sync and does not save any
-data. See the release page for what it does and how to remove it completely.
+OnePaste is an early beta. It can keep a searchable history of what you copy and,
+if you connect it to your own server, sync it between your computers. See the
+release page for what works, what does not yet, and how to remove it completely.
