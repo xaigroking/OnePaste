@@ -227,7 +227,7 @@ expect_docker no "only the command line client" crates/onepaste-cli/src/main.rs
 expect_jobs() {  # expect_jobs "<jobs that must run, sorted, space separated>" <description> <file>...
   local want=$1 what=$2 got
   shift 2
-  got=$(printf '%s\n' "$@" | jobs_for_paths | grep '=true$' | sed 's/=true//' | sort | tr '\n' ' ' | sed 's/ $//')
+  got=$(printf '%s\n' "$@" | jobs_for_paths | { grep '=true$' || true; } | sed 's/=true//' | sort | tr '\n' ' ' | sed 's/ $//')
   [ "$got" = "$want" ] || { say "FAIL ci jobs: $what: expected '$want', got '$got'"; release_fail=1; }
 }
 expect_jobs "" "only documents" README.md docs/notes.txt
