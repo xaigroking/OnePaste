@@ -34,6 +34,10 @@ pub struct Envelope {
     pub sealed: String,
 }
 
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
 /// The private payload inside the ciphertext. `extra` keeps unknown fields so **read-modify-write never drops a field** (old clients must not eat new fields).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ItemPayload {
@@ -50,6 +54,12 @@ pub struct ItemPayload {
     pub device: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub favorite: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pinned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -133,6 +143,18 @@ mod tests {
 
     fn payload(text: &str) -> ItemPayload {
         ItemPayload { kind: "text".into(), content: Some(text.into()), ..Default::default() }
+    }
+
+    #[test]
+    fn new_payload_fields_default_when_absent_and_stay_out_of_the_json_when_unset() {
+        let old: ItemPayload = serde_json::from_str(r#"{"kind":"text","content":"x"}"#).unwrap();
+        assert!(!old.favorite && !old.pinned && old.note.is_none());
+        let json = serde_json::to_string(&old).unwrap();
+        assert!(!json.contains("favorite") && !json.contains("pinned") && !json.contains("note"), "{json}");
+        let set = ItemPayload { favorite: true, pinned: true, note: Some("n".into()), ..old };
+        let back: ItemPayload = serde_json::from_str(&serde_json::to_string(&set).unwrap()).unwrap();
+        assert_eq!(back, set);
+        assert!(back.extra.is_empty(), "the named fields must not fall into `extra`");
     }
 
     #[test]

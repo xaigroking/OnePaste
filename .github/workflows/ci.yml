@@ -83,6 +83,34 @@ jobs:
         working-directory: spikes/vaultcore
         run: cargo test --release
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build the server and the command line client (the client with test-only fault injection)
+        run: cargo build -p onepaste-server -p onepaste-cli --features onepaste-cli/fault-injection
+      - name: Two-client end-to-end test
+        run: bash tests/e2e/two_clients.sh target/debug
+
+  portability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust with the portability targets
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios --target aarch64-linux-android --target aarch64-unknown-linux-ohos --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Check the core library and the sync engine on every target
+        run: |
+          for t in aarch64-apple-ios aarch64-linux-android aarch64-unknown-linux-ohos wasm32-unknown-unknown; do
+            echo "== $t"
+            cargo check --target "$t" -p onepaste-core -p onepaste-sync
+          done
+
   desktop-tests:
     name: desktop-tests (${{ matrix.os }})
     strategy:

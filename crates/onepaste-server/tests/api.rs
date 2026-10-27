@@ -191,6 +191,17 @@ async fn idempotency_replays_and_detects_a_different_request() {
     let body = json!({ "base_seq": 0, "envelope": envelope_json(&a.mk, &other, "different") }).to_string().into_bytes();
     let r = env.send(Method::PUT, &format!("/v1/items/{other}"), Some(&a.token), Some("same-key"), Some(body), &[]).await;
     assert_eq!((r.status, code(&r)), (422, "idempotency_conflict"));
+    // A stale answer is remembered too: replaying it is fine, changing the body under the same key is not
+    let stale_body = json!({ "base_seq": 0, "envelope": envelope_json(&a.mk, &id, "again") }).to_string().into_bytes();
+    let s1 = env.send(Method::PUT, &path, Some(&a.token), Some("stale-key"), Some(stale_body.clone()), &[]).await;
+    let s2 = env.send(Method::PUT, &path, Some(&a.token), Some("stale-key"), Some(stale_body), &[]).await;
+    assert_eq!((s1.status, s2.status), (409, 409));
+    assert_eq!(s1.json["current_item"], s2.json["current_item"]);
+    let changed = json!({ "base_seq": 1, "envelope": envelope_json(&a.mk, &id, "merged") }).to_string().into_bytes();
+    let s3 = env.send(Method::PUT, &path, Some(&a.token), Some("stale-key"), Some(changed.clone()), &[]).await;
+    assert_eq!((s3.status, code(&s3)), (422, "idempotency_conflict"));
+    let s4 = env.send(Method::PUT, &path, Some(&a.token), Some("fresh-key"), Some(changed), &[]).await;
+    assert_eq!(s4.status, 200, "{}", s4.json);
     // Registration replays the same device token without storing it in the clear
     let reg = invite(&env, &a).await;
     let id = new_id();
@@ -441,4 +452,64 @@ async fn the_connect_code_subcommand_invalidates_older_credentials() {
     assert_eq!(r.status, 401, "the older credential must be invalid");
     let r = env.send(Method::GET, "/v1/vault/keyparams", None, None, None, &[("OnePaste-Reg-Token", &reg_token_of(&fresh))]).await;
     assert_eq!((r.status, code(&r)), (404, "vault_empty"), "the new credential is valid and the vault is still empty");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn only_the_pinned_certificate_is_accepted() {
+    let env = Env::new().await;
+    let url = format!("{}/v1/items", env.base);
+    let get = |client: reqwest::Client| {
+        let url = url.clone();
+        async move { client.get(url).header("OnePaste-Proto", "1").send().await }
+    };
+    // The right fingerprint connects (the answer is 401 because there is no token, but the TLS handshake worked)
+    assert_eq!(get(pinned_client(&env.fingerprint)).await.unwrap().status().as_u16(), 401);
+    // A wrong fingerprint is refused
+    assert!(get(pinned_client("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")).await.is_err());
+    // A second server has a fresh certificate and so a different fingerprint: the old fingerprint must not connect to it
+    let other = Env::new().await;
+    assert_ne!(other.fingerprint, env.fingerprint);
+    let other_url = format!("{}/v1/items", other.base);
+    let old = pinned_client(&env.fingerprint).get(other_url.clone()).header("OnePaste-Proto", "1").send().await;
+    assert!(old.is_err(), "the old fingerprint must not trust the new certificate");
+    let new = pinned_client(&other.fingerprint).get(other_url).header("OnePaste-Proto", "1").send().await;
+    assert_eq!(new.unwrap().status().as_u16(), 401);
+}
+
+#[derive(Debug)]
+struct Impostor(std::sync::Arc<rustls::sign::CertifiedKey>);
+
+impl rustls::server::ResolvesServerCert for Impostor {
+    fn resolve(&self, _hello: rustls::server::ClientHello<'_>) -> Option<std::sync::Arc<rustls::sign::CertifiedKey>> {
+        Some(self.0.clone())
+    }
+}
+
+/// The certificate is public, so presenting it proves nothing: the handshake signature has to verify as well.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_impostor_with_the_pinned_certificate_but_another_key_is_refused() {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+    use std::sync::Arc;
+    let env = Env::new().await;
+    let pem = std::fs::read_to_string(env.cfg.data_dir.join("tls/cert.pem")).unwrap();
+    let der = B64.decode(pem.lines().filter(|l| !l.starts_with("-----")).collect::<String>()).unwrap();
+    let other = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+    let signing = rustls::crypto::ring::sign::any_ecdsa_type(&PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(other.serialize_der()))).unwrap();
+    let certified = rustls::sign::CertifiedKey::new(vec![CertificateDer::from(der)], signing);
+    let cfg = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_cert_resolver(Arc::new(Impostor(Arc::new(certified))));
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = axum::Router::new().route("/v1/items", axum::routing::get(|| async { "impostor" }));
+    let tls = axum_server::tls_rustls::RustlsConfig::from_config(Arc::new(cfg));
+    tokio::spawn(async move {
+        let _ = axum_server::from_tcp_rustls(listener, tls).unwrap().serve(app.into_make_service()).await;
+    });
+    let r = pinned_client(&env.fingerprint).get(format!("https://127.0.0.1:{port}/v1/items")).send().await;
+    assert!(r.is_err(), "a server that cannot sign with the pinned certificate's key must be refused");
 }

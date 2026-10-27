@@ -49,17 +49,26 @@ sys.exit(fail)
   done
 fi
 
-# 8b) Direct dependencies of onepaste-core must be on the allow-list (no database, network, UI or platform SDK)
+# 8b) Direct dependencies of onepaste-core and onepaste-sync must be on their allow-lists (no database, network, UI or platform SDK)
 if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && [ -f Cargo.toml ]; then
   cargo metadata --format-version 1 2>/dev/null | python3 -c '
 import sys, json
 d = json.load(sys.stdin)
-allow = {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2"}
+allow = {
+    "onepaste-core": {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2"},
+    "onepaste-sync": {"onepaste-core","serde","serde_json","base64","thiserror","zeroize"},
+}
+seen = set()
+bad = False
 for p in d["packages"]:
-    if p["name"] == "onepaste-core":
-        extra = sorted({x["name"] for x in p["dependencies"]} - allow)
+    if p["name"] in allow:
+        seen.add(p["name"])
+        extra = sorted({x["name"] for x in p["dependencies"]} - allow[p["name"]])
         if extra:
-            print("FAIL onepaste-core depends on something outside the allow-list: %s" % extra, file=sys.stderr); sys.exit(1)
+            print("FAIL %s depends on something outside its allow-list: %s" % (p["name"], extra), file=sys.stderr); bad = True
+if seen != set(allow):
+    print("FAIL dependency allow-list: package missing from the workspace: %s" % sorted(set(allow) - seen), file=sys.stderr); bad = True
+sys.exit(1 if bad else 0)
 ' || fail=1
 fi
 

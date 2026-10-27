@@ -9,6 +9,7 @@ pub mod error;
 pub mod id;
 pub mod keys;
 pub mod passphrase;
+pub mod pin;
 pub mod recovery;
 
 pub use error::Error;
