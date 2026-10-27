@@ -91,10 +91,16 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-      - name: Build the server and the command line client (the client with test-only fault injection)
-        run: cargo build -p onepaste-server -p onepaste-cli --features onepaste-cli/fault-injection
+      - name: Build the server and the command line client (with test-only fault injection)
+        run: cargo build -p onepaste-server -p onepaste-cli --features onepaste-cli/fault-injection,onepaste-server/fault-injection
       - name: Two-client end-to-end test
         run: bash tests/e2e/two_clients.sh target/debug
+      - name: Crash recovery end-to-end test
+        run: bash tests/e2e/crash_recovery.sh target/debug
+      - name: Build the release binaries without any feature
+        run: cargo build --release -p onepaste-server -p onepaste-cli
+      - name: Check that the release binaries hold no fault injection
+        run: bash scripts/no-fault-injection-strings.sh target/release
 
   portability:
     runs-on: ubuntu-latest

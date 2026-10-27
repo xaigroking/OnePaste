@@ -38,6 +38,8 @@ enum Cmd {
     },
     /// Print a connection code for another device
     Invite,
+    /// Check that a file holds a valid recovery kit (exit code 3 if it does not)
+    KitCheck { file: PathBuf },
     /// Add a text item read from standard input
     Add,
     /// List the local items
@@ -154,6 +156,12 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
             println!("{}", s.invite().await?);
             Ok(0)
         }
+        Cmd::KitCheck { file } => {
+            let text = std::fs::read_to_string(file).map_err(|e| ClientError::Other(e.to_string()))?;
+            onepaste_core::recovery::decode(text.trim())?;
+            println!("valid");
+            Ok(0)
+        }
         Cmd::Add => {
             let mut raw = Vec::new();
             std::io::stdin().read_to_end(&mut raw).map_err(|e| ClientError::Other(e.to_string()))?;
@@ -161,6 +169,7 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
             let mut s = open(&cli)?;
             let payload = ItemPayload { kind: "text".into(), content: Some(text), ..Default::default() };
             let id = s.engine.enqueue_create(now_ms(), &payload)?;
+            onepaste_client::crash_point("after_enqueue");
             println!("{id}");
             let code = sync_once(&mut s).await.inspect_err(|_| eprintln!("the item is queued and will be uploaded by the next sync"))?;
             Ok(code)
@@ -197,11 +206,13 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
             };
             let mut s = open(&cli)?;
             s.engine.enqueue_edit(now_ms(), id, edit)?;
+            onepaste_client::crash_point("after_enqueue");
             sync_once(&mut s).await
         }
         Cmd::Rm { id } => {
             let mut s = open(&cli)?;
             s.engine.enqueue_delete(now_ms(), id)?;
+            onepaste_client::crash_point("after_enqueue");
             sync_once(&mut s).await
         }
         Cmd::Sync => {

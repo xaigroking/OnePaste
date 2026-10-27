@@ -513,3 +513,37 @@ async fn an_impostor_with_the_pinned_certificate_but_another_key_is_refused() {
     let r = pinned_client(&env.fingerprint).get(format!("https://127.0.0.1:{port}/v1/items")).send().await;
     assert!(r.is_err(), "a server that cannot sign with the pinned certificate's key must be refused");
 }
+
+/// A client that rebuilds its copy from scratch walks the pages below the purge point. Those cursors were handed out by
+/// the server a moment ago and must keep working, while a really old cursor (or another purge in between) must not.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_full_pull_in_pages_is_not_cut_off_by_the_purge_point() {
+    let env = Env::with(|c| c.tombstone_retention_secs = 10).await;
+    let a = first_device(&env).await;
+    let ids: Vec<String> = (0..5).map(|_| new_id()).collect();
+    for id in &ids {
+        put_item(&env, &a, id, 0, "x").await;
+    }
+    for (n, id) in ids.iter().enumerate().take(2) {
+        env.call(Method::PUT, &format!("/v1/items/{id}"), Some(&a.token), Some(json!({ "base_seq": n as i64 + 1, "deleted": true }))).await;
+    }
+    env.server().clock.advance(11);
+    env.server().cleanup_now();
+    // A cursor from before the purge is expired
+    assert_eq!(env.get("/v1/items?after=5", &a.token).await.status, 410);
+    // A full pull in pages of two: the second page starts at a cursor below the purge point
+    let p1 = env.get("/v1/items?after=0&limit=2", &a.token).await;
+    assert_eq!((p1.status, p1.json["has_more"].clone()), (200, json!(true)));
+    let next = p1.json["next_after"].as_i64().unwrap();
+    let p2 = env.get(&format!("/v1/items?after={next}&limit=2"), &a.token).await;
+    assert_eq!(p2.status, 200, "the cursor the server just handed out must work: {}", p2.json);
+    // Another device never started a pull, so the same number is just an old cursor for it
+    let reg = invite(&env, &a).await;
+    let b = join_device(&env, &reg, &a).await;
+    assert_eq!(env.get(&format!("/v1/items?after={next}"), &b.token).await.status, 410);
+    // A purge after the pull started invalidates the cursor again
+    env.call(Method::PUT, &format!("/v1/items/{}", ids[2]), Some(&a.token), Some(json!({ "base_seq": 3, "deleted": true }))).await;
+    env.server().clock.advance(11);
+    env.server().cleanup_now();
+    assert_eq!(env.get(&format!("/v1/items?after={next}&limit=2"), &a.token).await.status, 410);
+}

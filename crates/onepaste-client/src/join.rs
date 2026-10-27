@@ -41,23 +41,46 @@ fn code_of(body: &[u8]) -> String {
     serde_json::from_slice::<Value>(body).ok().and_then(|v| v.get("code")?.as_str().map(str::to_string)).unwrap_or_else(|| "unknown".into())
 }
 
-fn write_private(path: &Path, data: &str) -> Result<(), ClientError> {
+/// Writes a new file atomically: a temporary file in the same directory (mode 0600), `fsync`, then a link to the final
+/// name, which fails if the name is taken, so an existing file is never overwritten. Finally the directory is synced.
+fn write_new_private(path: &Path, data: &str) -> Result<(), ClientError> {
     use std::io::Write;
-    let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true);
-    #[cfg(unix)]
+    let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    let name = path.file_name().ok_or_else(|| ClientError::Other("invalid recovery kit path".into()))?;
+    let tmp = dir.join(format!(".{}.tmp", name.to_string_lossy()));
     {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut f = opts.open(&tmp)?;
+        f.write_all(data.as_bytes())?;
+        f.sync_all()?;
     }
-    let mut f = opts.open(path)?;
-    f.write_all(data.as_bytes())?;
-    f.sync_all()?;
+    crate::crash::crash_point("during_kit_write");
+    let linked = std::fs::hard_link(&tmp, path);
+    let _ = std::fs::remove_file(&tmp);
+    match linked {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Err(ClientError::KitFileExists),
+        Err(e) => return Err(e.into()),
+    }
+    #[cfg(unix)]
+    if let Ok(d) = std::fs::File::open(dir) {
+        let _ = d.sync_all();
+    }
     Ok(())
 }
 
 pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientError> {
     let code = ConnectionCode::parse(&opts.code)?;
+    // Refuse before anything else, and before any network request, to overwrite an existing file
+    if opts.recovery_kit_out.as_ref().is_some_and(|p| p.symlink_metadata().is_ok()) {
+        return Err(ClientError::KitFileExists);
+    }
     let mut store = SqliteStore::open(&db_path(dir))?;
     if store.meta_get("device_id")?.is_some() {
         return Err(ClientError::AlreadyJoined);
@@ -95,7 +118,7 @@ pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientErr
     let mut kit_for_output = None;
     if let Some(kit) = &kit {
         match &opts.recovery_kit_out {
-            Some(path) => write_private(path, &format!("{kit}\n"))?,
+            Some(path) => write_new_private(path, &format!("{kit}\n"))?,
             None => kit_for_output = Some(kit.clone()),
         }
     }

@@ -72,6 +72,36 @@ sys.exit(1 if bad else 0)
 ' || fail=1
 fi
 
+# 8c) Test-only fault injection must never be on by default in the server, the client layer or the command line tool
+if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && [ -f Cargo.toml ]; then
+  cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c '
+import sys, json
+d = json.load(sys.stdin)
+bad = False
+seen = set()
+for p in d["packages"]:
+    if p["name"] not in ("onepaste-server", "onepaste-client", "onepaste-cli"):
+        continue
+    seen.add(p["name"])
+    feats = p["features"]
+    todo, on = list(feats.get("default", [])), set()
+    while todo:
+        f = todo.pop()
+        name = f.split("/")[-1] if "/" in f else f
+        if name in on:
+            continue
+        on.add(name)
+        todo.extend(feats.get(name, []))
+    if "fault-injection" in on:
+        print("FAIL %s enables fault-injection by default" % p["name"], file=sys.stderr); bad = True
+    if "fault-injection" not in feats:
+        print("FAIL %s has no fault-injection feature" % p["name"], file=sys.stderr); bad = True
+if len(seen) != 3:
+    print("FAIL fault-injection default check: crate missing: %s" % sorted({"onepaste-server", "onepaste-client", "onepaste-cli"} - seen), file=sys.stderr); bad = True
+sys.exit(1 if bad else 0)
+' || fail=1
+fi
+
 # 9) Rust workspace tests (including known-answer vectors) and the wasm32 build
 if command -v cargo >/dev/null 2>&1 && [ -f Cargo.toml ]; then
   cargo test --workspace --quiet >/dev/null 2>&1 || { say "FAIL cargo test --workspace did not pass"; fail=1; }

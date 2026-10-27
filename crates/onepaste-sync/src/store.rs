@@ -28,6 +28,9 @@ pub trait Tx {
     fn remove_outbox(&mut self, op_id: u64) -> Result<(), StoreError>;
     /// All queued operations, ascending by `op_id`.
     fn outbox(&self) -> Result<Vec<OutboxRow>, StoreError>;
+    /// A named point right before the transaction commits. The engine does nothing here; a platform store may use it
+    /// for diagnostics or test instrumentation.
+    fn checkpoint(&mut self, _name: &'static str) {}
 }
 
 pub trait Store {

@@ -379,6 +379,8 @@ async fn put_item(State(s): St, headers: HeaderMap, Path(id): Path<String>, body
     let reply = s.store.idempotent(&format!("d:{device}"), &key, &request_hash("PUT", &path, &body), now, s.cfg.idempotency_ttl_secs, |tx| {
         Store::put_item_tx(tx, &id, base_seq, &write, now)
     })?;
+    // The write and its idempotency record are committed; the answer has not been sent yet
+    crate::crash::crash_point("after_commit_before_response");
     Ok(finish_write(&s, reply))
 }
 

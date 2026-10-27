@@ -124,6 +124,7 @@ impl<S: Store> Engine<S> {
                 tx.put_item(&ItemRow { id: rec.id, seq: rec.seq, deleted: rec.deleted, envelope_json: env_json, mark: meta.epoch })?;
                 applied += 1;
             }
+            let mut refetch_done = false;
             meta.max_seen_seq = max_seen;
             meta.cursor = meta.cursor.max(page.next_after);
             if !page.has_more && meta.refetching {
@@ -134,8 +135,13 @@ impl<S: Store> Engine<S> {
                     }
                 }
                 meta.refetching = false;
+                refetch_done = true;
             }
             tx.set_meta(&meta)?;
+            if refetch_done {
+                tx.checkpoint("before_refetch_commit");
+            }
+            tx.checkpoint("before_page_commit");
             Ok(Applied { applied, skipped, rolled_back: false })
         })
     }
