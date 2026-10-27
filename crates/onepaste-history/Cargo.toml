@@ -1,0 +1,19 @@
+[package]
+name = "onepaste-history"
+description = "OnePaste local encrypted history database with full-text search (a rebuildable cache, never synced)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+onepaste-core = { path = "../onepaste-core" }
+onepaste-sync = { path = "../onepaste-sync" }
+# SQLCipher with a vendored OpenSSL, so the build does not depend on what the machine has installed
+rusqlite = { version = "0.41", features = ["bundled-sqlcipher-vendored-openssl"] }
+thiserror = "1"
+zeroize = "1"
+serde_json = "1"
+
+[dev-dependencies]
+base64 = "0.22"
+serde_json = "1"

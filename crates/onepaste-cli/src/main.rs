@@ -6,7 +6,8 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use clap::{ArgGroup, Parser, Subcommand};
 use onepaste_client::{join, now_ms, ClientError, JoinOptions, RunEnd, Session};
-use onepaste_core::crypto::{self, aad};
+use onepaste_core::crypto::{self, aad, Key};
+use onepaste_history::{Filter, HistoryError, HistoryStore};
 use onepaste_core::envelope::ItemPayload;
 use onepaste_sync::{Edit, Method, PauseReason};
 use serde_json::{json, Value};
@@ -22,6 +23,25 @@ struct Cli {
     data_dir: Option<PathBuf>,
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum FilterArg {
+    All,
+    Favorites,
+    Text,
+    Images,
+}
+
+impl From<FilterArg> for Filter {
+    fn from(f: FilterArg) -> Filter {
+        match f {
+            FilterArg::All => Filter::All,
+            FilterArg::Favorites => Filter::Favorites,
+            FilterArg::Text => Filter::Text,
+            FilterArg::Images => Filter::Images,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -75,6 +95,18 @@ enum Cmd {
     Devices,
     /// Revoke a device
     Revoke { device_id: String },
+    /// Search the local history (text, notes and tags); an empty query lists the most recent items
+    Search {
+        query: String,
+        #[arg(long, value_enum, default_value_t = FilterArg::All)]
+        filter: FilterArg,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Delete the local history index and build it again
+    Reindex,
     /// Forget the local copy and pull everything again (use after the server was rolled back)
     Resync,
     /// Test only: read an envelope from standard input and try to open it with a random wrong key
@@ -121,6 +153,24 @@ async fn sync_once(s: &mut Session) -> Result<u8, ClientError> {
         return Ok(6);
     }
     Ok(0)
+}
+
+fn history_error(e: HistoryError) -> ClientError {
+    ClientError::Other(e.to_string())
+}
+
+/// Opens the history database. It is only a cache: one that cannot be opened with the current key (for example after
+/// joining another vault) is deleted and built again.
+fn open_history(dir: &std::path::Path, mk: &Key) -> Result<HistoryStore, ClientError> {
+    match HistoryStore::open(dir, mk) {
+        Err(HistoryError::WrongKey) => {
+            for suffix in ["", "-wal", "-shm"] {
+                let _ = std::fs::remove_file(dir.join(format!("history.db{suffix}")));
+            }
+            HistoryStore::open(dir, mk).map_err(history_error)
+        }
+        other => other.map_err(history_error),
+    }
 }
 
 fn first_line_text(v: &str) -> String {
@@ -277,6 +327,40 @@ async fn run(cli: Cli) -> Result<u8, ClientError> {
                 Ok(_) => Err(ClientError::Other("an envelope opened with a random key".into())),
                 Err(e) => Err(e.into()),
             }
+        }
+        Cmd::Search { query, filter, limit, json } => {
+            let mut s = open(&cli)?;
+            let mk = Key::from_bytes(*s.master_key().as_bytes());
+            let mut history = open_history(&data_dir(&cli), &mk)?;
+            let report = history.refresh(s.engine.store_mut(), &mk).map_err(history_error)?;
+            for (id, code) in &report.skipped {
+                eprintln!("skipped {id}: {code}");
+            }
+            let hits = history.search(query, (*filter).into(), *limit, 0).map_err(history_error)?;
+            if *json {
+                let v: Vec<Value> = hits
+                    .iter()
+                    .map(|h| json!({ "item_id": h.item_id, "kind": h.kind, "first_line": first_line_text(h.text.lines().next().unwrap_or("")), "favorite": h.favorite, "pinned": h.pinned, "note": h.note, "match_start": h.match_start, "match_len": h.match_len }))
+                    .collect();
+                println!("{}", Value::Array(v));
+            } else {
+                for h in &hits {
+                    let line = if h.kind == "image" { "[image]".to_string() } else { first_line_text(h.text.lines().next().unwrap_or("")) };
+                    println!("{}\t{}\t{}\t{}", h.item_id, if h.favorite { "favorite" } else { "-" }, if h.pinned { "pinned" } else { "-" }, line);
+                }
+            }
+            Ok(0)
+        }
+        Cmd::Reindex => {
+            let mut s = open(&cli)?;
+            let mk = Key::from_bytes(*s.master_key().as_bytes());
+            let mut history = open_history(&data_dir(&cli), &mk)?;
+            let report = history.rebuild(s.engine.store_mut(), &mk).map_err(history_error)?;
+            for (id, code) in &report.skipped {
+                eprintln!("skipped {id}: {code}");
+            }
+            println!("reindexed {} items", history.count().map_err(history_error)?);
+            Ok(0)
         }
         Cmd::Resync => {
             let mut s = open(&cli)?;

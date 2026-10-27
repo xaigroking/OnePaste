@@ -11,6 +11,19 @@ use sha2::{Digest, Sha256};
 pub const KEYPARAMS_V: u8 = 1;
 const VAULT_PROOF_CONTEXT: &[u8] = b"onepaste/vault-proof/v1";
 
+/// Purpose label of the key that encrypts the local history database. Every purpose has its own label, so no two
+/// derived keys are ever equal and none equals the master key.
+pub const PURPOSE_HISTORY_DB: &[u8] = b"onepaste/historydb/v1";
+
+/// Derives a key for one purpose from the master key: `SHA-256(purpose || MK)`. The master key is a uniformly random
+/// 256-bit value, so a labelled hash is enough; the label keeps the purposes apart.
+pub fn derive_subkey(mk: &Key, purpose: &[u8]) -> Key {
+    let mut h = Sha256::new();
+    h.update(purpose);
+    h.update(mk.as_bytes());
+    Key::from_bytes(h.finalize().into())
+}
+
 /// Vault proof: `SHA-256("onepaste/vault-proof/v1" || MK)`.
 /// A client uses it to prove to the server that it holds the master key when registering a device; the server stores only its hash.
 /// The value is derived from the key, so callers must never log it.
@@ -167,6 +180,18 @@ mod tests {
         assert_eq!(rec2.unlock("new").unwrap(), mk);
         assert_eq!(rec2.unlock("forgotten").unwrap_err(), Error::WrongPassphrase);
         rec2.verify_mk(&mk).unwrap();
+    }
+
+    #[test]
+    fn derived_subkeys_are_deterministic_and_differ_from_the_master_key_and_from_each_other() {
+        let mk = Key::random().unwrap();
+        let history = derive_subkey(&mk, PURPOSE_HISTORY_DB);
+        assert_eq!(history.as_bytes(), derive_subkey(&mk, PURPOSE_HISTORY_DB).as_bytes());
+        assert_ne!(history.as_bytes(), mk.as_bytes());
+        assert_ne!(history.as_bytes(), derive_subkey(&mk, b"onepaste/other/v1").as_bytes());
+        assert_ne!(history.as_bytes(), &vault_proof(&mk), "a different purpose than the vault proof");
+        let other = Key::random().unwrap();
+        assert_ne!(history.as_bytes(), derive_subkey(&other, PURPOSE_HISTORY_DB).as_bytes());
     }
 
     #[test]

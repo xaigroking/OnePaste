@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/onepaste-core", "crates/onepaste-platform", "crates/onepaste-server", "crates/onepaste-sync", "crates/onepaste-client", "crates/onepaste-cli"]
+members = ["crates/onepaste-core", "crates/onepaste-platform", "crates/onepaste-server", "crates/onepaste-sync", "crates/onepaste-client", "crates/onepaste-cli", "crates/onepaste-history"]
 exclude = ["spikes/vaultcore", "apps/desktop/src-tauri"]
 
 [workspace.package]
@@ -13,4 +13,8 @@ publish = false
 opt-level = 3
 
 [profile.dev.package.blake2]
+opt-level = 3
+
+# SQLite and SQLCipher are C code; unoptimized they are far too slow for the history tests
+[profile.dev.package.libsqlite3-sys]
 opt-level = 3

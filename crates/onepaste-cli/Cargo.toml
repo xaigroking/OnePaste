@@ -17,6 +17,7 @@ fault-injection = ["onepaste-client/fault-injection"]
 onepaste-client = { path = "../onepaste-client" }
 onepaste-core = { path = "../onepaste-core" }
 onepaste-sync = { path = "../onepaste-sync" }
+onepaste-history = { path = "../onepaste-history" }
 clap = { version = "4", features = ["derive", "env"] }
 rpassword = "7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal"] }
