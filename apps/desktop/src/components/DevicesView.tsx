@@ -92,13 +92,15 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
               {list.devices.map((d) => (
                 <tr key={d.deviceId}>
                   <td>
-                    <span className="row-icon">
-                      <Icon name="monitor" />
-                    </span>
-                    <span className="device-name">
-                      {d.name ?? t("devices.unreadable")}
-                      {d.thisDevice && <Badge tone="ok">{t("devices.thisBadge")}</Badge>}
-                    </span>
+                    <div className="cell-name">
+                      <span className="row-icon">
+                        <Icon name="monitor" />
+                      </span>
+                      <span className="device-name">
+                        {d.name ?? t("devices.unreadable")}
+                        {d.thisDevice && <Badge tone="ok">{t("devices.thisBadge")}</Badge>}
+                      </span>
+                    </div>
                   </td>
                   <td className="muted">{seen(d)}</td>
                   <td>

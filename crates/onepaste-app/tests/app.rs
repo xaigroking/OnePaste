@@ -443,7 +443,11 @@ fn copy_dir(from: &Path, to: &Path) {
         if e.file_type().unwrap().is_dir() {
             copy_dir(&e.path(), &target);
         } else {
-            retry("copying a file", || std::fs::copy(e.path(), &target));
+            // A database's -wal or -shm file can be deleted by the program that owns it between the listing and the copy
+            retry("copying a file", || match std::fs::copy(e.path(), &target) {
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound && !e.path().exists() => Ok(0),
+                other => other,
+            });
         }
     }
 }

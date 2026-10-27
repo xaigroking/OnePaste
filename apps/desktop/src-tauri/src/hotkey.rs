@@ -1,7 +1,7 @@
-//! Global hotkey: Ctrl+Alt+V on Windows, ⌃⌥V (Control+Option+V) on macOS.
+//! Global hotkey: Ctrl+Alt+V on Windows, ⌃⌥V (Control+Option+V) on macOS. It brings up the quick panel.
 
 use crate::state::{AppState, HotkeyState};
-use crate::tray;
+use crate::quick;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
@@ -9,7 +9,7 @@ pub fn register(app: &AppHandle) {
     let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyV);
     let result = app.global_shortcut().on_shortcut(shortcut, |app, _shortcut, event| {
         if event.state == ShortcutState::Pressed {
-            tray::show_main_window(app);
+            quick::toggle(app);
         }
     });
     let state = app.state::<AppState>();

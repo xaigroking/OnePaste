@@ -28,14 +28,14 @@ export function Chip({ active, onClick, children }: { active: boolean; onClick: 
   );
 }
 
-export function Switch({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+export function Switch({ checked, onChange, label, hint, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string; disabled?: boolean }) {
   return (
     <label className="switch-row">
       <span className="switch-text">
         <span>{label}</span>
         {hint && <span className="muted small">{hint}</span>}
       </span>
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span className="switch-track" aria-hidden="true" />
     </label>
   );

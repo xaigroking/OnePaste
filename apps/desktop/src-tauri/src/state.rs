@@ -22,6 +22,8 @@ pub enum TrayState {
     Error,
     /// Local-only mode: nothing is synced, on purpose.
     Local,
+    /// The user switched clipboard listening off.
+    Paused,
 }
 
 impl TrayState {
@@ -32,6 +34,7 @@ impl TrayState {
             TrayState::Offline => "offline",
             TrayState::Error => "error",
             TrayState::Local => "local",
+            TrayState::Paused => "paused",
         }
     }
 }
@@ -57,8 +60,15 @@ pub struct LogEntry {
 #[serde(rename_all = "camelCase")]
 pub struct TrayTexts {
     pub open: String,
-    pub diagnostics: String,
+    pub quick_panel: String,
+    pub pause: String,
+    pub resume: String,
+    pub sync_now: String,
+    pub devices: String,
+    pub settings: String,
     pub quit: String,
+    /// Appended to the status line when the number of devices is known; `{count}` is replaced.
+    pub devices_count: String,
     pub status_line: String,
     pub tooltip: String,
     pub synced: String,
@@ -66,6 +76,7 @@ pub struct TrayTexts {
     pub offline: String,
     pub error: String,
     pub local: String,
+    pub paused: String,
 }
 
 impl TrayTexts {
@@ -76,6 +87,7 @@ impl TrayTexts {
             TrayState::Offline => &self.offline,
             TrayState::Error => &self.error,
             TrayState::Local => &self.local,
+            TrayState::Paused => &self.paused,
         }
     }
 }
@@ -89,6 +101,8 @@ pub struct Inner {
     pub language: Preference,
     /// The raw system locale as reported by the OS, if it could be read.
     pub system_locale: Option<String>,
+    /// How many devices the vault has, as last reported by the window; `None` when not known.
+    pub device_count: Option<usize>,
     /// Where `settings.json` lives; `None` if the location cannot be determined.
     pub settings_dir: Option<PathBuf>,
 }
@@ -116,15 +130,22 @@ impl AppState {
         let placeholder = "…".to_string();
         let texts = TrayTexts {
             open: placeholder.clone(),
-            diagnostics: placeholder.clone(),
+            quick_panel: placeholder.clone(),
+            pause: placeholder.clone(),
+            resume: placeholder.clone(),
+            sync_now: placeholder.clone(),
+            devices: placeholder.clone(),
+            settings: placeholder.clone(),
             quit: placeholder.clone(),
+            devices_count: String::new(),
             status_line: "{state}".into(),
             tooltip: "OnePaste {state}".into(),
             synced: placeholder.clone(),
             syncing: placeholder.clone(),
             offline: placeholder.clone(),
             error: placeholder.clone(),
-            local: placeholder,
+            local: placeholder.clone(),
+            paused: placeholder,
         };
         AppState(Mutex::new(Inner {
             log: VecDeque::new(),
@@ -133,6 +154,7 @@ impl AppState {
             texts,
             language,
             system_locale,
+            device_count: None,
             settings_dir,
         }))
     }
