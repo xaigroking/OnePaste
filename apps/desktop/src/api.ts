@@ -32,6 +32,12 @@ export interface ItemView {
   height: number;
   /** Size in bytes of an image. */
   size: number;
+  /** Optional: shown when the backend reports where and when an item was copied. */
+  sourceDevice?: string;
+  sourceApp?: string;
+  createdAtMs?: number;
+  /** Optional per-item sync state. */
+  syncState?: "synced" | "pending" | "local";
 }
 
 export interface AppSettings {

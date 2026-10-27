@@ -44,7 +44,12 @@
     "synced": "已同步",
     "syncing": "同步中",
     "offline": "离线",
-    "error": "出错"
+    "error": "出错",
+    "listening": "监听中",
+    "paused": "已停止记录",
+    "stopped": "已停止",
+    "active": "运行中",
+    "pendingCount": "{{count}} 条待上传"
   },
   "diagnostics": {
     "copy": "复制诊断信息",
@@ -82,7 +87,8 @@
       "unreachable": "连不上服务器。请检查地址和网络。",
       "registration_invalid": "连接码已过期或已经用过。请重新获取一个。",
       "other": "加入失败（{{code}}）。"
-    }
+    },
+    "note": "密钥保存在系统安全存储中，服务器只会看到加密后的数据。"
   },
   "paused": {
     "revoked": "这台设备已被从库中移除，同步已停止。请在另一台设备上重新获取连接码，再加入一次。",
@@ -93,13 +99,14 @@
     "stuck": "有 {{conflict}} 个改动冲突，{{failed}} 个上传失败。"
   },
   "search": {
-    "placeholder": "搜索历史记录",
+    "placeholder": "搜索全部历史（本地索引，不上传）",
     "filter": {
       "all": "全部",
       "favorites": "收藏",
       "text": "文本",
       "images": "图片"
-    }
+    },
+    "filterLabel": "按类型筛选"
   },
   "results": {
     "empty": "还没有内容。复制一段文字或一张图片，它就会出现在这里。",
@@ -117,6 +124,48 @@
   "settings": {
     "title": "设置",
     "autoApply": "把其他设备上复制的内容放进这台电脑的剪贴板",
-    "record": "记录我在这台电脑上复制的内容"
+    "record": "记录我在这台电脑上复制的内容",
+    "general": "通用",
+    "appearance": "外观",
+    "theme": {
+      "system": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "clipboard": "剪贴板",
+    "sync": "同步",
+    "syncState": "同步",
+    "queue": "队列",
+    "queueValue": "{{pending}} 条待上传，{{conflict}} 条冲突，{{failed}} 条失败",
+    "shortcuts": "快捷键",
+    "showWindow": "显示 OnePaste",
+    "privacy": "隐私与诊断",
+    "privacyBody": "剪贴板内容不会写入日志或诊断信息。诊断只列出事件类型、大小和错误码。",
+    "about": "关于",
+    "aboutBody": "OnePaste 源码公开，非商业使用免费，不发送任何遥测数据。"
+  },
+  "nav": {
+    "history": "历史",
+    "devices": "设备",
+    "settings": "设置"
+  },
+  "sync": {
+    "synced": "已同步",
+    "pending": "待同步",
+    "localOnly": "仅本机"
+  },
+  "detail": {
+    "title": "详情",
+    "note": "备注",
+    "notePlaceholder": "添加备注…",
+    "delete": "删除（同步到所有设备）",
+    "deleteConfirm": "再点一次，在所有设备上删除",
+    "none": "选择一条记录查看详情。"
+  },
+  "devices": {
+    "thisDevice": "本机",
+    "thisBadge": "本机",
+    "idHint": "设备 ID",
+    "soon": "其他设备的列表会在应用能从保险库读取后显示在这里。"
   }
 }

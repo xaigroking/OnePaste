@@ -1,0 +1,61 @@
+/* Design tokens from the UI spec. Light by default, dark by system preference or an explicit choice. */
+:root {
+  color-scheme: light;
+  --bg: #f4f3ef;
+  --surface: #ffffff;
+  --surface-2: #faf9f6;
+  --fg: #1c1b19;
+  --muted: #6b6a64;
+  --line: #e2e0d8;
+  --accent: #0f766e;
+  --accent-fg: #ffffff;
+  --accent-soft: #d5ece8;
+  --ok-fg: #166534;
+  --ok-bg: #e3f4e8;
+  --warn-fg: #92400e;
+  --warn-bg: #fdf0d2;
+  --danger-fg: #b42318;
+  --danger-bg: #fde8e6;
+  --radius-control: 8px;
+  --radius-card: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1c1c1a;
+    --surface-2: #232321;
+    --fg: #ecebe6;
+    --muted: #a09f97;
+    --line: #34332f;
+    --accent: #2dd4bf;
+    --accent-fg: #0b1f1c;
+    --accent-soft: #123a35;
+    --ok-fg: #86efac;
+    --ok-bg: #12301d;
+    --warn-fg: #fcd34d;
+    --warn-bg: #3b2f0a;
+    --danger-fg: #fca5a5;
+    --danger-bg: #3d1713;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1c1c1a;
+  --surface-2: #232321;
+  --fg: #ecebe6;
+  --muted: #a09f97;
+  --line: #34332f;
+  --accent: #2dd4bf;
+  --accent-fg: #0b1f1c;
+  --accent-soft: #123a35;
+  --ok-fg: #86efac;
+  --ok-bg: #12301d;
+  --warn-fg: #fcd34d;
+  --warn-bg: #3b2f0a;
+  --danger-fg: #fca5a5;
+  --danger-bg: #3d1713;
+}

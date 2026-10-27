@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { api } from "./api";
 import { initI18n } from "./i18n";
+import "./theme.css";
 import "./App.css";
 
 async function start() {

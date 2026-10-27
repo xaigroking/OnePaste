@@ -44,7 +44,12 @@
     "synced": "Synced",
     "syncing": "Syncing",
     "offline": "Offline",
-    "error": "Error"
+    "error": "Error",
+    "listening": "Listening",
+    "paused": "Recording off",
+    "stopped": "Stopped",
+    "active": "Active",
+    "pendingCount": "{{count}} waiting to upload"
   },
   "diagnostics": {
     "copy": "Copy diagnostics",
@@ -82,7 +87,8 @@
       "unreachable": "The server cannot be reached. Check the address and your network.",
       "registration_invalid": "The connection code has expired or was already used. Ask for a new one.",
       "other": "Joining failed ({{code}})."
-    }
+    },
+    "note": "The key stays in your system's secure store. The server only ever sees encrypted data."
   },
   "paused": {
     "revoked": "This device was removed from the vault, so syncing has stopped. Ask for a new connection code from another device and join again.",
@@ -93,13 +99,14 @@
     "stuck": "{{conflict}} changes are in conflict and {{failed}} could not be uploaded."
   },
   "search": {
-    "placeholder": "Search your history",
+    "placeholder": "Search your history (local index, never uploaded)",
     "filter": {
       "all": "All",
       "favorites": "Favorites",
       "text": "Text",
       "images": "Images"
-    }
+    },
+    "filterLabel": "Filter by type"
   },
   "results": {
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
@@ -117,6 +124,48 @@
   "settings": {
     "title": "Settings",
     "autoApply": "Put what you copy on your other devices into this computer's clipboard",
-    "record": "Record what I copy on this computer"
+    "record": "Record what I copy on this computer",
+    "general": "General",
+    "appearance": "Appearance",
+    "theme": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "clipboard": "Clipboard",
+    "sync": "Sync",
+    "syncState": "Sync",
+    "queue": "Queue",
+    "queueValue": "{{pending}} waiting, {{conflict}} in conflict, {{failed}} failed",
+    "shortcuts": "Shortcuts",
+    "showWindow": "Show OnePaste",
+    "privacy": "Privacy and diagnostics",
+    "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
+    "about": "About",
+    "aboutBody": "OnePaste is source-available and free for non-commercial use. No telemetry is sent."
+  },
+  "nav": {
+    "history": "History",
+    "devices": "Devices",
+    "settings": "Settings"
+  },
+  "sync": {
+    "synced": "Synced",
+    "pending": "Waiting",
+    "localOnly": "This device only"
+  },
+  "detail": {
+    "title": "Details",
+    "note": "Note",
+    "notePlaceholder": "Add a note...",
+    "delete": "Delete (syncs to all devices)",
+    "deleteConfirm": "Click again to delete everywhere",
+    "none": "Select an item to see its details."
+  },
+  "devices": {
+    "thisDevice": "This device",
+    "thisBadge": "This device",
+    "idHint": "Device ID",
+    "soon": "The list of your other devices will appear here once the app can read it from the vault."
   }
 }
