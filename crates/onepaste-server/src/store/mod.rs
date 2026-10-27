@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS items (
   envelope TEXT,
   deleted_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS pull_state (device_id TEXT PRIMARY KEY, next_after INTEGER NOT NULL, generation INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS idempotency (
   scope TEXT NOT NULL,
   key TEXT NOT NULL,
@@ -250,6 +252,11 @@ impl Store {
             if let Some(m) = max_purged {
                 tx.execute("DELETE FROM items WHERE deleted = 1 AND deleted_at < ?1", [cutoff])?;
                 tx.execute("UPDATE vault SET cursor_floor = MAX(cursor_floor, ?1) WHERE id = 1", [m])?;
+                // Cursors handed out before this purge can no longer be trusted
+                tx.execute(
+                    "INSERT INTO kv (key, value) VALUES ('purge_generation', 1) ON CONFLICT(key) DO UPDATE SET value = value + 1",
+                    [],
+                )?;
             }
             tx.execute("DELETE FROM idempotency WHERE created_at < ?1", [now.saturating_sub(idempotency_ttl)])?;
             tx.execute("DELETE FROM reg_tokens WHERE used = 1 OR expires_at < ?1", [now.saturating_sub(idempotency_ttl)])?;

@@ -84,12 +84,25 @@ impl Store {
     }
 
     /// One page of records with `seq > after`, plus `head_seq`, all read from one snapshot.
-    pub fn list_items(&self, after: i64, limit: i64) -> Result<Value, ApiError> {
-        self.read(|tx| {
+    ///
+    /// A cursor below the purge point is expired, because tombstones the client never saw are gone. The exception is a
+    /// cursor this server handed to the same device after the last purge: that device is in the middle of a full pull
+    /// from 0 and is rebuilding its copy, so it does not depend on the purged tombstones.
+    pub fn list_items(&self, device_id: &str, after: i64, limit: i64) -> Result<Value, ApiError> {
+        let (page, floor, generation, next_after) = self.read(|tx| {
             let (head, floor): (i64, i64) =
                 tx.query_row("SELECT seq, cursor_floor FROM vault WHERE id = 1", [], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            let generation: i64 = tx
+                .query_row("SELECT value FROM kv WHERE key = 'purge_generation'", [], |r| r.get(0))
+                .optional()?
+                .unwrap_or(0);
             if after > 0 && after < floor {
-                return Err(ApiError::new(StatusCode::GONE, "cursor_expired"));
+                let issued: Option<(i64, i64)> = tx
+                    .query_row("SELECT next_after, generation FROM pull_state WHERE device_id = ?1", [device_id], |r| Ok((r.get(0)?, r.get(1)?)))
+                    .optional()?;
+                if issued != Some((after, generation)) {
+                    return Err(ApiError::new(StatusCode::GONE, "cursor_expired"));
+                }
             }
             let mut st = tx.prepare(
                 "SELECT id, seq, deleted, envelope FROM items WHERE seq > ?1 ORDER BY seq ASC LIMIT ?2",
@@ -103,8 +116,20 @@ impl Store {
             let page: Vec<&(String, Row)> = rows.iter().take(limit as usize).collect();
             let next_after = page.last().map(|(_, r)| r.seq).unwrap_or(after);
             let items: Vec<Value> = page.iter().map(|(id, r)| record_json(id, r)).collect();
-            Ok(json!({ "items": items, "next_after": next_after, "has_more": has_more, "head_seq": head }))
-        })
+            Ok((json!({ "items": items, "next_after": next_after, "has_more": has_more, "head_seq": head }), floor, generation, next_after))
+        })?;
+        if floor > 0 {
+            // Remember the cursor that was just handed out (only needed once something has been purged)
+            self.write(|tx| {
+                tx.execute(
+                    "INSERT INTO pull_state (device_id, next_after, generation) VALUES (?1, ?2, ?3)
+                     ON CONFLICT(device_id) DO UPDATE SET next_after = excluded.next_after, generation = excluded.generation",
+                    params![device_id, next_after, generation],
+                )?;
+                Ok(())
+            })?;
+        }
+        Ok(page)
     }
 }
 

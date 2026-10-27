@@ -84,6 +84,10 @@ pub struct Engine<S: Store> {
     pub(crate) push_retry_at: u64,
     pub(crate) pull_retry_at: u64,
     pub(crate) pull_attempts: u32,
+    /// How many times in a row a full pull was restarted because the server kept answering `cursor_expired`.
+    pub(crate) refetch_restarts: u32,
+    /// Pulling is switched off for this run (the server kept refusing the full pull) until the next `request_pull`.
+    pub(crate) pull_suspended: bool,
     pub(crate) stale_streak: HashMap<u64, u32>,
     page_size: u32,
 }
@@ -134,6 +138,8 @@ impl<S: Store> Engine<S> {
             push_retry_at: 0,
             pull_retry_at: 0,
             pull_attempts: 0,
+            refetch_restarts: 0,
+            pull_suspended: false,
             stale_streak: HashMap::new(),
             page_size: DEFAULT_PAGE_SIZE,
         }
@@ -326,6 +332,7 @@ impl<S: Store> Engine<S> {
     /// Asks for a pull on the next `next_action`.
     pub fn request_pull(&mut self) {
         self.pull_wanted = true;
+        self.pull_suspended = false;
         self.pull_retry_at = 0;
         self.pull_attempts = 0;
     }
@@ -387,7 +394,7 @@ impl<S: Store> Engine<S> {
                     }
                 }
             }
-            if self.pull_wanted || meta.refetching {
+            if (self.pull_wanted || meta.refetching) && !self.pull_suspended {
                 if now_ms < self.pull_retry_at {
                     return Ok(Action::Wait { until_ms: self.pull_retry_at });
                 }
