@@ -125,7 +125,7 @@ details summary { cursor: pointer; padding: 6px 0; color: var(--muted); }
 .mode { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
 .mode > span { display: flex; flex-direction: column; gap: 2px; }
 .mode.unavailable { opacity: 0.5; }
-.kit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.1em; padding: 10px; border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+.kit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.1em; padding: 14px 10px; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: var(--radius-control); white-space: pre-wrap; word-break: break-all; text-align: center; user-select: all; }
 .kit-input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; width: 100%; box-sizing: border-box; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
 .strength.weak { color: #b91c1c; }
 .strength.fair { color: #b45309; }
@@ -138,9 +138,40 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .devices th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .devices td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .devices tr:last-child td { border-bottom: 0; }
-.devices td:first-child { display: flex; align-items: center; gap: 10px; }
+.cell-name { display: flex; align-items: center; gap: 10px; }
 .device-name { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .actions-cell { text-align: right; white-space: nowrap; }
 .actions-cell .btn + .btn { margin-left: 6px; }
 .confirm { margin-top: 10px; }
 .count { margin-left: auto; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+
+/* Quick panel */
+.qp { display: flex; flex-direction: column; height: 100%; padding: 14px 14px 0; gap: 10px; background: var(--bg); }
+.qp-search { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1.5px solid var(--accent); border-radius: var(--radius-card); padding: 0 12px; color: var(--muted); }
+.qp-search input { flex: 1; border: 0; background: transparent; padding: 12px 0; outline: none; color: var(--fg); font-size: 15px; }
+.qp-chips { flex: none; }
+.qp-rows { list-style: none; margin: 0 -14px; padding: 4px 8px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.qp-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: default; }
+.qp-row-selected { background: var(--accent-soft); }
+.qp-num { flex: none; width: 14px; text-align: right; font-size: 12px; color: var(--muted); }
+.qp-message { flex: 1; margin: 0; }
+.qp-keys { flex: none; margin: 0 -14px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.qp-keys kbd { margin-right: 2px; }
+.setting-soon { opacity: .6; }
+.setting-soon .soon-tag { margin-left: 8px; }
+.switch-row input:disabled + .switch-track { opacity: .5; cursor: not-allowed; }
+
+/* The tray menu drawing used by the screenshot tests only */
+.tray-preview { width: 300px; margin: 12px; padding: 8px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+.tray-preview hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+.tray-status { display: flex; align-items: center; gap: 10px; padding: 6px 16px; }
+.tray-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; }
+
+.topbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: -4px 0 -2px; }
+.nav-bottom { margin-top: auto; }
+.sidebar .nav { flex: 1; }
+
+/* First run: the step bar */
+.steps { display: flex; gap: 6px; margin: 0 0 16px; }
+.step { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.step-done { background: var(--accent); }

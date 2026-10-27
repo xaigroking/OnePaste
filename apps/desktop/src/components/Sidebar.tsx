@@ -1,9 +1,6 @@
 import { useTranslation } from "react-i18next";
-import type { AppStatus, TrayState } from "../api";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
-import { Badge } from "./ui";
-import type { Tone } from "./ui";
 
 export type View = "history" | "devices" | "settings";
 
@@ -13,21 +10,16 @@ const NAV: { id: View; icon: IconName }[] = [
   { id: "settings", icon: "settings" },
 ];
 
-const TRAY_TONE: Record<TrayState, Tone> = { synced: "ok", syncing: "neutral", offline: "warn", error: "danger", local: "neutral" };
-const TRAY_ICON: Record<TrayState, IconName> = { synced: "check", syncing: "refresh", offline: "wifi-off", error: "alert", local: "monitor" };
 
 interface Props {
   view: View;
   onView: (v: View) => void;
-  tray: TrayState;
-  status: AppStatus | null;
-  recording: boolean;
   joined: boolean;
   /** Devices in the vault; null when not known or not applicable. */
   deviceCount: number | null;
 }
 
-export function Sidebar({ view, onView, tray, status, recording, joined, deviceCount }: Props) {
+export function Sidebar({ view, onView, joined, deviceCount }: Props) {
   const { t } = useTranslation();
   return (
     <nav className="sidebar" aria-label={t("app.title")}>
@@ -37,7 +29,7 @@ export function Sidebar({ view, onView, tray, status, recording, joined, deviceC
       </div>
       <ul className="nav">
         {NAV.filter((n) => joined || n.id === "settings").map((n) => (
-          <li key={n.id}>
+          <li key={n.id} className={n.id === "settings" ? "nav-bottom" : undefined}>
             <button
               type="button"
               className={`nav-item${view === n.id ? " nav-active" : ""}`}
@@ -51,14 +43,6 @@ export function Sidebar({ view, onView, tray, status, recording, joined, deviceC
           </li>
         ))}
       </ul>
-      <div className="sidebar-foot">
-        {joined && recording && <Badge tone="ok">{t("status.listening")}</Badge>}
-        {joined && !recording && <Badge tone="warn">{t("status.paused")}</Badge>}
-        <Badge tone={TRAY_TONE[tray]} icon={<Icon name={TRAY_ICON[tray]} size={13} />}>
-          {t(`status.${tray}`)}
-        </Badge>
-        {status && status.pending > 0 && <span className="muted small">{t("status.pendingCount", { count: status.pending })}</span>}
-      </div>
     </nav>
   );
 }

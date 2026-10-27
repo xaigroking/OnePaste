@@ -7,7 +7,7 @@
     "title": "OnePaste"
   },
   "hotkey": {
-    "hint": "Press {{keys}} to bring up this window",
+    "hint": "Press {{keys}} to bring up the quick panel",
     "busy": "Hotkey is already in use"
   },
   "log": {
@@ -67,10 +67,17 @@
   },
   "tray": {
     "open": "Open window",
-    "diagnostics": "Copy diagnostics",
     "quit": "Quit",
     "statusLine": "Status: {state}",
-    "tooltip": "OnePaste \u00b7 {state}"
+    "tooltip": "OnePaste \u00b7 {state}",
+    "quickPanel": "Quick panel",
+    "pause": "Pause listening",
+    "resume": "Resume listening",
+    "syncNow": "Sync now",
+    "devices": "Devices\u2026",
+    "settings": "Settings\u2026",
+    "devicesCount": "{count} devices",
+    "diagnostics": "Copy diagnostics"
   },
   "language": {
     "label": "Language",
@@ -95,13 +102,18 @@
       "all": "All",
       "favorites": "Favorites",
       "text": "Text",
-      "images": "Images"
+      "images": "Images",
+      "links": "Links",
+      "files": "Files",
+      "code": "Code"
     },
     "filterLabel": "Filter by type"
   },
   "results": {
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
-    "noMatch": "Nothing matches."
+    "noMatch": "Nothing matches.",
+    "loading": "Loading your history\u2026",
+    "error": "The history could not be read ({{code}}). Your data is safe on this computer. Try again in a moment, or restart OnePaste."
   },
   "item": {
     "image": "Image {{width}}\u00d7{{height}}, {{size}}",
@@ -129,7 +141,7 @@
     "queue": "Queue",
     "queueValue": "{{pending}} waiting, {{conflict}} in conflict, {{failed}} failed",
     "shortcuts": "Shortcuts",
-    "showWindow": "Show OnePaste",
+    "showWindow": "Quick panel",
     "privacy": "Privacy and diagnostics",
     "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
     "about": "About",
@@ -151,7 +163,8 @@
     "notePlaceholder": "Add a note...",
     "delete": "Delete (syncs to all devices)",
     "deleteConfirm": "Click again to delete everywhere",
-    "none": "Select an item to see its details."
+    "none": "Select an item to see its details.",
+    "from": "From {{source}}"
   },
   "devices": {
     "thisDevice": "This device",
@@ -268,6 +281,37 @@
     "wipeWarningLocal": "This deletes the whole history and the key on this computer. It cannot be undone.",
     "wipeConfirm": "Delete everything on this computer",
     "failed": "That did not work ({{code}})."
+  },
+  "qp": {
+    "title": "Quick panel",
+    "placeholder": "Search your clipboard history\u2026",
+    "loading": "Searching\u2026",
+    "error": "The search did not work ({{code}}). Your data is safe. Press Esc and try again.",
+    "keys": "Keyboard shortcuts",
+    "keySelect": "Select",
+    "keyCopy": "Copy",
+    "keyPick": "Pick",
+    "keyFilter": "Filter",
+    "keyClose": "Close"
+  },
+  "settingsMore": {
+    "soon": "Coming soon",
+    "startup": "Start OnePaste when I sign in",
+    "trayNote": "Closing the window keeps OnePaste running in the tray. Quit from the tray menu.",
+    "skipSecrets": "Do not record things that look like keys or tokens",
+    "respectMarker": "Respect the system's \"exclude from history\" marker",
+    "excludedApps": "Apps whose copies are never recorded",
+    "sizeLimit": "Largest item to record",
+    "sizeLimitValue": "8 MB",
+    "autoLock": "Lock automatically after a while",
+    "telemetry": "Usage statistics and crash reports",
+    "telemetryOff": "Off. OnePaste never sends any.",
+    "changePassphrase": "Change passphrase",
+    "advanced": "Advanced",
+    "hotkeyHint": "The hotkey brings up the quick panel. It cannot be changed yet.",
+    "syncMethod": "Method",
+    "syncLocal": "Only on this computer",
+    "syncServer": "Your own server"
   },
   "about": {
     "version": "Version {{version}}"
