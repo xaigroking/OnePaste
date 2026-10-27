@@ -34,6 +34,21 @@ on:
         type: number
         required: false
         default: 14
+      platforms:
+        description: Which packages to build, windows, macos or all
+        type: string
+        required: false
+        default: all
+      macos_runner:
+        description: The machine label for the macOS build (CI uses the Intel pool, a release uses the default)
+        type: string
+        required: false
+        default: macos-latest
+      run_tests:
+        description: Also run the platform crate tests, the desktop unit tests and the license check in the macOS job
+        type: boolean
+        required: false
+        default: false
     secrets:
       APPLE_CERTIFICATE:
         required: false
@@ -54,6 +69,7 @@ permissions:
 jobs:
   windows-x64:
     name: windows-x64
+    if: inputs.platforms != 'macos'
     runs-on: windows-latest
     env:
       LABEL: ${{ inputs.label }}
@@ -111,7 +127,8 @@ jobs:
 
   macos-universal:
     name: macos-universal
-    runs-on: macos-latest
+    if: inputs.platforms != 'windows'
+    runs-on: ${{ inputs.macos_runner }}
     env:
       LABEL: ${{ inputs.label }}
     steps:
@@ -126,6 +143,16 @@ jobs:
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
+      - name: Frontend dependency license check
+        if: inputs.run_tests
+        run: bash scripts/check-frontend-licenses.sh
+      - name: Platform crate tests
+        if: inputs.run_tests
+        run: cargo test -p onepaste-platform
+      - name: Desktop unit tests
+        if: inputs.run_tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test
       - name: Choose ad hoc signing or Developer ID signing with notarization
         id: signing
         env:
