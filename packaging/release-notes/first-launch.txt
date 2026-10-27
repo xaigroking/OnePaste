@@ -1,0 +1,10 @@
+## First launch
+Windows and macOS each ask you to allow OnePaste the first time you open it, because it is not code-signed yet. The same steps are in `READ-ME-FIRST.txt`, next to the app inside each zip.
+
+**Windows**: unzip the file and double-click `OnePaste.exe`. If SmartScreen says "Windows protected your PC", click `More info` and then `Run anyway`.
+
+**macOS**:
+1. Double-click `OnePaste.app`. A dialog says Apple cannot verify the app. Click `Done`.
+2. Open `System Settings` → `Privacy & Security`, scroll down to the `Security` section.
+3. Click `Open Anyway` next to the message about `OnePaste`, then confirm (it may ask for your password or Touch ID).
+4. If the message says the app "is damaged and can't be opened", run `xattr -cr <path>/OnePaste.app` in Terminal (replace `<path>` with the folder that contains the app) and try again.

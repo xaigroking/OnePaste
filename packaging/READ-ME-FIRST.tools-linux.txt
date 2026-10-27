@@ -1,0 +1,12 @@
+OnePaste server and command line client on Linux
+================================================
+
+These are two programs for a terminal: onepaste-server and onepaste. They are
+built for 64-bit Linux (x86-64) with glibc.
+
+If a program does not start, make it executable first:
+
+    chmod +x onepaste-server onepaste
+
+Run ./onepaste-server to start the server. It prints a connection code (a line
+that starts with onepaste1:). See the release page for what to do with it.

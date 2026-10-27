@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # The link between a commit and its pull request can lag a few seconds behind a merge, so retry up to 6 times
-          for i in 1 2 3 4 5 6; do
+          for _ in 1 2 3 4 5 6; do
             count=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq 'length')
             if [ "$count" != "0" ]; then
               echo "The commit was merged through a pull request"
@@ -90,6 +90,10 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
           rustup default stable
+      - name: Install the workflow linter
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Repository gates and tests
         run: CI=true bash scripts/check.sh
       - name: Install Node

@@ -3,7 +3,7 @@ use onepaste_server::{connect_code, Server};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-const USAGE: &str = "Usage: onepaste-server [connect-code] [--data-dir <dir>] [--listen <addr>] [--public-url <url>]\n\
+const USAGE: &str = "Usage: onepaste-server [connect-code] [--data-dir <dir>] [--listen <addr>] [--public-url <url>] [--version]\n\
 Environment: ONEPASTE_DATA_DIR, ONEPASTE_LISTEN, ONEPASTE_PUBLIC_URL (command line arguments win)\n\
 RUST_LOG=<trace|debug|info|warn|error> sets the log level (default: info)";
 
@@ -24,6 +24,10 @@ fn parse_args() -> Result<Cli, String> {
             "--data-dir" => cli.data_dir = Some(value("--data-dir")?),
             "--listen" => cli.listen = Some(value("--listen")?),
             "--public-url" => cli.public_url = Some(value("--public-url")?),
+            "-V" | "--version" => {
+                println!("onepaste-server {}", env!("ONEPASTE_VERSION_LONG"));
+                std::process::exit(0);
+            }
             "-h" | "--help" => return Err(String::new()),
             other => return Err(format!("unknown argument: {other}")),
         }
