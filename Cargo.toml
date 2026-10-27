@@ -14,3 +14,7 @@ opt-level = 3
 
 [profile.dev.package.blake2]
 opt-level = 3
+
+# SQLite and SQLCipher are C code; unoptimized they are far too slow for the history tests
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3

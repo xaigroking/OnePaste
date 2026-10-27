@@ -12,3 +12,8 @@ onepaste-sync = { path = "../onepaste-sync" }
 rusqlite = { version = "0.41", features = ["bundled-sqlcipher-vendored-openssl"] }
 thiserror = "1"
 zeroize = "1"
+serde_json = "1"
+
+[dev-dependencies]
+base64 = "0.22"
+serde_json = "1"

@@ -1296,6 +1296,7 @@ dependencies = [
  "clap",
  "onepaste-client",
  "onepaste-core",
+ "onepaste-history",
  "onepaste-sync",
  "rpassword",
  "serde_json",
@@ -1339,9 +1340,11 @@ dependencies = [
 name = "onepaste-history"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "onepaste-core",
  "onepaste-sync",
  "rusqlite",
+ "serde_json",
  "thiserror 1.0.69",
  "zeroize",
 ]

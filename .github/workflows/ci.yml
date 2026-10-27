@@ -97,6 +97,8 @@ jobs:
         run: bash tests/e2e/two_clients.sh target/debug
       - name: Crash recovery end-to-end test
         run: bash tests/e2e/crash_recovery.sh target/debug
+      - name: History search end-to-end test
+        run: bash tests/e2e/history_search.sh target/debug
       - name: Leak probe
         run: |
           command -v tcpdump > /dev/null || { sudo apt-get update && sudo apt-get install -y tcpdump; }
