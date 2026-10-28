@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           bash scripts/collect-release.sh "$GITHUB_REF_NAME" staged out downloads.md
           git for-each-ref --format='%(contents)' "refs/tags/${GITHUB_REF_NAME}" > notes.md
-          { echo; cat packaging/release-notes/try-it.txt; echo; cat downloads.md; } >> notes.md
+          { echo; cat packaging/release-notes/try-it.txt; echo; sed "s/{{TAG}}/$GITHUB_REF_NAME/g" packaging/release-notes/docker.txt; echo; cat downloads.md; } >> notes.md
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2
         with:
@@ -76,3 +76,17 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --verify-tag --prerelease \
             --title "OnePaste $GITHUB_REF_NAME" --notes-file notes.md \
             out/*.zip out/SHA256SUMS.txt
+
+  # After the pre-release is out: the server container image, tagged with the version (not as edge)
+  image:
+    name: server image
+    needs: publish
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      tag: ${{ github.ref_name }}
+      edge: false

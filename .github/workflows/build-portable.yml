@@ -112,14 +112,20 @@ jobs:
           python tools/check_portable_zip.py "dist/$name-portable.zip" OnePaste.exe READ-ME-FIRST.txt
           rm -rf "dist/$name"
           ls -l dist
-      - name: Build and package the server and the command line client
+      # Built in the default shell, where the Windows Perl that OpenSSL needs comes first; the Perl that ships with Git
+      # (used by a bash step) cannot configure it
+      - name: Build the server and the command line client
+        if: inputs.include_tools
+        env:
+          ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
+        run: cargo build --release --locked -p onepaste-server -p onepaste-cli --target x86_64-pc-windows-msvc
+      - name: Package the server and the command line client
         if: inputs.include_tools
         shell: bash
         env:
           ONEPASTE_BUILD_TAG: ${{ inputs.build_tag }}
         run: |
           set -euo pipefail
-          cargo build --release --locked -p onepaste-server -p onepaste-cli --target x86_64-pc-windows-msvc
           name="OnePaste-${LABEL}-tools-windows-x64"
           mkdir -p "dist/$name"
           cp target/x86_64-pc-windows-msvc/release/onepaste-server.exe target/x86_64-pc-windows-msvc/release/onepaste.exe "dist/$name/"
