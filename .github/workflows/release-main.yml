@@ -92,6 +92,8 @@ jobs:
       build_tag: ${{ needs.plan.outputs.tag }}
       retention_days: 1
       include_tools: true
+      # Nothing compiled by an earlier run may end up in a package; downloaded sources are still reused
+      cache_targets: false
     secrets: inherit
 
   publish:
@@ -185,3 +187,40 @@ jobs:
     with:
       tag: ${{ needs.plan.outputs.tag }}
       edge: true
+
+  # A failed automatic release must not go unnoticed: it opens one issue for that commit (the run link and the names of
+  # the failed jobs, never log text), and a later successful release closes the open ones.
+  report:
+    name: report
+    if: always() && needs.changes.outputs.release == 'true'
+    needs: [changes, plan, build, publish, image]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RESULTS: ${{ toJSON(needs) }}
+    steps:
+      - name: Open or close the issue
+        run: |
+          set -euo pipefail
+          title="Automatic pre-release failed: ${GITHUB_SHA:0:7}"
+          failed=$(python3 -c 'import json, os; n = json.loads(os.environ["RESULTS"]); print(" ".join(sorted(k for k, v in n.items() if v["result"] in ("failure", "cancelled"))))')
+          if [ -n "$failed" ]; then
+            # The jobs inside the reusable workflows, by name
+            jobs=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join(", ")')
+            existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq 'length')
+            if [ "$existing" = "0" ]; then
+              body="The automatic pre-release of commit ${GITHUB_SHA:0:7} failed.\n\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\nFailed jobs: ${jobs:-$failed}"
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$(printf '%b' "$body")"
+            else
+              echo "An issue for this commit is already open"
+            fi
+          else
+            for n in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"Automatic pre-release failed:" in:title' --json number --jq '.[].number'); do
+              gh issue close "$n" --repo "$GITHUB_REPOSITORY" --comment "A later automatic pre-release succeeded: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            done
+          fi
+

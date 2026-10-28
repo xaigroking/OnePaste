@@ -36,6 +36,8 @@ jobs:
       build_tag: ${{ github.ref_name }}
       retention_days: 1
       include_tools: true
+      # Nothing compiled by an earlier run may end up in a package; downloaded sources are still reused
+      cache_targets: false
     # The optional Apple signing secrets (see the comment at the top of build-portable.yml)
     secrets: inherit
 
