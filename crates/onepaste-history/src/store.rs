@@ -99,6 +99,8 @@ impl HistoryStore {
         keyed?;
         // A wrong key shows up on the first read
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).map_err(|_| HistoryError::WrongKey)?;
+        // If another process ever has the file open, wait for it instead of failing at once
+        conn.busy_timeout(std::time::Duration::from_secs(10))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         // An empty file has no header yet and would open with any key, so the schema is written right away

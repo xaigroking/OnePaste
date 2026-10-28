@@ -73,9 +73,42 @@ pub fn rgba(state: TrayState) -> Vec<u8> {
     }
 }
 
+/// The same six shapes as a template image for the macOS menu bar: black where the shape is, transparent where the picture
+/// has a hole or nothing. The system draws a template in the colour that suits the menu bar (light or dark), so it is
+/// always visible; the states differ by shape, not by colour.
+pub fn template(state: TrayState) -> Vec<u8> {
+    let mut px = rgba(state);
+    for p in px.chunks_mut(4) {
+        let hole = p[3] == 0 || (p[0] == 255 && p[1] == 255 && p[2] == 255);
+        p.copy_from_slice(if hole { &[0, 0, 0, 0] } else { &[0, 0, 0, 255] });
+    }
+    px
+}
+
+/// What the tray shows: the template image on macOS, the coloured one elsewhere.
+pub fn tray_pixels(state: TrayState) -> Vec<u8> {
+    if cfg!(target_os = "macos") {
+        template(state)
+    } else {
+        rgba(state)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_template_images_differ_by_shape_and_have_something_to_draw() {
+        let all = [TrayState::Synced, TrayState::Syncing, TrayState::Offline, TrayState::Error, TrayState::Local, TrayState::Paused].map(template);
+        for i in 0..all.len() {
+            assert!(all[i].chunks(4).any(|p| p[3] == 255), "a template with nothing in it would be invisible");
+            assert!(all[i].chunks(4).all(|p| p[..3] == [0, 0, 0]), "templates are black and transparent only");
+            for j in i + 1..all.len() {
+                assert_ne!(all[i], all[j], "two states look the same in the menu bar");
+            }
+        }
+    }
 
     #[test]
     fn the_six_icons_are_pairwise_different() {
