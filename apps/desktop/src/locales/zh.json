@@ -146,7 +146,7 @@
     "privacy": "隐私与诊断",
     "privacyBody": "剪贴板内容不会写入日志或诊断信息。诊断只列出事件类型、大小和错误码。",
     "about": "关于",
-    "aboutBody": "OnePaste 源码公开，非商业使用免费，不发送任何遥测数据。"
+    "aboutBody": "你的所有数据都经过端到端加密。OnePaste 不发送任何遥测数据。"
   },
   "nav": {
     "history": "历史",
