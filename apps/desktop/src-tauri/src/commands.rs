@@ -3,7 +3,7 @@
 use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
-use onepaste_app::{parse_filter, App, DeviceList, ItemView, Mode, ServerVault, Settings, Status, UpdateInfo};
+use onepaste_app::{parse_filter, App, DeviceList, ImageData, ItemView, Mode, ServerVault, Settings, Status, UpdateInfo};
 use onepaste_platform::clipboard::{self, Content};
 use onepaste_platform::system;
 use serde::Serialize;
@@ -158,6 +158,31 @@ pub fn hide_quick_panel(app: AppHandle) {
 pub fn set_device_count(app: AppHandle, count: Option<usize>) {
     app.state::<AppState>().0.lock().unwrap().device_count = count;
     tray::refresh(&app);
+}
+
+/// The picture of an image item (never logged).
+#[tauri::command]
+pub async fn app_item_image(core: State<'_, App>, item_id: String) -> Result<ImageData, String> {
+    core.item_image(&item_id).await.map_err(|e| e.code())
+}
+
+/// The whole text of a text item (never logged).
+#[tauri::command]
+pub async fn app_item_text(core: State<'_, App>, item_id: String) -> Result<String, String> {
+    core.item_text(&item_id).await.map_err(|e| e.code())
+}
+
+/// Saves the picture of an image item where the user chooses, with the system's save dialog. `Ok(false)` means the user
+/// cancelled the dialog. The default file name is given by the page (`OnePaste-<time>.png`).
+#[tauri::command]
+pub async fn app_save_image(core: State<'_, App>, item_id: String, file_name: String) -> Result<bool, String> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let image = core.item_image(&item_id).await.map_err(|e| e.code())?;
+    let bytes = B64.decode(image.data).map_err(|_| "save_failed".to_string())?;
+    let chosen = rfd::AsyncFileDialog::new().set_file_name(&file_name).add_filter("PNG image", &["png"]).save_file().await;
+    let Some(file) = chosen else { return Ok(false) };
+    file.write(&bytes).await.map_err(|_| "save_failed".to_string())?;
+    Ok(true)
 }
 
 /// Looks for a newer version. A check the user asked for returns why it failed; a background check never does.

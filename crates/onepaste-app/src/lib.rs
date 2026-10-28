@@ -11,7 +11,7 @@ pub mod ports;
 mod settings;
 pub mod update;
 
-pub use app::{App, AppConfig, UpdateSetup, DeviceList, DeviceView, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
+pub use app::{App, AppConfig, ImageData, UpdateSetup, DeviceList, DeviceView, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
 pub use error::AppError;
 pub use onepaste_history::Filter;
 pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemorySecretStore, MonitorGuard, SecretStore};

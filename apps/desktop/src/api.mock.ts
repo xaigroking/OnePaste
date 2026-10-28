@@ -8,6 +8,7 @@ import type {
   DeviceList,
   Filter,
   HotkeyState,
+  ImageData,
   ItemView,
   UpdateInfo,
   LanguagePreference,
@@ -43,7 +44,7 @@ const ITEMS: ItemView[] = [
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null };
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, textPreviewHeight: null };
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
@@ -61,6 +62,31 @@ const devices = (): DeviceList => ({
   ],
 });
 
+/** A fixed picture made in the page itself: a diagonal gradient with a frame. */
+function makePicture(): ImageData {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const g = ctx.createLinearGradient(0, 0, 1280, 720);
+    g.addColorStop(0, "#0f766e");
+    g.addColorStop(1, "#f59e0b");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 1280, 720);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 16;
+    ctx.strokeRect(40, 40, 1200, 640);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 96px sans-serif";
+    ctx.fillText("1280 x 720", 380, 390);
+  }
+  const data = canvas.toDataURL("image/png").split(",")[1] ?? "";
+  return { data, width: 1280, height: 720, size: 86016, format: "png" };
+}
+
+const LONG_TEXT = Array.from({ length: 34 }, (_, i) => `Line ${i + 1}: the quick brown fox jumps over the lazy dog`).join("\n");
+
 const UPDATE: UpdateInfo = {
   version: "0.0.1-main.12",
   notes: "Add the update check.\nFix the devices table.\n<b>Not markup</b>",
@@ -68,6 +94,15 @@ const UPDATE: UpdateInfo = {
 };
 
 export const api = {
+  itemImage: async (_itemId: string): Promise<ImageData> => makePicture(),
+  itemText: async (itemId: string): Promise<string> => {
+    if (SCREEN === "longtext" || SCREEN === "textview") return LONG_TEXT;
+    return ITEMS.find((i) => i.itemId === itemId)?.preview ?? "";
+  },
+  saveImage: async (_itemId: string, _fileName: string): Promise<boolean> => {
+    called("saveImage");
+    return true;
+  },
   checkUpdate: async (_manual: boolean): Promise<UpdateInfo | null> => {
     called("checkUpdate");
     if (STATE === "error") return Promise.reject("update_unreachable");

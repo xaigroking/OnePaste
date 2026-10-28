@@ -64,6 +64,50 @@ test("update dialog: Escape means later, and the three buttons do what they say"
   await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["openRelease"]);
 });
 
+test("picture: the viewer zooms with + - 0, switches on double click and closes with Escape; save as asks for a place", async ({ page }) => {
+  await page.goto("/?screen=img&lang=en");
+  await page.getByRole("option").nth(4).click();
+  await expect(page.getByTestId("image-meta")).toContainText("1280\u00d7720");
+  await page.getByRole("button", { name: "Save as\u2026" }).click();
+  await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["saveImage"]);
+  await page.getByRole("button", { name: "View larger" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  const level = page.getByTestId("zoom-level");
+  await expect(level).toHaveText("Fit");
+  await page.keyboard.press("+");
+  await expect(level).toHaveText("125%");
+  await page.keyboard.press("-");
+  await page.keyboard.press("-");
+  await expect(level).toHaveText("80%");
+  await page.keyboard.press("0");
+  await expect(level).toHaveText("Fit");
+  await dialog.locator(".viewer-pane").dblclick();
+  await expect(level).toHaveText("100%");
+  await dialog.locator(".viewer-pane").dblclick();
+  await expect(level).toHaveText("Fit");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+test("long text: the box can be dragged taller and remembers its height, Expand shows everything", async ({ page }) => {
+  await page.goto("/?screen=longtext&lang=en");
+  const box = page.getByTestId("text-box");
+  await expect(box).toBeVisible();
+  // The corner handle: the box is resizable vertically, never below three lines
+  expect(await box.evaluate((el) => getComputedStyle(el).resize)).toBe("vertical");
+  expect(await box.evaluate((el) => parseFloat(getComputedStyle(el).minHeight))).toBeGreaterThanOrEqual(72);
+  // Only the first lines are in the box; the rest is behind "Expand"
+  await expect(box).not.toContainText("Line 30");
+  await page.getByRole("button", { name: "Expand" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Line 34");
+  await page.getByRole("button", { name: "Copy all" }).click();
+  await expect.poll(() => page.evaluate(() => window.__copied)).toEqual(["i1"]);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
 test("first run: choosing local-only works with the keyboard alone", async ({ page }) => {
   await page.goto("/?screen=ob1&lang=en");
   await page.getByRole("radio", { name: /Only on this computer/ }).focus();
