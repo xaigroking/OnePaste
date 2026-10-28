@@ -2651,6 +2651,7 @@ name = "onepaste-app"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "libc",
  "minisign-verify",
  "onepaste-client",
  "onepaste-core",
