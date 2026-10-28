@@ -146,7 +146,7 @@
     "privacy": "Privacy and diagnostics",
     "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
     "about": "About",
-    "aboutBody": "OnePaste is source-available and free for non-commercial use. No telemetry is sent."
+    "aboutBody": "All your data is encrypted from end to end. OnePaste sends no telemetry."
   },
   "nav": {
     "history": "History",
