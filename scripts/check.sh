@@ -208,6 +208,19 @@ expect_release yes "only a workflow" .github/workflows/ci.yml
 many=$(for i in $(seq 1 14); do echo "v0.0.1-main.$i"; done; echo v0.0.1-beta.2; echo v0.0.1-beta.3; echo v0.0.1-beta.4)
 [ "$(printf '%s\n' "$many" | prune_list 10 | sort -V | tr '\n' ' ')" = "v0.0.1-main.1 v0.0.1-main.2 v0.0.1-main.3 v0.0.1-main.4 " ] || { say "FAIL prune_list: expected main.1 to main.4"; release_fail=1; }
 printf '%s\n' "$many" | prune_list 10 | grep -q beta && { say "FAIL prune_list listed a beta"; release_fail=1; }
+# 13c2) Which changes need the container image tested
+expect_docker() {  # expect_docker <yes|no> <description> <file>...
+  local want=$1 what=$2 got=no
+  shift 2
+  if printf '%s\n' "$@" | needs_docker; then got=yes; fi
+  [ "$got" = "$want" ] || { say "FAIL docker paths: $what: expected $want, got $got"; release_fail=1; }
+}
+expect_docker no "only documents" README.md docs/notes.txt
+expect_docker yes "the Dockerfile" Dockerfile
+expect_docker yes "a docker directory file" docker/entrypoint.txt
+expect_docker yes "the server code" crates/onepaste-server/src/main.rs
+expect_docker no "only the desktop app" apps/desktop/src/App.tsx
+expect_docker no "only the command line client" crates/onepaste-cli/src/main.rs
 # 13d) Tag names of named and automatic releases are told apart
 bash scripts/release-check.sh --test-tag-names > /dev/null || { say "FAIL release-check.sh tag name assertions"; release_fail=1; }
 # 13e) Workflows: actionlint where it is installed, and always a YAML syntax check
@@ -226,7 +239,7 @@ fi
 # 13f) The notes generator produces every section the release check wants
 notes_tmp=$(mktemp)
 bash scripts/make-release-notes.sh v0.0.1-main.1 "$(git rev-parse HEAD 2> /dev/null || echo 0000000)" > "$notes_tmp" 2> /dev/null || { say "FAIL make-release-notes.sh failed"; release_fail=1; }
-for title in "Read first" "First launch" "Try it in 3 steps" "What's changed" "Verify downloads"; do
+for title in "Read first" "First launch" "Try it in 3 steps" "Run the server with Docker" "What's changed" "Verify downloads"; do
   grep -Eq "^## .*$title" "$notes_tmp" || { say "FAIL generated release notes lack: $title"; release_fail=1; }
 done
 rm -f "$notes_tmp"

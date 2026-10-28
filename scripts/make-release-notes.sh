@@ -19,6 +19,8 @@ cat packaging/release-notes/first-launch.txt
 echo
 cat packaging/release-notes/try-it.txt
 echo
+sed "s/{{TAG}}/$tag/g" packaging/release-notes/docker.txt
+echo
 echo "## What's changed"
 if [ -n "$prev" ]; then
   echo "Pull requests merged since \`$prev\`:"
