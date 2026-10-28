@@ -1,0 +1,118 @@
+name: docker-image
+
+# Builds the server container image for linux/amd64 and linux/arm64 and pushes it to the GitHub container registry as
+# ghcr.io/<owner>/onepaste-server, tagged with the version tag. Called by the release workflows after a pre-release has
+# been published. With `edge` the floating tag `edge` is moved to this image too; there is no `latest` tag, because there
+# is no stable release yet. It needs no secrets: the push uses the token of the workflow run.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The version tag of the release, for example v0.0.1-main.7
+        type: string
+        required: true
+      edge:
+        description: Also move the floating tag edge to this image
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/onepaste-server
+
+jobs:
+  build:
+    name: build ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          build-args: BUILD_TAG=${{ inputs.tag }}
+          labels: |
+            org.opencontainers.image.title=onepaste-server
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      - name: Keep the digest
+        run: |
+          mkdir -p digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: digests/*
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: publish image
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          path: digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Make the multi-architecture image and tag it
+        id: manifest
+        env:
+          TAG: ${{ inputs.tag }}
+          EDGE: ${{ inputs.edge }}
+        run: |
+          set -euo pipefail
+          tags=(-t "$IMAGE:$TAG")
+          if [ "$EDGE" = "true" ]; then tags+=(-t "$IMAGE:edge"); fi
+          sources=()
+          for d in digests/*; do sources+=("$IMAGE@sha256:$(basename "$d")"); done
+          echo "images: ${sources[*]}"
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$TAG"
+          digest=$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest}}' | python3 -c 'import sys, json; print(json.load(sys.stdin)["digest"])')
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true

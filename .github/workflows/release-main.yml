@@ -171,3 +171,17 @@ jobs:
             case "$(tag_kind "$t")" in main) ;; *) echo "refusing to delete $t"; exit 1 ;; esac
             gh release delete "$t" --cleanup-tag --yes
           done
+
+  # After the pre-release is out: the server container image, tagged with the version and as edge
+  image:
+    name: server image
+    needs: [plan, publish]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      tag: ${{ needs.plan.outputs.tag }}
+      edge: true
