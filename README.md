@@ -30,6 +30,22 @@ OnePaste is not code-signed yet, so Windows and macOS both ask you to allow it t
    ```
 3. In the app, choose "Connect to my own server" and paste the connection code. Every further computer needs its own connection code.
 
+### With Docker
+
+Each pre-release also has a server image for 64-bit Intel/AMD and for Arm, at `ghcr.io/xaigroking/onepaste-server` (the tag is the release name, for example `v0.0.1-main.7`; `edge` is the newest automatic pre-release; there is no `latest`). The image has no shell, runs as an unprivileged user, and keeps everything in the volume `/data`.
+
+```
+docker run -d --name onepaste -p 8443:8443 -v onepaste-data:/data -e ONEPASTE_PUBLIC_URL=https://192.168.1.20:8443 ghcr.io/xaigroking/onepaste-server:edge
+docker logs onepaste
+```
+
+- **Connection code**: the line that starts with `onepaste1:` in `docker logs onepaste`. To print a new one later (it replaces the unused older ones): `docker exec onepaste /onepaste-server connect-code`.
+- **Address and TLS**: set `ONEPASTE_PUBLIC_URL` to the address other computers will use, as in the example. The server makes its own certificate on first start and keeps it in `/data`. The connection code carries the certificate's fingerprint, and the app checks the server against that fingerprint, so no public certificate or domain name is needed. Without `ONEPASTE_PUBLIC_URL` the code would hold the container's internal address.
+- **Data**: the volume `onepaste-data`. With a folder instead of a named volume (`-v /srv/onepaste:/data`), the folder must be writable by user id 65532.
+- **Backup**: stop the container, then copy the volume out: `docker stop onepaste` and `docker run --rm -v onepaste-data:/data:ro -v "$PWD":/backup busybox tar czf /backup/onepaste-backup.tgz -C /data .`. To restore into a new volume: `docker run --rm -v onepaste-data:/data -v "$PWD":/backup busybox sh -c 'tar xzf /backup/onepaste-backup.tgz -C /data && chown -R 65532:65532 /data'`.
+- **Upgrade**: `docker pull ghcr.io/xaigroking/onepaste-server:edge`, then `docker stop onepaste`, `docker rm onepaste` and the same `docker run` command again. The volume, and with it the data and the certificate, stays.
+- **Health**: the image reports itself healthy while the server accepts connections (`docker ps` shows it).
+
 ## 简体中文
 
 ### 首次启动

@@ -1,0 +1,8 @@
+.git
+target
+apps
+tests
+spikes
+docs
+**/node_modules
+**/dist
