@@ -214,7 +214,7 @@ jobs:
         run: bash scripts/check-frontend-licenses.sh
       - name: Frontend tests
         working-directory: apps/desktop
-        run: npx --no-install vitest run
+        run: npx --no-install vitest run src
       - name: Desktop unit tests
         working-directory: apps/desktop/src-tauri
         run: cargo test
@@ -238,6 +238,39 @@ jobs:
       platforms: macos
       macos_runner: macos-15-intel
       run_tests: true
+
+  # The front end alone, built with a stand-in for the api module: screenshots of every screen, theme and language, the
+  # empty, loading and error states, and the keyboard walkthroughs. No desktop program is needed.
+  ui-screens:
+    name: ui-screens
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Install the test browser
+        working-directory: apps/desktop
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Screenshot and keyboard tests
+        working-directory: apps/desktop
+        run: npx --no-install playwright test
+      - name: Make fresh screenshots to look at (only when the tests failed)
+        if: failure()
+        working-directory: apps/desktop
+        run: npx --no-install playwright test --update-snapshots
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screens
+          path: |
+            apps/desktop/tests/screens
+            apps/desktop/test-results
+          retention-days: 14
 
   # The server container image: build it, run it with a volume, join two devices, restart it, and check what is inside
   docker:

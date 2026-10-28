@@ -7,10 +7,13 @@ import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { Badge, Button, Chip } from "./ui";
 
-const FILTERS: Filter[] = ["all", "favorites", "text", "images"];
+// Links, files and code have no type of their own in the history yet: their chips are there and show nothing
+const FILTERS: Filter[] = ["all", "favorites", "text", "links", "images", "files", "code"];
 
-function kindIcon(it: ItemView): IconName {
+export function kindIcon(it: ItemView): IconName {
   if (it.kind === "image") return "image";
+  // A masked item (a secret the clipboard marked as sensitive) shows as a row of dots
+  if (/^[\u2022\u25cf*]+$/.test(it.preview)) return "lock";
   return isLink(it.preview) ? "link" : "text";
 }
 
@@ -27,9 +30,11 @@ interface Props {
   onQuery: (q: string) => void;
   onFilter: (f: Filter) => void;
   act: (work: Promise<void>) => Promise<void>;
+  loadState: "loading" | "ready" | "error";
+  loadError: string;
 }
 
-export function HistoryView({ items, query, filter, onQuery, onFilter, act }: Props) {
+export function HistoryView({ items, query, filter, onQuery, onFilter, act, loadState, loadError }: Props) {
   const { t, i18n } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -94,7 +99,16 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act }: Pr
           ))}
         </div>
 
-        {items.length === 0 ? (
+        {loadState === "error" ? (
+          <p className="notice notice-danger" role="alert">
+            {t("results.error", { code: loadError })}
+          </p>
+        ) : loadState === "loading" ? (
+          <div className="empty" aria-busy="true">
+            <Icon name="refresh" size={30} />
+            <p>{t("results.loading")}</p>
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty">
             <Icon name="clipboard" size={34} />
             <p>{t(emptyKey)}</p>
@@ -157,6 +171,9 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act }: Pr
       <aside className="detail" aria-label={t("detail.title")}>
         <div className="detail-head">
           <h2>{t("detail.title")}</h2>
+          {selected?.syncState === "synced" && <Badge tone="ok">{t("sync.synced")}</Badge>}
+          {selected?.syncState === "pending" && <Badge tone="warn">{t("sync.pending")}</Badge>}
+          {selected?.syncState === "local" && <Badge>{t("sync.localOnly")}</Badge>}
         </div>
         {selected ? (
           <>
@@ -170,6 +187,15 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act }: Pr
                 <p>{selected.preview}</p>
               )}
             </div>
+            {(selected.sourceDevice || selected.sourceApp || selected.createdAtMs) && (
+              <p className="muted small">
+                {t("detail.from", {
+                  source: [selected.sourceDevice, selected.sourceApp, selected.createdAtMs ? formatRelative(selected.createdAtMs, i18n.language) : undefined]
+                    .filter(Boolean)
+                    .join(" \u00b7 "),
+                })}
+              </p>
+            )}
             <div className="detail-actions">
               <Button variant="primary" className="grow" onClick={() => void act(api.copy(selected.itemId))}>
                 {t("item.copy")}

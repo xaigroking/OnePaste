@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, onChanged } from "./api";
+import { api, onChanged, onNavigate } from "./api";
 import type {
   ActionResult,
   AppSettings,
@@ -21,6 +21,7 @@ import { HistoryView } from "./components/HistoryView";
 import { Onboarding } from "./onboarding";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
 import type { View } from "./components/Sidebar";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
@@ -40,6 +41,8 @@ export default function App() {
   const [tray, setTray] = useState<TrayState>("synced");
   const [diag, setDiag] = useState<ActionResult | null>(null);
   const [language, setLanguage] = useState<LanguageState | null>(null);
+  const [itemsState, setItemsState] = useState<"loading" | "ready" | "error">("loading");
+  const [itemsError, setItemsError] = useState("");
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [version, setVersion] = useState("");
   // The newest search wins: an older, slower answer must not overwrite it
@@ -68,11 +71,24 @@ export default function App() {
     setSettings(se);
     if (st.joined) {
       const seq = ++searchSeq.current;
+      // Links, files and code have no type of their own in the history yet: those chips show nothing
+      if (filter === "links" || filter === "files" || filter === "code") {
+        setItems([]);
+        setItemsState("ready");
+        return;
+      }
       try {
         const found = await api.search(query, filter, PAGE_SIZE, 0);
-        if (seq === searchSeq.current) setItems(found);
-      } catch {
-        if (seq === searchSeq.current) setItems([]);
+        if (seq === searchSeq.current) {
+          setItems(found);
+          setItemsState("ready");
+        }
+      } catch (e) {
+        if (seq === searchSeq.current) {
+          setItems([]);
+          setItemsError(String(e));
+          setItemsState("error");
+        }
       }
     }
   }, [query, filter]);
@@ -92,7 +108,14 @@ export default function App() {
   useEffect(() => {
     const texts: TrayTexts = {
       open: t("tray.open"),
-      diagnostics: t("tray.diagnostics"),
+      quickPanel: t("tray.quickPanel"),
+      pause: t("tray.pause"),
+      resume: t("tray.resume"),
+      syncNow: t("tray.syncNow"),
+      devices: t("tray.devices"),
+      settings: t("tray.settings"),
+      devicesCount: t("tray.devicesCount"),
+      paused: t("status.paused"),
       quit: t("tray.quit"),
       statusLine: t("tray.statusLine"),
       tooltip: t("tray.tooltip"),
@@ -104,6 +127,20 @@ export default function App() {
     };
     void api.setTexts(texts);
   }, [t]);
+
+  // The tray menu asks for a page ("Devices...", "Settings...")
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void onNavigate((page) => setView(page)).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+  }, []);
+
+  // The tray's status line shows the number of devices too
+  useEffect(() => {
+    void api.setDeviceCount(deviceCount).catch(() => undefined);
+  }, [deviceCount]);
 
   // The number next to "Devices" in the sidebar; only a vault on a server has devices
   const syncedVault = status?.mode === "synced";
@@ -165,13 +202,11 @@ export default function App() {
       <Sidebar
         view={activeView}
         onView={setView}
-        tray={tray}
-        status={status}
-        recording={settings?.recordClipboard ?? true}
         joined={joined}
         deviceCount={deviceCount}
       />
       <main className="content">
+        {joined && <TopBar tray={tray} status={status} recording={settings?.recordClipboard ?? true} />}
         {joined && status?.paused && (
           <p className="notice notice-danger" role="alert">
             {t(`paused.${status.paused}`, { defaultValue: t("paused.other", { code: status.paused }) })}
@@ -181,7 +216,16 @@ export default function App() {
           <p className="notice notice-warn">{t("queue.stuck", { conflict: status.conflict, failed: status.failed })}</p>
         )}
         {activeView === "history" && (
-          <HistoryView items={items} query={query} filter={filter} onQuery={setQuery} onFilter={setFilter} act={act} />
+          <HistoryView
+            items={items}
+            query={query}
+            filter={filter}
+            onQuery={setQuery}
+            onFilter={setFilter}
+            act={act}
+            loadState={itemsState}
+            loadError={itemsError}
+          />
         )}
         {activeView === "devices" && <DevicesView status={status} onCount={setDeviceCount} />}
         {activeView === "settings" && (

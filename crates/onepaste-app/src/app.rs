@@ -547,10 +547,9 @@ impl App {
         }
     }
 
+    /// The monitor always runs; whether a copy is recorded is decided per event, so switching listening back on needs
+    /// no restart.
     fn start_monitor(&self) {
-        if !lock(&self.0.shared).settings.record_clipboard {
-            return;
-        }
         let app = self.clone();
         let handle = tokio::runtime::Handle::current();
         let started = self.0.clipboard.start_monitor(Box::new(move |ev| {

@@ -1,0 +1,82 @@
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+// One screenshot per screen, theme and language, and one per screen for the empty, loading and error states.
+// Names: <screen>-<theme>-<lang>.png and <screen>-state-<state>.png (light, English).
+
+const LANGS = ["en", "zh"] as const;
+const THEMES = ["light", "dark"] as const;
+const locale = (lang: string) => JSON.parse(readFileSync(new URL(`../src/locales/${lang}.json`, import.meta.url), "utf8"));
+
+interface Screen {
+  name: string;
+  screen: string;
+  size: { width: number; height: number };
+  hash?: string;
+  states: ("empty" | "loading" | "error")[];
+  /** Drives the page to the place the screenshot shows. */
+  drive?: (page: Page, lang: string, state: string) => Promise<void>;
+}
+
+const WINDOW = { width: 1040, height: 640 };
+
+async function toCodeStep(page: Page, lang: string) {
+  const l = locale(lang);
+  await page.locator('input[value="server"]').check();
+  await page.getByRole("button", { name: l.onboarding.next }).click();
+  await page.locator("input").first().fill("onepaste1:example");
+}
+
+const SCREENS: Screen[] = [
+  { name: "main", screen: "main", size: WINDOW, states: ["empty", "loading", "error"] },
+  { name: "dev", screen: "dev", size: WINDOW, states: ["empty", "loading", "error"] },
+  { name: "set", screen: "set", size: WINDOW, states: ["loading", "error"] },
+  { name: "qp", screen: "qp", size: { width: 560, height: 520 }, hash: "#/quick", states: ["empty", "loading", "error"] },
+  { name: "tray", screen: "tray", size: { width: 330, height: 360 }, states: [] },
+  { name: "state", screen: "state", size: WINDOW, states: [] },
+  { name: "ob1", screen: "ob1", size: WINDOW, states: ["loading", "error"],
+    drive: async (page, lang, state) => {
+      if (state === "base") return;
+      const l = locale(lang);
+      await toCodeStep(page, lang);
+      await page.getByRole("button", { name: l.onboarding.next }).click();
+    } },
+  { name: "ob2", screen: "ob2", size: WINDOW, states: [],
+    drive: async (page, lang) => {
+      const l = locale(lang);
+      await toCodeStep(page, lang);
+      await page.getByRole("button", { name: l.onboarding.next }).click();
+      await page.getByRole("button", { name: l.onboarding.passphraseStep.generate }).click();
+      await page.getByRole("button", { name: l.onboarding.next }).click();
+      await page.getByTestId("kit").waitFor();
+    } },
+];
+
+async function open(page: Page, s: Screen, theme: string, lang: string, state: string) {
+  await page.setViewportSize(s.size);
+  await page.addInitScript((t) => window.localStorage.setItem("onepaste.theme", t), theme);
+  await page.goto(`/?screen=${s.screen}&lang=${lang}&state=${state}${s.hash ?? ""}`);
+  await page.waitForLoadState("networkidle");
+  await s.drive?.(page, lang, state);
+  // Let the first render and the fonts settle
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(300);
+}
+
+for (const s of SCREENS) {
+  for (const theme of THEMES) {
+    for (const lang of LANGS) {
+      test(`${s.name} ${theme} ${lang}`, async ({ page }) => {
+        await open(page, s, theme, lang, "base");
+        await expect(page).toHaveScreenshot(`${s.name}-${theme}-${lang}.png`);
+      });
+    }
+  }
+  for (const state of s.states) {
+    test(`${s.name} state ${state}`, async ({ page }) => {
+      await open(page, s, "light", "en", state);
+      await expect(page).toHaveScreenshot(`${s.name}-state-${state}.png`);
+    });
+  }
+}

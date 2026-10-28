@@ -1,4 +1,4 @@
-//! Tray icons: the five states use different colors and shapes, with no external image files.
+//! Tray icons: the six states use different colors and shapes, with no external image files.
 
 use crate::state::TrayState;
 
@@ -50,6 +50,16 @@ pub fn rgba(state: TrayState) -> Vec<u8> {
                 Some([139, 92, 246, 255])
             }
         }),
+        // Paused: amber diamond with two white bars
+        TrayState::Paused => paint(|dx, dy| {
+            if dx.abs() + dy.abs() > 14.0 {
+                None
+            } else if dx.abs() >= 2.0 && dx.abs() <= 4.5 && dy.abs() <= 6.0 {
+                Some(WHITE)
+            } else {
+                Some([245, 158, 11, 255])
+            }
+        }),
         // Error: red square with a white cross
         TrayState::Error => paint(|dx, dy| {
             if dx.abs() > 12.0 || dy.abs() > 12.0 {
@@ -68,8 +78,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_five_icons_are_pairwise_different() {
-        let all = [TrayState::Synced, TrayState::Syncing, TrayState::Offline, TrayState::Error, TrayState::Local].map(rgba);
+    fn the_six_icons_are_pairwise_different() {
+        let all = [TrayState::Synced, TrayState::Syncing, TrayState::Offline, TrayState::Error, TrayState::Local, TrayState::Paused].map(rgba);
         for i in 0..all.len() {
             assert_eq!(all[i].len(), (SIZE * SIZE * 4) as usize);
             for j in i + 1..all.len() {
