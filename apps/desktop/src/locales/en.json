@@ -91,7 +91,8 @@
   "paused": {
     "revoked": "This device was removed from the vault, so syncing has stopped. Ask for a new connection code from another device and join again.",
     "server_rollback": "The server shows older data than this device has already seen, so syncing has stopped. Use \"onepaste resync\" on the command line to recover.",
-    "other": "Syncing has stopped ({{code}})."
+    "other": "Syncing has stopped ({{code}}).",
+    "server_incompatible": "This server speaks a different protocol version than this OnePaste. Upgrade the server, or update OnePaste. Your data is safe and nothing was lost."
   },
   "queue": {
     "stuck": "{{conflict}} changes are in conflict and {{failed}} could not be uploaded."
@@ -145,7 +146,7 @@
     "privacy": "Privacy and diagnostics",
     "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
     "about": "About",
-    "aboutBody": "OnePaste is source-available and free for non-commercial use. No telemetry is sent."
+    "aboutBody": "All your data is encrypted from end to end. OnePaste sends no telemetry."
   },
   "nav": {
     "history": "History",
@@ -266,7 +267,8 @@
       "rate_limited": "Too many attempts. Wait a minute and try again.",
       "already_set_up": "OnePaste is already set up on this computer.",
       "no_pending_setup": "The setup was interrupted. Start again.",
-      "other": "That did not work ({{code}})."
+      "other": "That did not work ({{code}}).",
+      "unsupported_version": "The server speaks a different protocol version than this OnePaste. Upgrade the server or update OnePaste."
     }
   },
   "security": {
@@ -315,5 +317,65 @@
   },
   "about": {
     "version": "Version {{version}}"
+  },
+  "update": {
+    "title": "A new version is available",
+    "version": "OnePaste {{version}} is ready.",
+    "update": "Update",
+    "skip": "Skip this version",
+    "later": "Later"
+  },
+  "updates": {
+    "title": "Updates",
+    "auto": "Look for new versions automatically",
+    "autoHint": "Once when OnePaste starts and then every six hours. Nothing but the version of this program is sent.",
+    "channel": "Which versions to offer",
+    "channels": {
+      "preview": "Everything, including pre-releases",
+      "beta": "Hand-made beta releases only",
+      "stable": "Stable releases only"
+    },
+    "channelHint": {
+      "preview": "Includes the automatic pre-releases made after every change. They are the newest and the roughest.",
+      "beta": "Beta releases that a person made and named. No automatic pre-releases.",
+      "stable": "Only releases that are not pre-releases. There is none yet."
+    },
+    "checkNow": "Check now",
+    "checking": "Checking\u2026",
+    "none": "You have the newest version.",
+    "found": "A new version is available.",
+    "errors": {
+      "update_no_key": "This build is not set up to check for updates.",
+      "update_unreachable": "The update server cannot be reached. Try again later.",
+      "update_status": "The update server did not answer as expected. Try again later.",
+      "update_damaged": "The update information is damaged. It was not used.",
+      "update_bad_signature": "The update information is not signed correctly, so it was not used.",
+      "other": "Checking did not work ({{code}})."
+    }
+  },
+  "image": {
+    "alt": "Image, {{width}} by {{height}} pixels",
+    "loading": "Loading the picture\u2026",
+    "failed": "The picture could not be shown.",
+    "tools": "Picture tools",
+    "viewLarger": "View larger",
+    "actual": "100%",
+    "fitWindow": "Fit",
+    "fit": "Fit",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "close": "Close",
+    "viewerTitle": "Picture",
+    "copy": "Copy image",
+    "saveAs": "Save as\u2026",
+    "saved": "Saved.",
+    "saveFailed": "The picture could not be saved. Check the place you chose and try again."
+  },
+  "text": {
+    "expand": "Expand",
+    "lines": "{{count}} lines",
+    "fullTitle": "Full text",
+    "monospace": "Monospaced",
+    "copyAll": "Copy all"
   }
 }

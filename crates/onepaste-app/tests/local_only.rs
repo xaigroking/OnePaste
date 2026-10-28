@@ -18,7 +18,7 @@ fn temp_dir(name: &str) -> PathBuf {
 }
 
 fn quiet() -> AppConfig {
-    AppConfig { listen_for_changes: true, poll_interval: Duration::from_millis(50), background_sync: true }
+    AppConfig { listen_for_changes: true, poll_interval: Duration::from_millis(50), background_sync: true, ..AppConfig::default() }
 }
 
 struct Desktop {

@@ -59,9 +59,34 @@ export interface DeviceList {
   serverUrl: string;
 }
 
+export type UpdateChannel = "stable" | "preview" | "beta";
+
+export interface UpdateInfo {
+  version: string;
+  /** Plain text: it is shown as text and never as markup. */
+  notes: string;
+  releaseUrl: string;
+}
+
+export interface ImageData {
+  /** The PNG file, base64 encoded. */
+  data: string;
+  width: number;
+  height: number;
+  /** Size of the PNG in bytes. */
+  size: number;
+  format: string;
+}
+
 export interface AppSettings {
   autoApplyRemote: boolean;
   recordClipboard: boolean;
+  checkUpdates: boolean;
+  /** null means the default for this version. */
+  updateChannel: UpdateChannel | null;
+  skippedUpdate: string | null;
+  /** The height in pixels the user gave the text preview, if any. */
+  textPreviewHeight: number | null;
 }
 
 export interface LogEntry {
@@ -128,6 +153,14 @@ export const api = {
   setDeviceCount: (count: number | null) => invoke<void>("set_device_count", { count }),
   /** The version and the build id, for example `0.0.1 (v0.0.1-main.7)`. */
   version: () => invoke<string>("app_version"),
+  checkUpdate: (manual: boolean) => invoke<UpdateInfo | null>("app_check_update", { manual }),
+  availableUpdate: () => invoke<UpdateInfo | null>("app_available_update"),
+  skipUpdate: (version: string) => invoke<void>("app_skip_update", { version }),
+  openRelease: (url: string) => invoke<void>("app_open_release", { url }),
+  itemImage: (itemId: string) => invoke<ImageData>("app_item_image", { itemId }),
+  itemText: (itemId: string) => invoke<string>("app_item_text", { itemId }),
+  /** Saves the picture where the user chooses; false if they cancelled the dialog. */
+  saveImage: (itemId: string, fileName: string) => invoke<boolean>("app_save_image", { itemId, fileName }),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
@@ -159,4 +192,9 @@ export function onNavigate(handler: (page: Page) => void): Promise<() => void> {
 /** The quick panel was brought up again (by the hotkey or the tray menu). */
 export function onQuickOpened(handler: () => void): Promise<() => void> {
   return listen("onepaste://quick-opened", handler);
+}
+
+/** A background check found a newer version. */
+export function onUpdateAvailable(handler: (info: UpdateInfo) => void): Promise<() => void> {
+  return listen<UpdateInfo>("onepaste://update-available", (e) => handler(e.payload));
 }

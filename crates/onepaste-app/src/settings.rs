@@ -6,18 +6,26 @@ use std::path::Path;
 
 pub const FILE_NAME: &str = "app-settings.json";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Write the newest item that arrives from another device into this computer's clipboard.
     pub auto_apply_remote: bool,
     /// Record what is copied on this computer.
     pub record_clipboard: bool,
+    /// Look for a newer version when the program starts and every six hours.
+    pub check_updates: bool,
+    /// The update channel; `None` means the default for this version (see `update::default_channel`).
+    pub update_channel: Option<crate::update::Channel>,
+    /// The version the user chose to skip; it is not offered again, a newer one is.
+    pub skipped_update: Option<String>,
+    /// The height in pixels of the text preview in the detail pane, when the user has dragged it.
+    pub text_preview_height: Option<u32>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { auto_apply_remote: true, record_clipboard: true }
+        Settings { auto_apply_remote: true, record_clipboard: true, check_updates: true, update_channel: None, skipped_update: None, text_preview_height: None }
     }
 }
 

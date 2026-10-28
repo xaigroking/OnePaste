@@ -7,6 +7,7 @@ mod error;
 mod harden;
 mod join;
 pub mod pin;
+pub mod public;
 mod session;
 mod sqlite;
 mod transport;

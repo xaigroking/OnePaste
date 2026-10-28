@@ -52,6 +52,11 @@ on:
         type: boolean
         required: false
         default: false
+      cache_targets:
+        description: Keep and reuse the compiled dependencies between runs. Releases turn it off so that nothing from an earlier build can end up in a package; they still reuse the downloaded dependency sources.
+        type: boolean
+        required: false
+        default: true
       run_tests:
         description: Also run the platform, history and desktop tests and the license check in the macOS job
         type: boolean
@@ -86,11 +91,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
       - name: Install Rust
         shell: bash
         run: |
           rustup toolchain install stable --profile minimal --target x86_64-pc-windows-msvc
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+        with:
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+          cache-targets: ${{ inputs.cache_targets }}
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
@@ -107,6 +120,7 @@ jobs:
           mkdir -p "dist/$name"
           cp apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/onepaste-desktop.exe "dist/$name/OnePaste.exe"
           cp packaging/READ-ME-FIRST.windows.txt "dist/$name/READ-ME-FIRST.txt"
+          bash scripts/no-fault-strings-in-files.sh "dist/$name/OnePaste.exe"
           python tools/check_exe_manifest.py "dist/$name/OnePaste.exe"
           python tools/make_zip.py "dist/$name" "dist/$name-portable.zip"
           python tools/check_portable_zip.py "dist/$name-portable.zip" OnePaste.exe READ-ME-FIRST.txt
@@ -130,6 +144,7 @@ jobs:
           mkdir -p "dist/$name"
           cp target/x86_64-pc-windows-msvc/release/onepaste-server.exe target/x86_64-pc-windows-msvc/release/onepaste.exe "dist/$name/"
           cp packaging/READ-ME-FIRST.tools-windows.txt "dist/$name/READ-ME-FIRST.txt"
+          bash scripts/no-fault-strings-in-files.sh "dist/$name/onepaste-server.exe" "dist/$name/onepaste.exe"
           for exe in onepaste-server onepaste; do
             version=$("dist/$name/$exe.exe" --version)
             echo "$version"
@@ -166,15 +181,27 @@ jobs:
     runs-on: ${{ inputs.macos_runner }}
     env:
       LABEL: ${{ inputs.label }}
+      # Homebrew would update itself and clean up before installing anything; none of that is needed here
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --target aarch64-apple-darwin --target x86_64-apple-darwin
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+        with:
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+          cache-targets: ${{ inputs.cache_targets }}
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
@@ -235,6 +262,7 @@ jobs:
           app="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/OnePaste.app"
           exe_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
           archs=$(lipo -archs "$app/Contents/MacOS/$exe_name")
+          bash scripts/no-fault-strings-in-files.sh "$app/Contents/MacOS/$exe_name"
           echo "architectures: $archs"
           case "$archs" in *x86_64*) ;; *) echo "FAIL: x86_64 is missing"; exit 1;; esac
           case "$archs" in *arm64*) ;; *) echo "FAIL: arm64 is missing"; exit 1;; esac
@@ -272,6 +300,7 @@ jobs:
           done
           name="OnePaste-${LABEL}-tools-macos-universal"
           mkdir -p "dist/$name"
+          bash scripts/no-fault-strings-in-files.sh target/aarch64-apple-darwin/release/onepaste-server target/aarch64-apple-darwin/release/onepaste target/x86_64-apple-darwin/release/onepaste-server target/x86_64-apple-darwin/release/onepaste
           for exe in onepaste-server onepaste; do
             lipo -create -output "dist/$name/$exe" "target/aarch64-apple-darwin/release/$exe" "target/x86_64-apple-darwin/release/$exe"
             # Joining the two builds drops their signatures; an ad hoc signature is what Apple silicon needs to run it
@@ -320,6 +349,9 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+        with:
+          cache-targets: ${{ inputs.cache_targets }}
       - name: Build the server and the command line client
         run: cargo build --release --locked -p onepaste-server -p onepaste-cli
       - name: Package and check
@@ -329,6 +361,7 @@ jobs:
           mkdir -p "dist/$name"
           cp target/release/onepaste-server target/release/onepaste "dist/$name/"
           cp packaging/READ-ME-FIRST.tools-linux.txt "dist/$name/READ-ME-FIRST.txt"
+          bash scripts/no-fault-strings-in-files.sh "dist/$name/onepaste-server" "dist/$name/onepaste"
           for exe in onepaste-server onepaste; do
             version=$("dist/$name/$exe" --version)
             echo "$version"

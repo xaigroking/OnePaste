@@ -221,6 +221,27 @@ expect_docker yes "a docker directory file" docker/entrypoint.txt
 expect_docker yes "the server code" crates/onepaste-server/src/main.rs
 expect_docker no "only the desktop app" apps/desktop/src/App.tsx
 expect_docker no "only the command line client" crates/onepaste-cli/src/main.rs
+# 13c3) Which CI jobs a change needs (scripts/lib/ci-jobs.sh, which the ci.yml `changes` job calls as well)
+# shellcheck source=scripts/lib/ci-jobs.sh
+. scripts/lib/ci-jobs.sh
+expect_jobs() {  # expect_jobs "<jobs that must run, sorted, space separated>" <description> <file>...
+  local want=$1 what=$2 got
+  shift 2
+  got=$(printf '%s\n' "$@" | jobs_for_paths | { grep '=true$' || true; } | sed 's/=true//' | sort | tr '\n' ' ' | sed 's/ $//')
+  [ "$got" = "$want" ] || { say "FAIL ci jobs: $what: expected '$want', got '$got'"; release_fail=1; }
+}
+expect_jobs "" "only documents" README.md docs/notes.txt
+expect_jobs "docker" "only the Dockerfile" Dockerfile
+expect_jobs "docker" "only a docker workflow" .github/workflows/docker-image.yml
+expect_jobs "desktop_windows macos ui_screens windows_test" "only the desktop front end" apps/desktop/src/App.tsx
+expect_jobs "desktop_windows macos windows_test" "only the platform crate" crates/onepaste-platform/src/lib.rs
+expect_jobs "docker windows_test" "only the server" crates/onepaste-server/src/main.rs
+expect_jobs "desktop_windows docker macos update_signing windows_test" "only the lock file" Cargo.lock
+expect_jobs "" "only a release workflow (no macOS)" .github/workflows/release-main.yml
+expect_jobs "desktop_windows macos windows_test" "the build workflow" .github/workflows/build-portable.yml
+expect_jobs "docker windows_test" "only the command line client plus the server" crates/onepaste-cli/src/main.rs crates/onepaste-server/src/main.rs
+expect_jobs "desktop_windows docker macos ui_screens windows_test" "a mix" README.md Dockerfile apps/desktop/src/App.tsx
+[ "$(jobs_on_main | grep -c '=true$')" = 5 ] && jobs_on_main | grep -q '^macos=false$' || { say "FAIL ci jobs: a push to main runs everything except macOS"; release_fail=1; }
 # 13d) Tag names of named and automatic releases are told apart
 bash scripts/release-check.sh --test-tag-names > /dev/null || { say "FAIL release-check.sh tag name assertions"; release_fail=1; }
 # 13e) Workflows: actionlint where it is installed, and always a YAML syntax check
@@ -247,5 +268,27 @@ rm -f "$notes_tmp"
 
 # 14) Every translation file has all the keys of English, and the same placeholders
 python3 tools/check_locales.py || fail=1
+
+# 15) The update check: the manifest scripts are tested, and nothing can redirect the update source or key
+python3 tools/test_update_manifest.py > /dev/null || { say "FAIL tools/test_update_manifest.py"; fail=1; }
+# The address the update check asks and the key it trusts are fixed in the program: no environment variable, argument or
+# file may change them (tests do it by building their own configuration in code)
+if grep -nE 'env::var|env!\(|option_env' crates/onepaste-app/src/update.rs | grep -v 'include_str'; then
+  say "FAIL crates/onepaste-app/src/update.rs reads the environment"; fail=1
+fi
+if grep -rnE 'UPDATE_(URL|KEY|SOURCE)' crates/onepaste-app/src apps/desktop/src-tauri/src | grep -E 'env|getenv'; then
+  say "FAIL an environment variable can change the update source"; fail=1
+fi
+
+# 16) No license claims in anything a user reads (scripts/lib/license-claims.sh lists the words and the files)
+# shellcheck source=scripts/lib/license-claims.sh
+. scripts/lib/license-claims.sh
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  if hits=$(license_claim_files | xargs -r env LC_ALL=C.UTF-8 grep -nEi -- "$LICENSE_CLAIM_REGEX"); then
+    say "FAIL license wording in a file a user reads (the license is not decided; nothing may mention it):"; say "$hits"; fail=1
+  fi
+else
+  skip "not inside a git repository, so the license wording gate cannot run"
+fi
 
 [ "$fail" -eq 0 ] && echo "check.sh: OK" || { echo "check.sh: FAILED" >&2; exit 1; }

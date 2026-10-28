@@ -35,7 +35,7 @@ async fn main() {
     };
     let clipboard = Arc::new(FakeClipboard::new());
     let secrets = Arc::new(MemorySecretStore::new());
-    let app = App::new(dir, secrets, clipboard.clone(), AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false });
+    let app = App::new(dir, secrets, clipboard.clone(), AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false, ..AppConfig::default() });
     let mut last: Vec<ItemView> = Vec::new();
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();

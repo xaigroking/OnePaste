@@ -105,7 +105,7 @@ struct Desktop {
 }
 
 fn quiet() -> AppConfig {
-    AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false }
+    AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false, ..AppConfig::default() }
 }
 
 fn text(s: &str) -> Content {
@@ -262,7 +262,7 @@ async fn nothing_is_written_when_the_setting_is_off_for_own_items_or_for_deletio
     // The setting is off
     let mut s = d.app.settings();
     s.auto_apply_remote = false;
-    d.app.set_settings(s).unwrap();
+    d.app.set_settings(s.clone()).unwrap();
     w.cli_adds("while the setting is off").await;
     d.app.sync_now().await.unwrap();
     assert!(d.clipboard.writes().is_empty());
@@ -361,7 +361,7 @@ async fn flags_and_deletions_made_on_the_desktop_reach_the_other_device() {
 #[tokio::test(flavor = "multi_thread")]
 async fn waking_from_sleep_and_the_network_coming_back_sync_at_once() {
     let mut w = World::new().await;
-    let cfg = AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: true };
+    let cfg = AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: true, ..AppConfig::default() };
     let d = w.app("desktop", cfg).await;
     // Let the first round finish so that later rounds are only started by the events below
     wait_for("the first round", || async { d.app.status().await.items == 0 && d.app.event_log().iter().all(|e| e.kind != "sync_paused") && d.app.status().await.joined }).await;

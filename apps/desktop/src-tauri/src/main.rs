@@ -17,7 +17,7 @@ mod webview2;
 use onepaste_app::{App, AppConfig};
 use state::{AppState, TrayState};
 use std::sync::Arc;
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 
 fn main() {
     // `OnePaste --version` prints the version and the build id, and nothing else starts
@@ -37,7 +37,12 @@ fn main() {
         data_dir,
         Arc::new(adapters::PlatformSecretStore::new(adapters::MASTER_KEY_ACCOUNT)),
         Arc::new(adapters::PlatformClipboard),
-        AppConfig::default(),
+        AppConfig {
+            update_checks: true,
+            update_version: env!("ONEPASTE_UPDATE_VERSION").to_string(),
+            built_at: env!("ONEPASTE_BUILD_UNIX").parse().unwrap_or(0),
+            ..AppConfig::default()
+        },
     );
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -56,8 +61,15 @@ fn main() {
             commands::app_show_kit,
             commands::app_copy_secret,
             commands::app_devices,
+            commands::app_item_image,
+            commands::app_item_text,
+            commands::app_save_image,
             commands::hide_quick_panel,
             commands::set_device_count,
+            commands::app_check_update,
+            commands::app_available_update,
+            commands::app_skip_update,
+            commands::app_open_release,
             commands::app_revoke_device,
             commands::app_new_connection_code,
             commands::app_version,
@@ -100,6 +112,13 @@ fn main() {
                 };
                 tray::set_state(&for_tray, tray_state);
             });
+            // A newer version found by a background check is announced to the window; a failed check says nothing
+            let for_update = handle.clone();
+            core.on_update_available(move |info| {
+                let _ = for_update.emit("onepaste://update-available", info);
+            });
+            let updater = core.clone();
+            tauri::async_runtime::spawn(async move { updater.start_update_checks() });
             // Open the vault with the key from the secure store (no passphrase) and start syncing
             let starter = core.clone();
             let for_log = handle.clone();

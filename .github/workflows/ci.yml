@@ -12,12 +12,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Decides whether this pull request touches anything that can behave differently on macOS
+  # Decides which of the heavy jobs a change needs. The rule is the function jobs_for_paths in scripts/lib/ci-jobs.sh, which
+  # scripts/check.sh tests; nothing is decided in this file. A push to main runs everything except the macOS job.
   changes:
     runs-on: ubuntu-latest
     outputs:
+      windows_test: ${{ steps.filter.outputs.windows_test }}
+      desktop_windows: ${{ steps.filter.outputs.desktop_windows }}
       macos: ${{ steps.filter.outputs.macos }}
-      docker: ${{ steps.docker.outputs.docker }}
+      docker: ${{ steps.filter.outputs.docker }}
+      ui_screens: ${{ steps.filter.outputs.ui_screens }}
+      update_signing: ${{ steps.filter.outputs.update_signing }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,42 +33,16 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ "$EVENT" != "pull_request" ]; then
-            echo "macos=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          files=$(git diff --name-only "$BASE...$HEAD")
-          echo "changed files:"; echo "$files"
-          if printf '%s\n' "$files" | grep -Eq '^(crates/onepaste-platform/|crates/onepaste-history/|crates/onepaste-core/|apps/desktop/|Cargo\.lock$|\.github/workflows/)'; then
-            echo "macos=true" >> "$GITHUB_OUTPUT"
-            echo "A path that can differ on macOS changed: the macos job runs"
-          else
-            echo "macos=false" >> "$GITHUB_OUTPUT"
-            echo "Nothing that can differ on macOS changed: the macos job is skipped"
-          fi
-      # Decides whether the container image needs testing: the rule is a tested function in scripts/lib/release-paths.sh
-      - id: docker
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          . scripts/lib/release-paths.sh
+          . scripts/lib/ci-jobs.sh
           if [ "$EVENT" = "pull_request" ]; then
             files=$(git diff --name-only "$BASE...$HEAD")
-          elif git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
-            files=$(git diff --name-only "$BEFORE" HEAD)
+            echo "changed files:"; echo "$files"
+            printf '%s\n' "$files" | jobs_for_paths > "$RUNNER_TEMP/jobs"
           else
-            files=Dockerfile
+            jobs_on_main > "$RUNNER_TEMP/jobs"
           fi
-          if printf '%s\n' "$files" | needs_docker; then
-            echo "docker=true" >> "$GITHUB_OUTPUT"
-            echo "The container image can be affected: the docker job runs"
-          else
-            echo "docker=false" >> "$GITHUB_OUTPUT"
-            echo "Nothing that affects the container image changed: the docker job is skipped"
-          fi
+          echo "jobs that must run:"; cat "$RUNNER_TEMP/jobs"
+          cat "$RUNNER_TEMP/jobs" >> "$GITHUB_OUTPUT"
 
   pr-only:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -88,6 +67,7 @@ jobs:
           echo "Direct push to main"
           exit 1
 
+  # The quick Linux jobs run for every change: they are cheap, and they decide whether the slow jobs start at all.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -114,6 +94,11 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+        with:
+          workspaces: |
+            . -> target
+            spikes/vaultcore -> target
       - name: Install the workflow linter
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
@@ -127,24 +112,6 @@ jobs:
       - name: API spec lint
         run: npx --yes @redocly/cli@2.57.0 lint api/openapi.yaml
 
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-      - name: Workspace tests
-        run: cargo test --workspace
-      - name: vaultcore tests
-        working-directory: spikes/vaultcore
-        run: cargo test --release
-
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -153,6 +120,7 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
       - name: Build the server and the command line client (with test-only fault injection)
         run: cargo build -p onepaste-server -p onepaste-cli -p onepaste-app --features onepaste-cli/fault-injection,onepaste-server/fault-injection,onepaste-app/test-harness
       - name: Two-client end-to-end test
@@ -169,8 +137,10 @@ jobs:
         run: |
           command -v tcpdump > /dev/null || { sudo apt-get update && sudo apt-get install -y tcpdump; }
           bash tests/e2e/leak_probe.sh target/debug
+      # Cached build outputs never reach this check: a release build is rebuilt whenever its inputs differ, and the strings
+      # are looked for in the files themselves. Release packages are checked the same way in build-portable.yml.
       - name: Build the release binaries without any feature
-        run: cargo build --release -p onepaste-server -p onepaste-cli -p onepaste-app
+        run: cargo build --release --locked -p onepaste-server -p onepaste-cli -p onepaste-app
       - name: Check that the release binaries hold no fault injection
         run: bash scripts/no-fault-injection-strings.sh target/release
 
@@ -182,6 +152,7 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --target aarch64-apple-ios --target aarch64-linux-android --target aarch64-unknown-linux-ohos --target wasm32-unknown-unknown
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
       - name: Check the core library and the sync engine on every target
         run: |
           for t in aarch64-apple-ios aarch64-linux-android aarch64-unknown-linux-ohos wasm32-unknown-unknown; do
@@ -189,23 +160,50 @@ jobs:
             cargo check --target "$t" -p onepaste-core -p onepaste-sync
           done
 
+  # The slow jobs wait for `check`: if it is red there is no point in starting half an hour of Windows or macOS work.
+  # Each runs only if the change can affect it (see the `changes` job); a job that is skipped counts as passed in `ci-ok`.
+  test:
+    name: test (windows-latest)
+    needs: [changes, check]
+    if: needs.changes.outputs.windows_test == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+        with:
+          workspaces: |
+            . -> target
+            spikes/vaultcore -> target
+      - name: Workspace tests
+        run: cargo test --workspace --locked
+      - name: vaultcore tests
+        working-directory: spikes/vaultcore
+        run: cargo test --release
+
   desktop-tests:
-    name: desktop-tests (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: desktop-tests (windows-latest)
+    needs: [changes, check]
+    if: needs.changes.outputs.desktop_windows == 'true'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
       - name: Install Rust
         shell: bash
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+        with:
+          workspaces: apps/desktop/src-tauri -> target
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
@@ -217,20 +215,26 @@ jobs:
         run: npx --no-install vitest run src
       - name: Desktop unit tests
         working-directory: apps/desktop/src-tauri
-        run: cargo test
+        run: cargo test --locked
 
+  # The desktop program for Windows. A pull request builds only the program (no server or command line packages: those
+  # are built by the release workflows, include_tools is off here) and checks the package.
   desktop:
     name: desktop
+    needs: [changes, check]
+    if: needs.changes.outputs.desktop_windows == 'true'
     uses: ./.github/workflows/build-portable.yml
     with:
       label: ci-${{ github.run_number }}
       platforms: windows
 
-  # The only macOS job. GitHub's macOS arm64 runners are scarce, so CI uses the Intel pool and only for pull requests
-  # that touch something macOS can differ on. The release workflow builds on arm64 (the build-portable default).
+  # The only macOS job. GitHub's macOS arm64 runners are scarce and queue for a long time (that was the original problem),
+  # so CI uses the Intel pool, and only for pull requests that touch something macOS can differ on (the rule is in
+  # scripts/lib/ci-jobs.sh: other workflows, such as the release or docker ones, do not count). The release workflows build
+  # on arm64 (the build-portable default) for the universal binaries.
   macos:
     name: macos
-    needs: changes
+    needs: [changes, check]
     if: github.event_name == 'pull_request' && needs.changes.outputs.macos == 'true'
     uses: ./.github/workflows/build-portable.yml
     with:
@@ -239,16 +243,39 @@ jobs:
       macos_runner: macos-15-intel
       run_tests: true
 
+  # The server container image: build it, run it with a volume, join two devices, restart it, and check what is inside.
+  # It needs only the quick check, not the Windows or macOS jobs.
+  docker:
+    name: docker
+    needs: [changes, check]
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2.7.8
+      - name: Build the command line client
+        run: cargo build -p onepaste-cli
+      - name: Container image end-to-end test
+        run: bash tests/e2e/docker.sh target/debug
+
   # The front end alone, built with a stand-in for the api module: screenshots of every screen, theme and language, the
   # empty, loading and error states, and the keyboard walkthroughs. No desktop program is needed.
   ui-screens:
     name: ui-screens
+    needs: [changes, check]
+    if: needs.changes.outputs.ui_screens == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
@@ -272,19 +299,71 @@ jobs:
             apps/desktop/test-results
           retention-days: 14
 
-  # The server container image: build it, run it with a volume, join two devices, restart it, and check what is inside
-  docker:
-    name: docker
-    needs: changes
-    if: needs.changes.outputs.docker == 'true'
+  # The update signing chain with a throwaway key: the Tauri signer makes a key and signs the manifest that the release
+  # script writes, and the program's own check accepts it and refuses a changed manifest. The key is made here and used
+  # nowhere else; the real key is a repository secret.
+  update-signing:
+    name: update-signing
+    needs: [changes, check]
+    if: needs.changes.outputs.update_signing == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-      - name: Build the command line client
-        run: cargo build -p onepaste-cli
-      - name: Container image end-to-end test
-        run: bash tests/e2e/docker.sh target/debug
+      - uses: Swatinem/rust-cache@v2.7.8
+      - name: Make a throwaway signing key
+        working-directory: apps/desktop
+        run: npx --no-install tauri signer generate --ci --password "" --write-keys "$RUNNER_TEMP/throwaway.key"
+      - name: Sign a sample manifest with the release script
+        env:
+          TAG: v0.0.1-main.99
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          printf '%s  OnePaste-%s-windows-x64-portable.zip\n%s  OnePaste-%s-macos-universal-portable.zip\n' "$(printf a | sha256sum | cut -d' ' -f1)" "$TAG" "$(printf b | sha256sum | cut -d' ' -f1)" "$TAG" > "$RUNNER_TEMP/out/SHA256SUMS.txt"
+          printf '## What'"'"'s changed\n- A sample change\n' > "$RUNNER_TEMP/notes.md"
+          TAURI_SIGNING_PRIVATE_KEY="$(cat "$RUNNER_TEMP/throwaway.key")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
+            bash scripts/sign-update-manifest.sh "$TAG" main "$RUNNER_TEMP/notes.md" owner/repo "$RUNNER_TEMP/out"
+          ls -l "$RUNNER_TEMP/out"
+      - name: The program accepts it
+        env:
+          UPDATE_TEST_PUBKEY_FILE: ${{ runner.temp }}/throwaway.key.pub
+          UPDATE_TEST_MANIFEST: ${{ runner.temp }}/out/latest.json
+          UPDATE_TEST_SIG: ${{ runner.temp }}/out/latest.json.sig
+        run: cargo test -p onepaste-app --test update_tauri_format -- --nocapture
+
+  # The one check to require in the branch protection: it passes when every job passed or was skipped on purpose, and
+  # fails when any job failed or was cancelled. Because jobs are skipped by path, requiring each of them separately would
+  # leave a pull request waiting for a check that never appears.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, pr-only, check, e2e, portability, test, desktop-tests, desktop, macos, docker, ui-screens, update-signing]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS"])
+          bad = {k: v["result"] for k, v in needs.items() if v["result"] not in ("success", "skipped")}
+          for k, v in sorted(needs.items()):
+              print("%-16s %s" % (k, v["result"]))
+          if bad:
+              print("FAIL: " + ", ".join("%s was %s" % kv for kv in sorted(bad.items())), file=sys.stderr)
+              sys.exit(1)
+          print("every job passed or was skipped")
+          PY

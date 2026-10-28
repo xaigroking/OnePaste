@@ -92,6 +92,8 @@ jobs:
       build_tag: ${{ needs.plan.outputs.tag }}
       retention_days: 1
       include_tools: true
+      # Nothing compiled by an earlier run may end up in a package; downloaded sources are still reused
+      cache_targets: false
     secrets: inherit
 
   publish:
@@ -106,6 +108,9 @@ jobs:
     env:
       TAG: ${{ needs.plan.outputs.tag }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The key that signs update manifests; the repository owner sets it. Without it no manifest is made.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -124,20 +129,34 @@ jobs:
           prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
           bash scripts/make-release-notes.sh "$TAG" "$GITHUB_SHA" "$prev" > notes.md
           { echo; cat downloads.md; } >> notes.md
+      - name: Install the signer (only when the update signing key is set up)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies for the signer
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Make and sign the update manifest
+        run: bash scripts/sign-update-manifest.sh "$TAG" main notes.md "$GITHUB_REPOSITORY" out
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-path: |
             out/*.zip
+            out/latest.json*
       - name: Make the annotated tag and publish the pre-release
         run: |
           set -euo pipefail
           git -c user.name="OnePaste release workflow" -c user.email="release@users.noreply.github.com" \
             tag -a "$TAG" "$GITHUB_SHA" -m "Automatic pre-release of main at $GITHUB_SHA"
           git push origin "refs/tags/$TAG"
+          # The manifest and its signature exist only when the signing key is set up
+          shopt -s nullglob
           gh release create "$TAG" --verify-tag --prerelease \
             --title "OnePaste $TAG" --notes-file notes.md \
-            out/*.zip out/SHA256SUMS.txt
+            out/*.zip out/SHA256SUMS.txt out/latest.json*
       - name: Keep the newest 10 automatic pre-releases
         run: |
           set -euo pipefail
@@ -168,3 +187,40 @@ jobs:
     with:
       tag: ${{ needs.plan.outputs.tag }}
       edge: true
+
+  # A failed automatic release must not go unnoticed: it opens one issue for that commit (the run link and the names of
+  # the failed jobs, never log text), and a later successful release closes the open ones.
+  report:
+    name: report
+    if: always() && needs.changes.outputs.release == 'true'
+    needs: [changes, plan, build, publish, image]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RESULTS: ${{ toJSON(needs) }}
+    steps:
+      - name: Open or close the issue
+        run: |
+          set -euo pipefail
+          title="Automatic pre-release failed: ${GITHUB_SHA:0:7}"
+          failed=$(python3 -c 'import json, os; n = json.loads(os.environ["RESULTS"]); print(" ".join(sorted(k for k, v in n.items() if v["result"] in ("failure", "cancelled"))))')
+          if [ -n "$failed" ]; then
+            # The jobs inside the reusable workflows, by name
+            jobs=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join(", ")')
+            existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq 'length')
+            if [ "$existing" = "0" ]; then
+              body="The automatic pre-release of commit ${GITHUB_SHA:0:7} failed.\n\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\nFailed jobs: ${jobs:-$failed}"
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$(printf '%b' "$body")"
+            else
+              echo "An issue for this commit is already open"
+            fi
+          else
+            for n in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"Automatic pre-release failed:" in:title' --json number --jq '.[].number'); do
+              gh issue close "$n" --repo "$GITHUB_REPOSITORY" --comment "A later automatic pre-release succeeded: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            done
+          fi
+

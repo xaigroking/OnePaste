@@ -23,8 +23,14 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
+minisign-verify = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }
 sha2 = "0.10"
 thiserror = "1"
 
 [dev-dependencies]
 onepaste-server = { path = "../onepaste-server" }
+minisign = "0.7"
+axum = "0.8"
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

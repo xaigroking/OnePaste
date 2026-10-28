@@ -6,6 +6,9 @@ import { formatRelative, formatSize, isLink } from "../format";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { Badge, Button, Chip } from "./ui";
+import { ImageDetail } from "./ImageDetail";
+import { ImageThumb } from "./ImageThumb";
+import { TextDetail } from "./TextDetail";
 
 // Links, files and code have no type of their own in the history yet: their chips are there and show nothing
 const FILTERS: Filter[] = ["all", "favorites", "text", "links", "images", "files", "code"];
@@ -32,9 +35,12 @@ interface Props {
   act: (work: Promise<void>) => Promise<void>;
   loadState: "loading" | "ready" | "error";
   loadError: string;
+  /** The height the user gave the text preview, and what to do when they change it. */
+  previewHeight: number | null;
+  onPreviewHeight: (px: number) => void;
 }
 
-export function HistoryView({ items, query, filter, onQuery, onFilter, act, loadState, loadError }: Props) {
+export function HistoryView({ items, query, filter, onQuery, onFilter, act, loadState, loadError, previewHeight, onPreviewHeight }: Props) {
   const { t, i18n } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -130,9 +136,13 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
                   onClick={() => setSelectedId(it.itemId)}
                   onDoubleClick={() => void act(api.copy(it.itemId))}
                 >
-                  <span className="row-icon">
-                    <Icon name={kindIcon(it)} />
-                  </span>
+                  {it.kind === "image" ? (
+                    <ImageThumb itemId={it.itemId} />
+                  ) : (
+                    <span className="row-icon">
+                      <Icon name={kindIcon(it)} />
+                    </span>
+                  )}
                   <span className="row-body">
                     <span className="row-title">{itemTitle(it, t)}</span>
                     {(meta.length > 0 || it.note) && (
@@ -177,16 +187,11 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
         </div>
         {selected ? (
           <>
-            <div className="preview">
-              {selected.kind === "image" ? (
-                <div className="preview-image">
-                  <Icon name="image" size={30} />
-                  <span>{t("item.image", { width: selected.width, height: selected.height, size: formatSize(selected.size) })}</span>
-                </div>
-              ) : (
-                <p>{selected.preview}</p>
-              )}
-            </div>
+            {selected.kind === "image" ? (
+              <ImageDetail item={selected} act={act} />
+            ) : (
+              <TextDetail item={selected} height={previewHeight} onHeight={onPreviewHeight} act={act} />
+            )}
             {(selected.sourceDevice || selected.sourceApp || selected.createdAtMs) && (
               <p className="muted small">
                 {t("detail.from", {
@@ -197,9 +202,11 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
               </p>
             )}
             <div className="detail-actions">
-              <Button variant="primary" className="grow" onClick={() => void act(api.copy(selected.itemId))}>
-                {t("item.copy")}
-              </Button>
+              {selected.kind !== "image" && (
+                <Button variant="primary" className="grow" onClick={() => void act(api.copy(selected.itemId))}>
+                  {t("item.copy")}
+                </Button>
+              )}
               <Button
                 aria-pressed={selected.favorite}
                 onClick={() => void act(api.setFlags(selected.itemId, { favorite: !selected.favorite }))}

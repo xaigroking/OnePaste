@@ -3,7 +3,7 @@
 use crate::lang::{self, Preference};
 use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
-use onepaste_app::{parse_filter, App, DeviceList, ItemView, Mode, ServerVault, Settings, Status};
+use onepaste_app::{parse_filter, App, DeviceList, ImageData, ItemView, Mode, ServerVault, Settings, Status, UpdateInfo};
 use onepaste_platform::clipboard::{self, Content};
 use onepaste_platform::system;
 use serde::Serialize;
@@ -158,6 +158,81 @@ pub fn hide_quick_panel(app: AppHandle) {
 pub fn set_device_count(app: AppHandle, count: Option<usize>) {
     app.state::<AppState>().0.lock().unwrap().device_count = count;
     tray::refresh(&app);
+}
+
+/// The picture of an image item (never logged).
+#[tauri::command]
+pub async fn app_item_image(core: State<'_, App>, item_id: String) -> Result<ImageData, String> {
+    core.item_image(&item_id).await.map_err(|e| e.code())
+}
+
+/// The whole text of a text item (never logged).
+#[tauri::command]
+pub async fn app_item_text(core: State<'_, App>, item_id: String) -> Result<String, String> {
+    core.item_text(&item_id).await.map_err(|e| e.code())
+}
+
+/// Saves the picture of an image item where the user chooses, with the system's save dialog. `Ok(false)` means the user
+/// cancelled the dialog. The default file name is given by the page (`OnePaste-<time>.png`).
+#[tauri::command]
+pub async fn app_save_image(core: State<'_, App>, item_id: String, file_name: String) -> Result<bool, String> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let image = core.item_image(&item_id).await.map_err(|e| e.code())?;
+    let bytes = B64.decode(image.data).map_err(|_| "save_failed".to_string())?;
+    let chosen = rfd::AsyncFileDialog::new().set_file_name(&file_name).add_filter("PNG image", &["png"]).save_file().await;
+    let Some(file) = chosen else { return Ok(false) };
+    file.write(&bytes).await.map_err(|_| "save_failed".to_string())?;
+    Ok(true)
+}
+
+/// Looks for a newer version. A check the user asked for returns why it failed; a background check never does.
+#[tauri::command]
+pub async fn app_check_update(core: State<'_, App>, manual: bool) -> Result<Option<UpdateInfo>, String> {
+    core.check_for_update(manual).await.map_err(|e| e.code())
+}
+
+/// The newer version the last check found and the user has not skipped.
+#[tauri::command]
+pub fn app_available_update(core: State<App>) -> Option<UpdateInfo> {
+    core.available_update()
+}
+
+/// The user chose "skip this version".
+#[tauri::command]
+pub fn app_skip_update(core: State<App>, version: String) -> Result<(), String> {
+    core.skip_update(&version).map_err(|e| e.code())
+}
+
+/// Opens a release page in the system browser. Only pages of this project's releases are opened.
+#[tauri::command]
+pub fn app_open_release(url: String) -> Result<(), String> {
+    if !url.starts_with("https://github.com/xaigroking/OnePaste/releases/") || url.chars().any(|c| c.is_control() || c == ' ') {
+        return Err("invalid_url".into());
+    }
+    open_in_browser(&url).map_err(|_| "open_failed".to_string())
+}
+
+fn open_in_browser(url: &str) -> std::io::Result<()> {
+    use std::process::Command;
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = Command::new("rundll32");
+        c.args(["url.dll,FileProtocolHandler", url]);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = Command::new("open");
+        c.arg(url);
+        c
+    };
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let mut cmd = {
+        let mut c = Command::new("xdg-open");
+        c.arg(url);
+        c
+    };
+    cmd.spawn().map(|_| ())
 }
 
 /// The devices of the vault and the server they sync through.

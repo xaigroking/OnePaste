@@ -17,6 +17,7 @@ onepaste-core = { path = "../onepaste-core" }
 onepaste-sync = { path = "../onepaste-sync" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8"
 rusqlite = { version = "0.41", features = ["bundled"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "net"] }
 serde = { version = "1", features = ["derive"] }
