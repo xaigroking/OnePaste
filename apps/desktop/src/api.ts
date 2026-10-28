@@ -68,6 +68,16 @@ export interface UpdateInfo {
   releaseUrl: string;
 }
 
+export interface ImageData {
+  /** The PNG file, base64 encoded. */
+  data: string;
+  width: number;
+  height: number;
+  /** Size of the PNG in bytes. */
+  size: number;
+  format: string;
+}
+
 export interface AppSettings {
   autoApplyRemote: boolean;
   recordClipboard: boolean;
@@ -149,6 +159,10 @@ export const api = {
   skipUpdate: (version: string) => invoke<void>("app_skip_update", { version }),
   openRelease: (url: string) => invoke<void>("app_open_release", { url }),
   closeToTray: (dontShowAgain: boolean) => invoke<void>("close_to_tray", { dontShowAgain }),
+  itemImage: (itemId: string) => invoke<ImageData>("app_item_image", { itemId }),
+  itemText: (itemId: string) => invoke<string>("app_item_text", { itemId }),
+  /** Saves the picture where the user chooses; false if they cancelled the dialog. */
+  saveImage: (itemId: string, fileName: string) => invoke<boolean>("app_save_image", { itemId, fileName }),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),

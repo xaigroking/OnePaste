@@ -358,5 +358,30 @@
     "body": "关闭窗口不会退出 OnePaste。它会继续在托盘（Mac 上是菜单栏）里运行，才能记录你复制的内容。点它的图标可以重新打开窗口，选“退出”才会完全关闭。",
     "dontShow": "不再提示",
     "hide": "隐藏窗口"
+  },
+  "image": {
+    "alt": "图片，{{width}}×{{height}} 像素",
+    "loading": "正在加载图片…",
+    "failed": "图片无法显示。",
+    "tools": "图片工具",
+    "viewLarger": "放大查看",
+    "actual": "100%",
+    "fitWindow": "适应窗口",
+    "fit": "适应窗口",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "close": "关闭",
+    "viewerTitle": "图片",
+    "copy": "复制图片",
+    "saveAs": "另存为…",
+    "saved": "已保存。",
+    "saveFailed": "图片没有保存成功。请检查所选位置后再试。"
+  },
+  "text": {
+    "expand": "展开",
+    "lines": "共 {{count}} 行",
+    "fullTitle": "全文",
+    "monospace": "等宽字体",
+    "copyAll": "复制全部"
   }
 }

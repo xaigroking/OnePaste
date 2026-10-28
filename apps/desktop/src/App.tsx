@@ -273,6 +273,8 @@ export default function App() {
             act={act}
             loadState={itemsState}
             loadError={itemsError}
+            previewHeight={settings?.textPreviewHeight ?? null}
+            onPreviewHeight={(px) => settings && void changeSetting({ ...settings, textPreviewHeight: px })}
           />
         )}
         {activeView === "devices" && <DevicesView status={status} onCount={setDeviceCount} />}

@@ -181,3 +181,24 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .modal { width: min(460px, 100%); margin: 0; }
 .update-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; margin: 10px 0; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-control); font: inherit; }
 .modal-actions { margin-top: 12px; justify-content: flex-end; }
+
+/* Pictures and long text in the detail pane */
+.thumb { overflow: hidden; padding: 0; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.image-preview { flex: none; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 6px; display: grid; place-items: center; max-height: 240px; overflow: auto; min-height: 80px; }
+.image-preview img { max-width: 100%; max-height: 228px; cursor: zoom-in; display: block; }
+.image-actual { place-items: start; }
+.image-actual img { max-width: none; max-height: none; }
+.image-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.notice-ok { background: var(--ok-bg); color: var(--ok-fg); }
+.text-box { flex: none; resize: vertical; overflow: auto; min-height: 72px; max-height: 60vh; user-select: text; -webkit-user-select: text; cursor: text; }
+.text-box p { user-select: text; -webkit-user-select: text; }
+.text-viewer { width: min(720px, 100%); }
+.full-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow: auto; margin: 10px 0; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-control); font: inherit; user-select: text; -webkit-user-select: text; }
+.full-text.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.viewer-backdrop { padding: 0; background: rgba(0, 0, 0, .75); }
+.viewer { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.viewer-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.viewer-level { min-width: 64px; text-align: center; font-size: 13px; color: var(--muted); }
+.viewer-pane { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; cursor: grab; }
+.viewer-pane:active { cursor: grabbing; }

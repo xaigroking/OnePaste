@@ -358,5 +358,30 @@
     "body": "Closing the window does not quit OnePaste. It keeps running in the tray (the menu bar on a Mac) so that it can record what you copy. Click its icon to open the window again, and choose Quit to close it completely.",
     "dontShow": "Do not show this again",
     "hide": "Hide the window"
+  },
+  "image": {
+    "alt": "Image, {{width}} by {{height}} pixels",
+    "loading": "Loading the picture\u2026",
+    "failed": "The picture could not be shown.",
+    "tools": "Picture tools",
+    "viewLarger": "View larger",
+    "actual": "100%",
+    "fitWindow": "Fit",
+    "fit": "Fit",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "close": "Close",
+    "viewerTitle": "Picture",
+    "copy": "Copy image",
+    "saveAs": "Save as\u2026",
+    "saved": "Saved.",
+    "saveFailed": "The picture could not be saved. Check the place you chose and try again."
+  },
+  "text": {
+    "expand": "Expand",
+    "lines": "{{count}} lines",
+    "fullTitle": "Full text",
+    "monospace": "Monospaced",
+    "copyAll": "Copy all"
   }
 }

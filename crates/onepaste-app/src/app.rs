@@ -110,6 +110,19 @@ pub struct DeviceList {
     pub server_url: String,
 }
 
+/// The picture of an image item, for the detail pane, the thumbnail and the big view.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageData {
+    /// The PNG file, base64 encoded.
+    pub data: String,
+    pub width: u32,
+    pub height: u32,
+    /// Size of the PNG in bytes.
+    pub size: usize,
+    pub format: String,
+}
+
 /// An entry of the event log. It never holds clipboard content: only kinds, sizes and error codes.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -948,6 +961,28 @@ impl App {
             });
         }
         Ok(out)
+    }
+
+    /// The picture of an image item. It is read from the history store and passed on: it is never logged, never put in the
+    /// diagnostics and never written anywhere. A text item is `NotAnImage`.
+    pub async fn item_image(&self, item_id: &str) -> Result<ImageData, AppError> {
+        let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
+        if payload.kind != "image" {
+            return Err(AppError::NotAnImage);
+        }
+        let data = payload.content.clone().ok_or(AppError::NotFound)?;
+        let dim = |k: &str| payload.extra.get(k).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let size = payload.extra.get("size").and_then(|v| v.as_u64()).map(|n| n as usize).unwrap_or_else(|| B64.decode(&data).map(|b| b.len()).unwrap_or(0));
+        Ok(ImageData { data, width: dim("width"), height: dim("height"), size, format: "png".into() })
+    }
+
+    /// The whole text of a text item (the list shows only its first line). Never logged. An image is `NotText`.
+    pub async fn item_text(&self, item_id: &str) -> Result<String, AppError> {
+        let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
+        if payload.kind == "image" {
+            return Err(AppError::NotText);
+        }
+        payload.content.ok_or(AppError::NotFound)
     }
 
     /// Puts an item back on the clipboard. The write carries the origin marker, so it does not become a new item.

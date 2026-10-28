@@ -37,6 +37,10 @@ pub enum AppError {
     WrongKey,
     #[error("item not found")]
     NotFound,
+    #[error("the item is not an image")]
+    NotAnImage,
+    #[error("the item is not text")]
+    NotText,
     #[error("the image is too large to sync")]
     ImageTooLarge,
     #[error("clipboard failed ({0})")]
@@ -69,6 +73,8 @@ impl AppError {
             AppError::SecretStore(c) => format!("secret_store_{c}"),
             AppError::WrongKey => "wrong_key".into(),
             AppError::NotFound => "not_found".into(),
+            AppError::NotAnImage => "not_an_image".into(),
+            AppError::NotText => "not_text".into(),
             AppError::ImageTooLarge => "image_too_large".into(),
             AppError::Clipboard(c) => format!("clipboard_{c}"),
             AppError::Storage(_) => "storage".into(),
