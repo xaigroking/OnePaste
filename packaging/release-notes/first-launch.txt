@@ -8,3 +8,5 @@ Windows and macOS each ask you to allow OnePaste the first time you open it, bec
 2. Open `System Settings` → `Privacy & Security`, scroll down to the `Security` section.
 3. Click `Open Anyway` next to the message about `OnePaste`, then confirm (it may ask for your password or Touch ID).
 4. If the message says the app "is damaged and can't be opened", run `xattr -cr <path>/OnePaste.app` in Terminal (replace `<path>` with the folder that contains the app) and try again.
+
+We suggest dragging `OnePaste.app` into the `Applications` folder before you open it, because macOS may otherwise run a temporary copy of an app that was started from the Downloads folder. Closing the window does not quit OnePaste: it keeps running in the menu bar. Click its icon to open the window again, and choose `Quit` there (or press Command-Q while the window is open) to close it.

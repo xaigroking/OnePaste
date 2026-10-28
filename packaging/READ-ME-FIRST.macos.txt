@@ -17,6 +17,14 @@ time you open it. This is expected, and the app is not damaged. To allow it:
 
 You only have to do this once.
 
+We suggest dragging OnePaste.app into the Applications folder before you open it. When an
+app is run straight from the Downloads folder, macOS may run a temporary copy of it from a
+random place instead.
+
+Closing the window does not quit OnePaste: it keeps running in the menu bar. Click its icon
+to open the window again. To quit, choose Quit from that menu, or press Command-Q while the
+window is open.
+
 OnePaste is an early beta. It can keep a searchable history of what you copy and,
 if you connect it to your own server, sync it between your computers. See the
 release page for what works, what does not yet, and how to remove it completely.

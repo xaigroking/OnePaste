@@ -353,6 +353,12 @@
       "other": "检查没有成功（{{code}}）。"
     }
   },
+  "closeNotice": {
+    "title": "OnePaste 仍在运行",
+    "body": "关闭窗口不会退出 OnePaste。它会继续在托盘（Mac 上是菜单栏）里运行，才能记录你复制的内容。点它的图标可以重新打开窗口，选“退出”才会完全关闭。",
+    "dontShow": "不再提示",
+    "hide": "隐藏窗口"
+  },
   "image": {
     "alt": "图片，{{width}}×{{height}} 像素",
     "loading": "正在加载图片…",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, onChanged, onNavigate, onUpdateAvailable } from "./api";
+import { api, onChanged, onCloseNotice, onNavigate, onUpdateAvailable } from "./api";
 import type {
   ActionResult,
   AppSettings,
@@ -23,6 +23,7 @@ import { Onboarding } from "./onboarding";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
+import { CloseNotice } from "./components/CloseNotice";
 import { UpdateDialog } from "./components/UpdateDialog";
 import type { View } from "./components/Sidebar";
 
@@ -48,6 +49,7 @@ export default function App() {
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [closing, setClosing] = useState(false);
   // The newest search wins: an older, slower answer must not overwrite it
   const searchSeq = useRef(0);
 
@@ -141,6 +143,15 @@ export default function App() {
     return () => unlisten?.();
   }, []);
 
+  // The window was asked to close: the first time, the user is told the program keeps running in the tray
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void onCloseNotice(() => setClosing(true)).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+  }, []);
+
   // The tray menu asks for a page ("Devices...", "Settings...")
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -228,6 +239,14 @@ export default function App() {
   return (
     <div className="app">
       {updateDialog}
+      {closing && (
+        <CloseNotice
+          onHide={(again) => {
+            setClosing(false);
+            void api.closeToTray(again);
+          }}
+        />
+      )}
       <Sidebar
         view={activeView}
         onView={setView}

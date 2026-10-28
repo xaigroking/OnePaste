@@ -44,7 +44,7 @@ const ITEMS: ItemView[] = [
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, textPreviewHeight: null };
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
@@ -94,6 +94,9 @@ const UPDATE: UpdateInfo = {
 };
 
 export const api = {
+  closeToTray: async (_dontShowAgain: boolean) => {
+    called("closeToTray");
+  },
   itemImage: async (_itemId: string): Promise<ImageData> => makePicture(),
   itemText: async (itemId: string): Promise<string> => {
     if (SCREEN === "longtext" || SCREEN === "textview") return LONG_TEXT;
@@ -194,5 +197,10 @@ export async function onQuickOpened(_handler: () => void): Promise<() => void> {
 }
 
 export async function onUpdateAvailable(_handler: (info: UpdateInfo) => void): Promise<() => void> {
+  return () => undefined;
+}
+
+export async function onCloseNotice(handler: () => void): Promise<() => void> {
+  if (SCREEN === "closenote") window.setTimeout(handler, 0);
   return () => undefined;
 }

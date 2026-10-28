@@ -23,6 +23,9 @@ pub struct TrayItems {
 }
 
 pub fn show_main_window(app: &AppHandle) {
+    // On macOS the Dock icon (and with it the application menu, Command-Q) is there while the window is
+    #[cfg(target_os = "macos")]
+    let _ = app.set_dock_visibility(true);
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -55,7 +58,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &items)?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::new_owned(icons::rgba(TrayState::Synced), icons::SIZE, icons::SIZE))
+        .icon(Image::new_owned(icons::tray_pixels(TrayState::Synced), icons::SIZE, icons::SIZE))
+        .icon_as_template(cfg!(target_os = "macos"))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(on_menu_event)
@@ -127,7 +131,9 @@ pub fn refresh(app: &AppHandle) {
         line.push_str(&format!(" · {}", texts.devices_count.replace("{count}", &n.to_string())));
     }
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
-        let _ = tray.set_icon(Some(Image::new_owned(icons::rgba(state), icons::SIZE, icons::SIZE)));
+        let _ = tray.set_icon(Some(Image::new_owned(icons::tray_pixels(state), icons::SIZE, icons::SIZE)));
+        #[cfg(target_os = "macos")]
+        let _ = tray.set_icon_as_template(true);
         let _ = tray.set_tooltip(Some(texts.tooltip.replace("{state}", &name)));
     }
     if let Some(items) = app.try_state::<TrayItems>() {
