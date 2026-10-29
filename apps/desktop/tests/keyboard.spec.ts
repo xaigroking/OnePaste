@@ -134,12 +134,13 @@ for (const failure of [false, true]) {
     await page.getByLabel("Name of this device").fill("Test computer");
     const summary = page.locator("summary");
     await expect(page.locator("details")).not.toHaveAttribute("open", "");
-    await summary.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Shift+Tab");
     await expect(summary).toBeFocused();
     await expect(summary).toHaveCSS("outline-style", "solid");
     await page.keyboard.press("Enter");
     await expect(page.locator("details")).toHaveAttribute("open", "");
-    await expect(page.locator("details")).toContainText("Docker");
+    await expect(page.locator("details")).toContainText("onepaste1:");
     await summary.click();
     await expect(page.locator("details")).not.toHaveAttribute("open", "");
     expect(await page.evaluate(() => window.__called ?? [])).toEqual([]);
