@@ -191,7 +191,7 @@
     "addTitle": "Add a device",
     "addBody": "Make a connection code, then open OnePaste on the other computer and choose \"Connect to my own server\".",
     "addMake": "Make a connection code",
-    "addReminder": "The new device also needs your passphrase. Keep your recovery kit safe: it is the only way back if you forget the passphrase. A new code replaces any earlier unused one.",
+    "addReminder": "On the second desktop, choose Connect to my own server, paste this new code, click Next and enter your original passphrase to Join. This code is single-use; do not share it publicly. Generating another code invalidates earlier unused codes. Keep your recovery kit safe in case you forget the passphrase.",
     "addDone": "Done",
     "footer": "Syncing through your own server: {{server}}",
     "localTitle": "This computer keeps its history to itself",
@@ -220,8 +220,17 @@
     "code": {
       "title": "Connect to your server",
       "intro": "Enter the connection code your server gave you.",
-      "serverHelp": "To start a server and get a connection code, see \"Run your own server\" in the README on the OnePaste project page.",
-      "code": "Connection code"
+      "serverHelp": "Run the server on the Docker machine and use the desktop app on your computers.",
+      "code": "Connection code",
+      "openHelp": "View self-hosting steps",
+      "helpError": "Could not open the browser. Try again; your entries are still here.",
+      "stepsTitle": "How to connect your computers",
+      "steps": {
+        "code": "Get the complete onepaste1: connection code from the server, paste it here, then click Next. The server address is not an administration webpage.",
+        "first": "First computer on an empty server: choose and confirm a passphrase \u2192 Next \u2192 save the recovery kit offline \u2192 check the saved confirmation \u2192 Done.",
+        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose \u201cI forgot my passphrase, I have a recovery kit\u201d.",
+        "second": "For a second computer, get a fresh code from the connected desktop: Devices \u2192 Add a device \u2192 Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
+      }
     },
     "unlock": {
       "title": "This server already has a vault",

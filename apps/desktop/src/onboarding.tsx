@@ -153,6 +153,7 @@ function OnboardingSteps({ onDone, onStep }: { onDone: () => void; onStep: (n: 1
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [helpError, setHelpError] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const name = () => deviceName.trim() || "OnePaste desktop";
@@ -200,6 +201,20 @@ function OnboardingSteps({ onDone, onStep }: { onDone: () => void; onStep: (n: 1
         <h2>{t("onboarding.code.title")}</h2>
         <p className="muted">{t("onboarding.code.intro")}</p>
         <p className="muted">{t("onboarding.code.serverHelp")}</p>
+        <Button onClick={() => {
+          setHelpError(false);
+          void api.openServerHelp().catch(() => setHelpError(true));
+        }}>{t("onboarding.code.openHelp")}</Button>
+        {helpError && <p className="notice notice-warn" role="alert">{t("onboarding.code.helpError")}</p>}
+        <details>
+          <summary>{t("onboarding.code.stepsTitle")}</summary>
+          <ol className="muted">
+            <li>{t("onboarding.code.steps.code")}</li>
+            <li>{t("onboarding.code.steps.first")}</li>
+            <li>{t("onboarding.code.steps.existing")}</li>
+            <li>{t("onboarding.code.steps.second")}</li>
+          </ol>
+        </details>
         <label className="field">
           <span>{t("onboarding.code.code")}</span>
           <input value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} autoComplete="off" />

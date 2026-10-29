@@ -89,6 +89,7 @@ fn main() {
             commands::app_available_update,
             commands::app_skip_update,
             commands::app_open_release,
+            commands::app_open_server_help,
             commands::app_revoke_device,
             commands::app_new_connection_code,
             commands::app_version,

@@ -15,7 +15,7 @@ h2 { font-size: 14px; margin: 0 0 10px; }
 kbd { font: 12px ui-monospace, "SFMono-Regular", Consolas, monospace; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
 
 button, input, select { font: inherit; color: inherit; }
-button:focus-visible, input:focus-visible, select:focus-visible, .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+summary:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Layout */
 .app { display: grid; grid-template-columns: 176px 1fr; height: 100%; }
@@ -106,7 +106,7 @@ details summary { cursor: pointer; padding: 6px 0; color: var(--muted); }
 .device { display: flex; align-items: center; gap: 12px; }
 
 /* Join */
-.join-wrap { display: grid; place-items: center; height: 100%; padding: 16px; overflow: auto; }
+.join-wrap { display: grid; place-items: safe center; height: 100%; padding: 16px; overflow: auto; }
 .join-card { width: min(440px, 100%); }
 .join-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); margin-bottom: 10px; }
 

@@ -118,3 +118,74 @@ test("first run: choosing local-only works with the keyboard alone", async ({ pa
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["chooseLocalOnly"]);
 });
+
+for (const failure of [false, true]) {
+  test(`self-hosted help preserves input without pairing (failure=${failure})`, async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator.clipboard, "readText", { value: async () => {
+        window.__called = [...(window.__called ?? []), "readClipboard"];
+        return "test-only-clipboard";
+      } });
+    });
+    await page.goto(`/?screen=ob1&lang=en&help=${failure ? "error" : "ok"}`);
+    await page.locator('input[value="server"]').check();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByLabel("Connection code", { exact: true }).fill("onepaste1:test-only");
+    await page.getByLabel("Name of this device").fill("Test computer");
+    const summary = page.locator("summary");
+    await expect(page.locator("details")).not.toHaveAttribute("open", "");
+    await summary.focus();
+    await expect(summary).toBeFocused();
+    await expect(summary).toHaveCSS("outline-style", "solid");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("details")).toHaveAttribute("open", "");
+    await expect(page.locator("details")).toContainText("Docker");
+    await summary.click();
+    await expect(page.locator("details")).not.toHaveAttribute("open", "");
+    expect(await page.evaluate(() => window.__called ?? [])).toEqual([]);
+    await page.getByRole("button", { name: "View self-hosting steps" }).click();
+    await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["openServerHelp"]);
+    await expect(page.getByLabel("Connection code", { exact: true })).toHaveValue("onepaste1:test-only");
+    await expect(page.getByLabel("Name of this device")).toHaveValue("Test computer");
+    if (failure) await expect(page.getByRole("alert")).toContainText("Could not open");
+  });
+}
+
+for (const vault of ["empty", "existing"]) {
+  test(`first run: ${vault} vault follows the correct registration path`, async ({ page }) => {
+    await page.goto(`/?screen=ob1&lang=en&vault=${vault}`);
+    await page.locator('input[value="server"]').check();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByLabel("Connection code", { exact: true }).fill("onepaste1:test-only");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    expect(await page.evaluate(() => window.__called)).toEqual(["probeServer"]);
+    if (vault === "existing") {
+      await page.getByLabel("Passphrase", { exact: true }).fill("test-only-original-passphrase");
+      await page.getByRole("button", { name: "Join", exact: true }).click();
+      await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["probeServer", "join"]);
+    } else {
+      await page.getByLabel("Passphrase", { exact: true }).fill("test-only-new-passphrase");
+      await page.getByLabel("Type it again").fill("test-only-new-passphrase");
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(page.getByTestId("kit")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Done", exact: true })).toBeDisabled();
+      expect(await page.evaluate(() => window.__called)).toEqual(["probeServer", "createVault"]);
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Save as file" }).click();
+      expect((await download).suggestedFilename()).toBe("onepaste-recovery-kit.txt");
+      await page.getByRole("checkbox").check();
+      expect(await page.evaluate(() => window.__called)).toEqual(["probeServer", "createVault"]);
+      await page.getByRole("button", { name: "Done", exact: true }).click();
+      await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["probeServer", "createVault", "confirmKitSaved"]);
+    }
+  });
+}
+
+test("devices: new code explains joining and reuses the copy action", async ({ page }) => {
+  await page.goto("/?screen=dev&lang=en");
+  await page.getByRole("button", { name: "Make a connection code" }).click();
+  await expect(page.getByTestId("connection-code")).toBeVisible();
+  await expect(page.getByText(/On the second desktop/)).toContainText("single-use");
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__called)).toEqual(["newConnectionCode", "copySecret"]);
+});

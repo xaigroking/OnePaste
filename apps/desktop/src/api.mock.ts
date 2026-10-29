@@ -115,6 +115,10 @@ export const api = {
   skipUpdate: async (_version: string) => {
     called("skipUpdate");
   },
+  openServerHelp: async () => {
+    called("openServerHelp");
+    if (q.get("help") === "error") throw "open_failed";
+  },
   openRelease: async (_url: string) => {
     called("openRelease");
   },
@@ -159,26 +163,26 @@ export const api = {
     return devices();
   },
   revokeDevice: async () => undefined,
-  newConnectionCode: async () => "onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9",
+  newConnectionCode: async () => { called("newConnectionCode"); return "onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9"; },
   version: async () => "0.0.1 (v0.0.1-main.1)",
   probeServer: async () => {
     called("probeServer");
     if (STATE === "loading") return never<"existing" | "empty">();
     if (STATE === "error") return Promise.reject("invalid_connection_code");
-    return "empty" as const;
+    return q.get("vault") === "existing" ? "existing" as const : "empty" as const;
   },
   generatePassphrase: async () => "7K3M-QX9D-4HFA-W2JB-N8RT",
-  createVault: async () => "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01",
-  confirmKitSaved: async () => undefined,
+  createVault: async () => { called("createVault"); return "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01"; },
+  confirmKitSaved: async () => { called("confirmKitSaved"); },
   cancelSetup: async () => undefined,
   chooseLocalOnly: async () => {
     called("chooseLocalOnly");
   },
-  join: async () => undefined,
+  join: async () => { called("join"); },
   joinWithKit: async () => undefined,
   showKit: async () => "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01",
   wipeLocalData: async () => undefined,
-  copySecret: async () => undefined,
+  copySecret: async () => { called("copySecret"); },
 };
 
 export async function onChanged(_handler: () => void): Promise<() => void> {

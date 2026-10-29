@@ -223,6 +223,13 @@ pub fn app_open_release(url: String) -> Result<(), String> {
     open_in_browser(&url).map_err(|_| "open_failed".to_string())
 }
 
+/// Opens the fixed public self-hosting guide without including any user data.
+#[tauri::command]
+pub fn app_open_server_help() -> Result<(), String> {
+    open_in_browser("https://github.com/xaigroking/OnePaste#run-your-own-server")
+        .map_err(|_| "open_failed".to_string())
+}
+
 fn open_in_browser(url: &str) -> std::io::Result<()> {
     use std::process::Command;
     #[cfg(windows)]
