@@ -26,6 +26,20 @@ pub struct InstanceLock {
     _file: File,
 }
 
+#[cfg(unix)]
+impl Drop for InstanceLock {
+    fn drop(&mut self) {
+        use std::os::fd::AsRawFd;
+        // A concurrent fork can retain the open file description until exec closes its inherited descriptor.
+        // Release the owner's lock explicitly instead of waiting for every inherited copy to close.
+        loop {
+            // SAFETY: this instance still owns the valid descriptor; File closes it after this destructor.
+            let result = unsafe { libc::flock(self._file.as_raw_fd(), libc::LOCK_UN) };
+            if result == 0 || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted { break; }
+        }
+    }
+}
+
 impl InstanceLock {
     /// Takes the lock. `Ok(None)` means another program holds it.
     pub fn acquire(dir: &Path) -> io::Result<Option<InstanceLock>> {
