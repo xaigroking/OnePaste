@@ -45,16 +45,17 @@ const ITEMS: ItemView[] = [
 ];
 
 const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
-  const mode: Mode = joined ? "synced" : "unset";
+  const mode: Mode = joined ? q.get("mode") === "local" ? "local_only" : "synced" : "unset";
   const paused = SCREEN === "state" ? "revoked" : null;
   return { joined, mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
 };
 
 const devices = (): DeviceList => ({
-  serverUrl: "https://192.168.1.20:8443",
+  serverUrl,
   devices: [
     { deviceId: "d1", name: "My laptop", createdAt: NOW / 1000 - 86400 * 30, lastSeenAt: NOW / 1000, revoked: false, thisDevice: true },
     { deviceId: "d2", name: "Office Mac", createdAt: NOW / 1000 - 86400 * 20, lastSeenAt: NOW / 1000 - 120, revoked: false, thisDevice: false },
@@ -172,9 +173,21 @@ export const api = {
   version: async () => "0.0.1 (v0.0.1-main.1)",
   probeServer: async () => {
     called("probeServer");
+    if (q.get("serverChange") === "loading") return never<"existing" | "empty">();
+    if (q.get("serverChange") === "error") return Promise.reject("unreachable");
+    if (q.get("serverChangeVault") === "existing") return "existing" as const;
     if (STATE === "loading") return never<"existing" | "empty">();
     if (STATE === "error") return Promise.reject("invalid_connection_code");
     return q.get("vault") === "existing" ? "existing" as const : "empty" as const;
+  },
+  currentServerUrl: async () => status().mode === "synced" ? serverUrl : null,
+  changeServer: async (code: string, passphrase: string | null, recoveryKit: string | null) => {
+    called("changeServer");
+    const w = window as unknown as { __serverChanges?: { code: string; passphrase: string | null; recoveryKit: string | null }[] };
+    w.__serverChanges = [...(w.__serverChanges ?? []), { code, passphrase, recoveryKit }];
+    if (q.get("serverChangeCommit") === "error") throw "wrong_passphrase";
+    if (q.get("serverChangeCommit") === "unexpected") throw "onepaste1:do-not-show-error";
+    serverUrl = "https://new-server.example:8443";
   },
   generatePassphrase: async () => "7K3M-QX9D-4HFA-W2JB-N8RT",
   createVault: async () => { called("createVault"); return "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01"; },

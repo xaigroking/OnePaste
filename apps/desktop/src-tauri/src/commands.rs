@@ -253,6 +253,19 @@ fn open_in_browser(url: &str) -> std::io::Result<()> {
     cmd.spawn().map(|_| ())
 }
 
+/// The saved server address, even when that server cannot be reached.
+#[tauri::command]
+pub async fn app_current_server_url(core: State<'_, App>) -> Option<String> {
+    core.current_server_url().await
+}
+
+#[tauri::command]
+pub async fn app_change_server(app: AppHandle, core: State<'_, App>, code: String, passphrase: Option<String>, recovery_kit: Option<String>) -> Result<(), String> {
+    let result = core.change_server(&code, passphrase.as_deref(), recovery_kit.as_deref()).await.map_err(|e| e.code());
+    tray::notify_changed(&app);
+    result
+}
+
 /// The devices of the vault and the server they sync through.
 #[tauri::command]
 pub async fn app_devices(core: State<'_, App>) -> Result<DeviceList, String> {
