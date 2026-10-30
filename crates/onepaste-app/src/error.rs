@@ -90,6 +90,8 @@ impl AppError {
 impl From<ClientError> for AppError {
     fn from(e: ClientError) -> Self {
         match e {
+            ClientError::PassphrasePending => AppError::Server("passphrase_pending".into()),
+            ClientError::PassphraseStale => AppError::Server("passphrase_stale".into()),
             ClientError::WrongPassphrase => AppError::WrongPassphrase,
             ClientError::VaultEmpty => AppError::VaultEmpty,
             ClientError::WrongRecoveryKit => AppError::WrongRecoveryKit,

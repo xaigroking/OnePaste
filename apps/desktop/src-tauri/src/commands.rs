@@ -371,3 +371,18 @@ pub async fn copy_diagnostics_impl(app: &AppHandle) -> ActionResult {
 pub async fn copy_diagnostics(app: AppHandle) -> ActionResult {
     copy_diagnostics_impl(&app).await
 }
+
+#[tauri::command]
+pub async fn app_change_passphrase(app: AppHandle, core: State<'_, App>, old_passphrase: String, new_passphrase: String) -> Result<(), String> {
+    let result = core.change_passphrase(&old_passphrase, &new_passphrase).await.map_err(|e| e.code());
+    tray::notify_changed(&app); result
+}
+
+#[tauri::command]
+pub async fn app_passphrase_pending(core: State<'_, App>) -> Result<bool, String> { core.passphrase_change_pending().await.map_err(|e| e.code()) }
+
+#[tauri::command]
+pub async fn app_resume_passphrase_change(app: AppHandle, core: State<'_, App>) -> Result<(), String> {
+    let result = core.resume_passphrase_change().await.map_err(|e| e.code());
+    tray::notify_changed(&app); result
+}

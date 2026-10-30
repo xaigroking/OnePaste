@@ -9,6 +9,7 @@ import { Badge, Button, Card, Chip, Switch } from "./ui";
 import { SecurityCard } from "./SecurityCard";
 import { UpdatesCard } from "./UpdatesCard";
 import { ChangeServerButton } from "./ChangeServer";
+import { ChangePassphraseButton } from "./ChangePassphrase";
 import { HotkeyEditor } from "./HotkeyEditor";
 
 interface Props {
@@ -180,15 +181,11 @@ export function SettingsView(p: Props) {
 
       {p.settings && <UpdatesCard settings={p.settings} onSettings={p.onSettings} version={p.version} />}
 
-      <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped} />
+      <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped}>{p.status?.mode === "synced" && <ChangePassphraseButton />}</SecurityCard>
 
       <Card title={t("settingsMore.advanced")}>
         <div className="setting setting-soon">
           <span>{t("settingsMore.autoLock")}</span>
-          <Badge>{t("settingsMore.soon")}</Badge>
-        </div>
-        <div className="setting setting-soon">
-          <span>{t("settingsMore.changePassphrase")}</span>
           <Badge>{t("settingsMore.soon")}</Badge>
         </div>
         <div className="setting">

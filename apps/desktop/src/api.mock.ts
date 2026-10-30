@@ -103,6 +103,8 @@ const UPDATE: UpdateInfo = {
   releaseUrl: "https://github.com/xaigroking/OnePaste/releases/tag/v0.0.1-main.12",
 };
 
+let passphrasePending = q.get("passphrase") === "pending";
+
 export const api = {
   closeToTray: async (_dontShowAgain: boolean) => {
     called("closeToTray");
@@ -156,6 +158,12 @@ export const api = {
   setFlags: async () => undefined,
   remove: async () => undefined,
   settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
+  passphrasePending: async () => passphrasePending,
+  changePassphrase: async (_old: string, _next: string) => {
+    const error = q.get("passphraseError");
+    if (error) { if (error === "passphrase_pending") passphrasePending = true; throw error; }
+  },
+  resumePassphraseChange: async () => { if (q.get("passphraseRetry") === "error") throw "passphrase_pending"; passphrasePending = false; },
   setSettings: async (next: AppSettings) => {
     const w = window as unknown as { __settingsCalls?: AppSettings[] };
     w.__settingsCalls = [...(w.__settingsCalls ?? []), { ...next }];

@@ -37,6 +37,8 @@
   "log": {
     "title": "Event log",
     "empty": "No events yet.",
+    "passphrase_changed": "Passphrase changed",
+    "passphrase_change_failed": "Passphrase change could not be confirmed",
     "started": "App started",
     "wake": "System woke from sleep",
     "network_online": "Network connected",
@@ -464,6 +466,7 @@
     "reading": "Reading the saved address...",
     "addressUnavailable": "Saved address unavailable",
     "errors": {
+      "passphrase_pending": "Confirm the pending passphrase change in Settings before changing servers.",
       "unreachable": "The new server could not be reached. Your local history and current connection are unchanged. Check the new code and network, then try again.",
       "invalid_connection_code": "The connection code is not valid. Your local history and current connection are unchanged. Paste the complete new code and try again.",
       "registration_invalid": "The connection code has expired or was already used. Your local history and current connection are unchanged. Get a fresh code and try again.",
@@ -477,6 +480,38 @@
       "not_joined": "This computer is no longer connected to a server. Your history was not changed by this attempt. Close this dialog and check its setup.",
       "other": "The server change could not be confirmed. Your local history is kept. Close this dialog and reopen Settings to check the saved server address before retrying.",
       "server_change_failed": "The server could not be changed. Your local history and current connection are unchanged. Check the new code and try again."
+    }
+  },
+  "changePassphrase": {
+    "show": "Show new passphrase",
+    "hide": "Hide new passphrase",
+    "copy": "Copy new passphrase",
+    "action": "Change passphrase",
+    "title": "Change vault passphrase",
+    "old": "Current passphrase",
+    "new": "New passphrase",
+    "again": "Confirm new passphrase",
+    "save": "Save new passphrase",
+    "cancel": "Cancel",
+    "close": "Close",
+    "working": "Working…",
+    "retry": "Confirm previous change",
+    "done": "Passphrase changed. Use the new passphrase when adding a computer.",
+    "devices": "This re-wraps the same master key. Existing history is not re-encrypted, and devices that already have the key stay connected. Revoke a device if you no longer trust it.",
+    "recovery": "Your existing recovery kit remains valid. If you forget the new passphrase and lose the recovery kit, your data cannot be recovered.",
+    "pending": "A previous save has not been confirmed. Keep the new passphrase. Confirm that request before starting another change; closing this dialog will not cancel it.",
+    "errors": {
+      "wrong_passphrase": "The current passphrase is incorrect. Check it and try again.",
+      "passphrase_required": "Enter a new passphrase.",
+      "passphrase_pending": "The server result could not be confirmed. Keep the new passphrase and use Confirm previous change when the server is reachable.",
+      "passphrase_stale": "Another change replaced this request. Check the current passphrase and try again.",
+      "unreachable": "The server could not be reached before a change was submitted. Your local state is unchanged. Check the connection and retry.",
+      "revoked": "This device has been revoked and cannot change the passphrase.",
+      "rate_limited": "Too many requests. Wait and try again.",
+      "storage": "Could not prepare the change in local storage. Reopen OnePaste and retry.",
+      "wrong_key": "The server record does not match this vault. No change was made.",
+      "not_joined": "This computer is not connected to a self-hosted server.",
+      "other": "Could not confirm the change. Reopen this dialog to check for a pending request before retrying."
     }
   }
 }
