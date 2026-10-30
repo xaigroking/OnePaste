@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import type { AppStatus, DeviceList, DeviceView } from "../api";
 import { formatRelative } from "../format";
 import { Icon } from "./Icon";
 import { Badge, Button, Card } from "./ui";
+import { ChangeServerButton } from "./ChangeServer";
 
 /** The devices of the vault: who is in it, when they were last seen, removing one, and adding another. */
 export function DevicesView({ status, onCount }: { status: AppStatus | null; onCount: (n: number) => void }) {
@@ -13,16 +14,31 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
+  const [serverUrl, setServerUrl] = useState<string | null>();
+  const [serverRevision, setServerRevision] = useState(0);
+  const loadSequence = useRef(0);
+  const actionGeneration = useRef(0);
   const synced = status?.mode === "synced";
 
+  useEffect(() => () => { ++actionGeneration.current; }, [status?.deviceId]);
+
+  useEffect(() => {
+    if (!synced) return;
+    let active = true;
+    void api.currentServerUrl().then((url) => { if (active) setServerUrl(url); }).catch(() => { if (active) setServerUrl(null); });
+    return () => { active = false; };
+  }, [synced, status?.deviceId, serverRevision]);
+
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     try {
       const l = await api.devices();
+      if (sequence !== loadSequence.current) return;
       setList(l);
       setError(null);
       onCount(l.devices.filter((d) => !d.revoked).length);
     } catch (e) {
-      setError(String(e));
+      if (sequence === loadSequence.current) setError(String(e));
     }
   }, [onCount]);
 
@@ -30,7 +46,7 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
     if (!synced) return;
     void load();
     const timer = window.setInterval(() => void load(), 15000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearInterval(timer); ++loadSequence.current; };
   }, [synced, load]);
 
   if (status && !synced) {
@@ -47,21 +63,26 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
   }
 
   const remove = async (d: DeviceView) => {
+    const generation = actionGeneration.current;
     try {
       await api.revokeDevice(d.deviceId);
+      if (generation !== actionGeneration.current) return;
       setRemoving(null);
       await load();
     } catch (e) {
-      setError(String(e));
+      if (generation === actionGeneration.current) setError(String(e));
     }
   };
 
   const makeCode = async () => {
+    const generation = actionGeneration.current;
     try {
-      setCode(await api.newConnectionCode());
+      const nextCode = await api.newConnectionCode();
+      if (generation !== actionGeneration.current) return;
+      setCode(nextCode);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      if (generation === actionGeneration.current) setError(String(e));
     }
   };
 
@@ -159,7 +180,16 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
         )}
       </Card>
 
-      {list && <p className="muted small">{t("devices.footer", { server: list.serverUrl })}</p>}
+      {synced && <div className="row">
+        <p className="muted small">{t("devices.footer", { server: serverUrl === undefined ? t("changeServer.reading") : serverUrl ?? t("changeServer.addressUnavailable") })}</p>
+        <ChangeServerButton onChanged={() => {
+          ++actionGeneration.current;
+          ++loadSequence.current;
+          setCode(null); setRemoving(null); setList(null); setError(null);
+          setServerRevision((value) => value + 1);
+          void load();
+        }} />
+      </div>}
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../api";
 import { useTranslation } from "react-i18next";
 import type { ActionResult, AppSettings, AppStatus, HotkeyState, LanguagePreference, LanguageState, LogEntry } from "../api";
 import { applyTheme, formatClock, loadTheme } from "../format";
@@ -7,6 +8,7 @@ import type { ThemeChoice } from "../format";
 import { Badge, Button, Card, Chip, Switch } from "./ui";
 import { SecurityCard } from "./SecurityCard";
 import { UpdatesCard } from "./UpdatesCard";
+import { ChangeServerButton } from "./ChangeServer";
 
 interface Props {
   settings: AppSettings | null;
@@ -31,6 +33,15 @@ export function SettingsView(p: Props) {
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme);
   const [savingSecrets, setSavingSecrets] = useState(false);
   const [secretsSaveFailed, setSecretsSaveFailed] = useState(false);
+  const [serverUrl, setServerUrl] = useState<string | null>();
+  const [serverRevision, setServerRevision] = useState(0);
+  useEffect(() => {
+    if (p.status?.mode !== "synced") return;
+    let active = true;
+    setServerUrl(undefined);
+    void api.currentServerUrl().then((url) => { if (active) setServerUrl(url); }).catch(() => { if (active) setServerUrl(null); });
+    return () => { active = false; };
+  }, [p.status?.mode, p.status?.deviceId, serverRevision]);
   const changeSecrets = async (value: boolean) => {
     if (!p.settings || savingSecrets) return;
     setSavingSecrets(true);
@@ -132,6 +143,13 @@ export function SettingsView(p: Props) {
           <span>{t("settingsMore.syncMethod")}</span>
           <span className="muted">{p.localOnly ? t("settingsMore.syncLocal") : t("settingsMore.syncServer")}</span>
         </div>
+        {p.status?.mode === "synced" && <>
+          <div className="setting">
+            <span>{t("changeServer.serverLabel")}</span>
+            <span className="muted small">{serverUrl === undefined ? t("changeServer.reading") : serverUrl ?? t("changeServer.addressUnavailable")}</span>
+          </div>
+          <div className="setting"><ChangeServerButton onChanged={() => setServerRevision((value) => value + 1)} /></div>
+        </>}
         <div className="setting">
           <span>{t("settings.syncState")}</span>
           <Badge tone={p.status?.paused ? "danger" : "ok"}>{p.status?.paused ? t("status.stopped") : t("status.active")}</Badge>

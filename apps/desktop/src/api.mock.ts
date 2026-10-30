@@ -34,6 +34,12 @@ const called = (name: string) => {
 };
 
 const never = <T,>() => new Promise<T>(() => undefined);
+const deviceAction = <T,>(value: T): Promise<T> => {
+  if (q.get("deviceAction") !== "pending") return Promise.resolve(value);
+  return new Promise<T>((resolve, reject) => {
+    (window as unknown as { __finishDeviceAction?: (fail?: boolean) => void }).__finishDeviceAction = (fail) => fail ? reject("unreachable") : resolve(value);
+  });
+};
 
 const ITEMS: ItemView[] = [
   { itemId: "i1", kind: "text", preview: "Review moved to 3 pm Friday, room B2 \u5468\u4e94\u8bc4\u5ba1\u4f1a\u6539\u5230\u4e0b\u5348\u4e09\u70b9", favorite: false, pinned: true, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Chat", createdAtMs: NOW - 1 * MIN, syncState: "synced" },
@@ -45,16 +51,17 @@ const ITEMS: ItemView[] = [
 ];
 
 const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
-  const mode: Mode = joined ? "synced" : "unset";
+  const mode: Mode = joined ? q.get("mode") === "local" ? "local_only" : "synced" : "unset";
   const paused = SCREEN === "state" ? "revoked" : null;
   return { joined, mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
 };
 
 const devices = (): DeviceList => ({
-  serverUrl: "https://192.168.1.20:8443",
+  serverUrl,
   devices: [
     { deviceId: "d1", name: "My laptop", createdAt: NOW / 1000 - 86400 * 30, lastSeenAt: NOW / 1000, revoked: false, thisDevice: true },
     { deviceId: "d2", name: "Office Mac", createdAt: NOW / 1000 - 86400 * 20, lastSeenAt: NOW / 1000 - 120, revoked: false, thisDevice: false },
@@ -167,14 +174,26 @@ export const api = {
     if (STATE === "empty") return { serverUrl: "https://192.168.1.20:8443", devices: devices().devices.slice(0, 1) };
     return devices();
   },
-  revokeDevice: async () => undefined,
-  newConnectionCode: async () => { called("newConnectionCode"); return "onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9"; },
+  revokeDevice: async () => { called("revokeDevice"); return deviceAction(undefined); },
+  newConnectionCode: async () => { called("newConnectionCode"); return deviceAction("onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9"); },
   version: async () => "0.0.1 (v0.0.1-main.1)",
   probeServer: async () => {
     called("probeServer");
+    if (q.get("serverChange") === "loading") return never<"existing" | "empty">();
+    if (q.get("serverChange") === "error") return Promise.reject("unreachable");
+    if (q.get("serverChangeVault") === "existing") return "existing" as const;
     if (STATE === "loading") return never<"existing" | "empty">();
     if (STATE === "error") return Promise.reject("invalid_connection_code");
     return q.get("vault") === "existing" ? "existing" as const : "empty" as const;
+  },
+  currentServerUrl: async () => status().mode === "synced" ? serverUrl : null,
+  changeServer: async (code: string, passphrase: string | null, recoveryKit: string | null) => {
+    called("changeServer");
+    const w = window as unknown as { __serverChanges?: { code: string; passphrase: string | null; recoveryKit: string | null }[] };
+    w.__serverChanges = [...(w.__serverChanges ?? []), { code, passphrase, recoveryKit }];
+    if (q.get("serverChangeCommit") === "error") throw "wrong_passphrase";
+    if (q.get("serverChangeCommit") === "unexpected") throw "onepaste1:do-not-show-error";
+    serverUrl = "https://new-server.example:8443";
   },
   generatePassphrase: async () => "7K3M-QX9D-4HFA-W2JB-N8RT",
   createVault: async () => { called("createVault"); return "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX-YZ01"; },

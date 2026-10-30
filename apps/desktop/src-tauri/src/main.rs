@@ -79,6 +79,8 @@ fn main() {
             commands::app_show_kit,
             commands::app_copy_secret,
             commands::app_devices,
+            commands::app_current_server_url,
+            commands::app_change_server,
             commands::close_to_tray,
             commands::app_item_image,
             commands::app_item_text,

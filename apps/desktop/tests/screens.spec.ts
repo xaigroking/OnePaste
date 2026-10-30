@@ -121,3 +121,27 @@ for (const s of SCREENS) {
     });
   }
 }
+
+for (const state of ["empty", "loading", "error"] as const) {
+  for (const theme of THEMES) {
+    for (const lang of LANGS) {
+      test(`server-change ${state} ${theme} ${lang}`, async ({ page }) => {
+        const l = locale(lang);
+        await page.setViewportSize({ width: 1040, height: 900 });
+        await page.addInitScript((value) => window.localStorage.setItem("onepaste.theme", value), theme);
+        await page.goto(`/?screen=set&lang=${lang}&serverChange=${state}`);
+        await page.getByRole("button", { name: l.changeServer.action, exact: true }).click();
+        const dialog = page.getByRole("dialog");
+        await dialog.getByRole("button", { name: l.changeServer.start }).click();
+        if (state !== "empty") {
+          await dialog.getByLabel(l.onboarding.code.code, { exact: true }).fill("onepaste1:synthetic-screenshot");
+          await dialog.getByRole("button", { name: l.changeServer.check }).click();
+          if (state === "loading") await expect(dialog.getByRole("status")).toHaveText(l.changeServer.checking);
+          else await expect(dialog.getByRole("alert")).toHaveText(l.changeServer.errors.unreachable);
+        }
+        await page.evaluate(() => document.fonts.ready);
+        await expect(page).toHaveScreenshot(`server-change-${state}-${theme}-${lang}.png`);
+      });
+    }
+  }
+}

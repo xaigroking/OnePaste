@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { Button } from "./components/ui";
+import { ConnectionCodeField } from "./components/ConnectionCodeField";
 
 export type Strength = "weak" | "fair" | "strong";
 
@@ -215,10 +216,7 @@ function OnboardingSteps({ onDone, onStep }: { onDone: () => void; onStep: (n: 1
             <li>{t("onboarding.code.steps.second")}</li>
           </ol>
         </details>
-        <label className="field">
-          <span>{t("onboarding.code.code")}</span>
-          <input value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} autoComplete="off" />
-        </label>
+        <ConnectionCodeField value={code} onChange={setCode} />
         <label className="field">
           <span>{t("onboarding.deviceName")}</span>
           <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} autoComplete="off" />
