@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, onQuickOpened } from "../api";
-import type { Filter, ItemView } from "../api";
+import { api, onChanged, onQuickOpened } from "../api";
+import type { Filter, ItemView, HotkeyInfo } from "../api";
 import { formatRelative, formatSize } from "../format";
 import { kindIcon } from "./HistoryView";
 import { Icon } from "./Icon";
 import { Badge, Chip } from "./ui";
+import { formatHotkey } from "../hotkeys";
 
 /** The types the panel offers. Links, files and code have no type of their own in the history yet, so they show nothing. */
 export type PanelFilter = Filter | "links" | "files" | "code";
@@ -21,6 +22,8 @@ export function QuickPanel() {
   const [selected, setSelected] = useState(0);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
+  const [hotkey, setHotkey] = useState<HotkeyInfo | null>(null);
+  const refreshHotkey = useCallback(() => { void api.hotkey().then(setHotkey).catch(() => setHotkey(null)); }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
 
@@ -49,10 +52,19 @@ export function QuickPanel() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let live = true;
+    let unlisten: (() => void) | undefined;
+    refreshHotkey();
+    void onChanged(refreshHotkey).then((stop) => { if (live) unlisten = stop; else stop(); });
+    return () => { live = false; unlisten?.(); };
+  }, [refreshHotkey]);
+
   // Every time the panel is brought up it starts clean, with the search box focused
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void onQuickOpened(() => {
+      refreshHotkey();
       setQuery("");
       setFilter("all");
       inputRef.current?.focus();
@@ -62,7 +74,7 @@ export function QuickPanel() {
     });
     inputRef.current?.focus();
     return () => unlisten?.();
-  }, [load]);
+  }, [load, refreshHotkey]);
 
   const choose = useCallback(
     async (it: ItemView | undefined) => {
@@ -182,6 +194,7 @@ export function QuickPanel() {
         <span><kbd>1</kbd>–<kbd>9</kbd> {t("qp.keyPick")}</span>
         <span><kbd>Tab</kbd> {t("qp.keyFilter")}</span>
         <span><kbd>Esc</kbd> {t("qp.keyClose")}</span>
+        {hotkey?.current && <span><kbd>{formatHotkey(hotkey.current, navigator.userAgent.includes("Mac"))}</kbd> {t("hotkey.togglePanel")}</span>}
       </div>
     </div>
   );

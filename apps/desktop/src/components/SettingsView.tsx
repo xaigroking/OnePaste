@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useTranslation } from "react-i18next";
-import type { ActionResult, AppSettings, AppStatus, HotkeyState, LanguagePreference, LanguageState, LogEntry } from "../api";
+import type { ActionResult, AppSettings, AppStatus, HotkeyInfo, LanguagePreference, LanguageState, LogEntry } from "../api";
 import { applyTheme, formatClock, loadTheme } from "../format";
 import { LANGUAGES, languageInfo, resolveLanguage } from "../i18n";
 import type { ThemeChoice } from "../format";
@@ -9,14 +9,15 @@ import { Badge, Button, Card, Chip, Switch } from "./ui";
 import { SecurityCard } from "./SecurityCard";
 import { UpdatesCard } from "./UpdatesCard";
 import { ChangeServerButton } from "./ChangeServer";
+import { HotkeyEditor } from "./HotkeyEditor";
 
 interface Props {
   settings: AppSettings | null;
   onSettings: (s: AppSettings) => Promise<void>;
   language: LanguageState | null;
   onLanguage: (p: LanguagePreference) => void;
-  hotkey: HotkeyState;
-  hotkeyText: string;
+  hotkey: HotkeyInfo | null;
+  onHotkey: (info: HotkeyInfo) => void;
   status: AppStatus | null;
   /** This computer keeps its history to itself: there is nothing to sync or to recover. */
   localOnly: boolean;
@@ -174,12 +175,7 @@ export function SettingsView(p: Props) {
       </Card>
 
       <Card title={t("settings.shortcuts")}>
-        <div className="setting">
-          <span>{t("settings.showWindow")}</span>
-          <kbd>{p.hotkeyText}</kbd>
-        </div>
-        <p className="muted small">{t("settingsMore.hotkeyHint")}</p>
-        {p.hotkey === "busy" && <p className="notice notice-warn">{t("hotkey.busy")}</p>}
+        <HotkeyEditor value={p.hotkey} onChanged={p.onHotkey} />
       </Card>
 
       {p.settings && <UpdatesCard settings={p.settings} onSettings={p.onSettings} version={p.version} />}

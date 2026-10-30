@@ -20,7 +20,7 @@ test("suspected secret filter switches with the keyboard and preserves other set
   await toggle.focus();
   await page.keyboard.press("Space");
   await expect(toggle).not.toBeChecked();
-  const original = { autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+  const original = { autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, quickHotkey: null, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
   await expect.poll(() => page.evaluate(() => window.__settingsCalls)).toEqual([{ ...original, skipSuspectedSecrets: false }]);
   await page.keyboard.press("Space");
   await expect(toggle).toBeChecked();

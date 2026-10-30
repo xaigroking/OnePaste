@@ -4,6 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 export type TrayState = "synced" | "syncing" | "offline" | "error" | "local";
 export type Mode = "unset" | "local_only" | "synced";
 export type HotkeyState = "registered" | "busy" | "unknown";
+export interface HotkeyInfo {
+  state: HotkeyState;
+  current: string | null;
+  warning: "fallback" | "cleanup" | null;
+}
 
 export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files" | "code";
 export type Page = "history" | "devices" | "settings";
@@ -82,6 +87,7 @@ export interface AppSettings {
   autoApplyRemote: boolean;
   recordClipboard: boolean;
   maxItemMiB: number;
+  quickHotkey: string | null;
   skipSuspectedSecrets: boolean;
   checkUpdates: boolean;
   /** null means the default for this version. */
@@ -178,7 +184,8 @@ export const api = {
   settings: () => invoke<AppSettings>("app_get_settings"),
   setSettings: (settings: AppSettings) => invoke<void>("app_set_settings", { settings }),
   log: () => invoke<LogEntry[]>("get_log"),
-  hotkey: () => invoke<HotkeyState>("get_hotkey_state"),
+  hotkey: () => invoke<HotkeyInfo>("get_hotkey_state"),
+  setHotkey: (shortcut: string | null) => invoke<HotkeyInfo>("set_hotkey", { shortcut }),
   trayState: () => invoke<TrayState>("get_tray_state"),
   setTexts: (texts: TrayTexts) => invoke<void>("set_texts", { texts }),
   copyDiagnostics: () => invoke<ActionResult>("copy_diagnostics"),

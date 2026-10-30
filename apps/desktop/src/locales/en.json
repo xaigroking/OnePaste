@@ -8,7 +8,31 @@
   },
   "hotkey": {
     "hint": "Press {{keys}} to bring up the quick panel",
-    "busy": "Hotkey is already in use"
+    "busy": "Hotkey is already in use",
+    "change": "Change shortcut",
+    "new": "New shortcut",
+    "pressKeys": "Press a modifier and a key",
+    "captureHint": "Press the new combination, then save. Esc cancels; Tab moves to the buttons.",
+    "save": "Save shortcut",
+    "cancel": "Cancel",
+    "restore": "Restore default shortcut",
+    "saved": "Shortcut saved.",
+    "reading": "Reading shortcut...",
+    "unavailable": "No active shortcut",
+    "active": "Active shortcut",
+    "togglePanel": "Show/hide",
+    "errors": {
+      "reserved_hotkey": "The standard paste shortcut is reserved so clipboard pasting keeps working. Choose another combination.",
+      "invalid_hotkey": "Use a modifier and a non-modifier key. Your saved shortcut is unchanged. Press another combination.",
+      "hotkey_busy": "This shortcut could not be registered; it may already be in use. Your previous shortcut still works. Choose another combination.",
+      "hotkey_storage": "The shortcut could not be saved. Your previous shortcut still works. Check disk space and permissions, then retry.",
+      "hotkey_cleanup": "An extra shortcut registration could not be removed. Your clipboard history is unchanged. Restart OnePaste before changing shortcuts again.",
+      "fallback": "The saved shortcut could not be registered. The fallback shown above still works. Choose another combination or restore the default.",
+      "hotkey_busyUnavailable": "This shortcut could not be registered. No global shortcut is active. Choose another combination; Settings is also available from the tray.",
+      "hotkey_storageUnavailable": "The shortcut could not be saved. Your clipboard history is unchanged. Check disk space and permissions, then choose a shortcut again.",
+      "fallbackUnavailable": "Neither the saved shortcut nor the default could be registered. Your clipboard history is unchanged. Choose another combination; Settings is available from the tray.",
+      "other": "The shortcut change could not be confirmed. Your clipboard history is unchanged. Reopen Settings to check the active shortcut before retrying."
+    }
   },
   "log": {
     "title": "Event log",
@@ -17,6 +41,7 @@
     "wake": "System woke from sleep",
     "network_online": "Network connected",
     "network_offline": "Network disconnected",
+    "hotkey_change_failed": "Shortcut change failed",
     "hotkey_registered": "Hotkey registered",
     "hotkey_busy": "Hotkey registration failed (in use)",
     "sensitive_skipped": "Skipped: sensitive marker",
@@ -331,7 +356,7 @@
     "telemetryOff": "Off. OnePaste never sends any.",
     "changePassphrase": "Change passphrase",
     "advanced": "Advanced",
-    "hotkeyHint": "The hotkey brings up the quick panel. It cannot be changed yet.",
+    "hotkeyHint": "Saved changes take effect immediately. If registration fails, an existing working shortcut is kept.",
     "syncMethod": "Method",
     "syncLocal": "Only on this computer",
     "syncServer": "Your own server"

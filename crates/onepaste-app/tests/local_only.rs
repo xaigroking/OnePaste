@@ -35,6 +35,25 @@ fn desktop(name: &str) -> Desktop {
     Desktop { app: App::new(dir.clone(), secrets.clone(), clipboard.clone(), quiet()), secrets, clipboard, dir }
 }
 
+#[test]
+fn saved_hotkeys_survive_other_settings_updates_and_restart_without_network_use() {
+    let before = requests_started();
+    let d = desktop("shortcut-settings");
+    let mut old_form = d.app.settings();
+    d.app.set_quick_hotkey(Some("Alt+Ctrl+KeyK")).unwrap();
+    old_form.record_clipboard = false;
+    d.app.set_settings(old_form).unwrap();
+    assert_eq!(d.app.settings().quick_hotkey.as_deref(), Some("Control+Alt+KeyK"));
+    assert!(!d.app.settings().record_clipboard);
+    let saved = std::fs::read(d.dir.join("app-settings.json")).unwrap();
+    assert!(d.app.set_quick_hotkey(Some("KeyK")).is_err());
+    assert_eq!(std::fs::read(d.dir.join("app-settings.json")).unwrap(), saved);
+    let again = App::new(d.dir.clone(), d.secrets.clone(), d.clipboard.clone(), quiet());
+    assert_eq!(again.settings().quick_hotkey.as_deref(), Some("Control+Alt+KeyK"));
+    assert!(!again.settings().record_clipboard);
+    assert_eq!(requests_started(), before);
+}
+
 fn files_under(dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for e in std::fs::read_dir(dir).unwrap() {

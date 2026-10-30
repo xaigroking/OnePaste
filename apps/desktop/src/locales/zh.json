@@ -8,7 +8,31 @@
   },
   "hotkey": {
     "hint": "按 {{keys}} 呼出快速面板",
-    "busy": "热键被占用"
+    "busy": "热键被占用",
+    "change": "更改快捷键",
+    "new": "新快捷键",
+    "pressKeys": "按下修饰键与另一个按键",
+    "captureHint": "按下新组合后保存。Esc 取消，Tab 移至操作按钮。",
+    "save": "保存快捷键",
+    "cancel": "取消",
+    "restore": "恢复默认快捷键",
+    "saved": "快捷键已保存。",
+    "reading": "正在读取快捷键……",
+    "unavailable": "没有启用的快捷键",
+    "active": "当前快捷键",
+    "togglePanel": "显示／隐藏",
+    "errors": {
+      "reserved_hotkey": "系统标准粘贴键已保留，以便正常粘贴剪贴板内容。请选择其他组合。",
+      "invalid_hotkey": "请使用修饰键加一个非修饰键。已保存的快捷键未改变，请按下其他组合。",
+      "hotkey_busy": "无法注册此快捷键，它可能已被占用。原快捷键仍可使用，请选择其他组合。",
+      "hotkey_storage": "无法保存快捷键。原快捷键仍可使用，请检查磁盘空间与权限后重试。",
+      "hotkey_cleanup": "无法移除一项多余的快捷键注册，剪贴板历史没有改变。请重启 OnePaste 后再修改快捷键。",
+      "fallback": "无法注册已保存的快捷键。上方显示的备用组合仍可使用，请选择其他组合或恢复默认。",
+      "hotkey_busyUnavailable": "无法注册此快捷键，目前没有启用的全局快捷键。请选择其他组合，也可从托盘打开设置。",
+      "hotkey_storageUnavailable": "无法保存快捷键，剪贴板历史没有改变。请检查磁盘空间与权限，再选择快捷键。",
+      "fallbackUnavailable": "已保存的快捷键和默认组合均无法注册，剪贴板历史没有改变。请选择其他组合，也可从托盘打开设置。",
+      "other": "无法确认快捷键是否已更改，剪贴板历史没有改变。请重新打开设置，核对当前快捷键后再重试。"
+    }
   },
   "log": {
     "title": "事件日志",
@@ -17,6 +41,7 @@
     "wake": "系统从睡眠中唤醒",
     "network_online": "网络已连接",
     "network_offline": "网络已断开",
+    "hotkey_change_failed": "快捷键更改失败",
     "hotkey_registered": "热键注册成功",
     "hotkey_busy": "热键注册失败（被占用）",
     "sensitive_skipped": "已跳过：敏感标记",
@@ -331,7 +356,7 @@
     "telemetryOff": "已关闭。OnePaste 从不发送。",
     "changePassphrase": "修改口令",
     "advanced": "高级",
-    "hotkeyHint": "热键用来呼出快速面板，暂时不能更改。",
+    "hotkeyHint": "保存后立即生效。注册失败时会保留已有可用的快捷键。",
     "syncMethod": "方式",
     "syncLocal": "仅本机",
     "syncServer": "你自己的服务器"

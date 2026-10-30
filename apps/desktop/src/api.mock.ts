@@ -7,7 +7,7 @@ import type {
   AppStatus,
   DeviceList,
   Filter,
-  HotkeyState,
+  HotkeyInfo,
   ImageData,
   ItemView,
   UpdateInfo,
@@ -50,7 +50,10 @@ const ITEMS: ItemView[] = [
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.get("hotkey") === "custom" && STATE !== "error" ? "Control+Shift+KeyK" : "Control+Alt+KeyV";
+let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
+const hotkeyInfo = (): HotkeyInfo => ({ state: hotkeyWarning ? "busy" : "registered", current: activeHotkey, warning: hotkeyWarning });
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, quickHotkey: q.get("hotkey") === "custom" || hotkeyWarning ? "Control+Shift+KeyK" : null, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
 let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
@@ -164,9 +167,19 @@ export const api = {
     { tsMs: NOW - 3 * MIN, kind: "captured", detail: "text, 42 bytes" },
     ...(q.has("captureLimit") ? [{ tsMs: NOW, kind: "capture_failed", detail: "item_too_large" }] : []),
   ],
-  hotkey: async (): Promise<HotkeyState> => (SCREEN === "set" && STATE === "error" ? "busy" : "registered"),
+  hotkey: async (): Promise<HotkeyInfo> => hotkeyInfo(),
+  setHotkey: async (shortcut: string | null): Promise<HotkeyInfo> => {
+    const w = window as unknown as { __hotkeyCalls?: (string | null)[] };
+    w.__hotkeyCalls = [...(w.__hotkeyCalls ?? []), shortcut];
+    if (q.get("hotkeySave") === "busy") throw "hotkey_busy";
+    if (q.get("hotkeySave") === "storage") throw "hotkey_storage";
+    activeHotkey = shortcut ?? "Control+Alt+KeyV";
+    hotkeyWarning = null;
+    settings.quickHotkey = shortcut;
+    return hotkeyInfo();
+  },
   trayState: async (): Promise<TrayState> => status().tray,
-  setTexts: async (_texts: TrayTexts) => undefined,
+  setTexts: async (texts: TrayTexts) => { (window as unknown as { __trayTexts?: TrayTexts }).__trayTexts = { ...texts }; },
   setDeviceCount: async () => undefined,
   copyDiagnostics: async (): Promise<ActionResult> => ({ ok: true, code: "ok" }),
   devices: async (): Promise<DeviceList> => {

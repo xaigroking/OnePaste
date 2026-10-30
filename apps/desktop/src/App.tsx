@@ -6,7 +6,7 @@ import type {
   AppSettings,
   AppStatus,
   Filter,
-  HotkeyState,
+  HotkeyInfo,
   ItemView,
   UpdateInfo,
   LanguagePreference,
@@ -27,9 +27,9 @@ import { CloseNotice } from "./components/CloseNotice";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { Button } from "./components/ui";
 import type { View } from "./components/Sidebar";
+import { formatHotkey } from "./hotkeys";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
-const HOTKEY_TEXT = IS_MAC ? "⌃⌥V" : "Ctrl+Alt+V";
 const PAGE_SIZE = 50;
 
 export default function App() {
@@ -42,7 +42,8 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [dismissedSizeNotice, setDismissedSizeNotice] = useState(0);
-  const [hotkey, setHotkey] = useState<HotkeyState>("unknown");
+  const [hotkey, setHotkey] = useState<HotkeyInfo | null>(null);
+  const hotkeyText = hotkey?.current ? formatHotkey(hotkey.current, IS_MAC) : null;
   const [tray, setTray] = useState<TrayState>("synced");
   const [diag, setDiag] = useState<ActionResult | null>(null);
   const [language, setLanguage] = useState<LanguageState | null>(null);
@@ -115,7 +116,7 @@ export default function App() {
   useEffect(() => {
     const texts: TrayTexts = {
       open: t("tray.open"),
-      quickPanel: t("tray.quickPanel"),
+      quickPanel: hotkeyText ? `${t("tray.quickPanel")} (${hotkeyText})` : t("tray.quickPanel"),
       pause: t("tray.pause"),
       resume: t("tray.resume"),
       syncNow: t("tray.syncNow"),
@@ -133,7 +134,7 @@ export default function App() {
       local: t("status.local"),
     };
     void api.setTexts(texts);
-  }, [t]);
+  }, [t, hotkeyText]);
 
   // A newer version: one found before the window opened, and one a background check finds later. A failed check says nothing.
   useEffect(() => {
@@ -292,7 +293,7 @@ export default function App() {
             language={language}
             onLanguage={(p) => void changeLanguage(p)}
             hotkey={hotkey}
-            hotkeyText={HOTKEY_TEXT}
+            onHotkey={(info) => { setHotkey(info); void refresh(); }}
             status={status}
             version={version}
             localOnly={status?.mode === "local_only"}
