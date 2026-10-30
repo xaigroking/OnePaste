@@ -19,6 +19,44 @@ fn a_second_program_cannot_take_the_lock_until_the_first_lets_go() {
     assert!(InstanceLock::acquire(&d).unwrap().is_some(), "after the first has ended the lock is free");
 }
 
+#[cfg(unix)]
+#[test]
+fn dropping_the_owner_releases_the_lock_while_a_forked_child_is_alive() {
+    use std::io::Read;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::net::UnixStream;
+
+    let d = dir("inherited");
+    let held = InstanceLock::acquire(&d).unwrap().unwrap();
+    let (mut parent, child) = UnixStream::pair().unwrap();
+    // SAFETY: the child uses only async-signal-safe libc calls and never runs Rust destructors.
+    let pid = unsafe { libc::fork() };
+    assert!(pid >= 0);
+    if pid == 0 {
+        unsafe {
+            libc::close(parent.as_raw_fd());
+            let ready = [1u8];
+            libc::write(child.as_raw_fd(), ready.as_ptr().cast(), 1);
+            loop { libc::pause(); }
+        }
+    }
+    drop(child);
+    let mut ready = [0u8];
+    parent.read_exact(&mut ready).unwrap();
+    drop(held);
+    // This must work before the child closes its inherited copy, with no retries or sleep.
+    let reacquired = InstanceLock::acquire(&d);
+    // Reap the child before asserting, so the expected pre-fix failure cannot leave it behind.
+    unsafe { libc::kill(pid, libc::SIGKILL); }
+    let mut status = 0;
+    loop {
+        let waited = unsafe { libc::waitpid(pid, &mut status, 0) };
+        if waited == pid { break; }
+        assert_eq!(std::io::Error::last_os_error().kind(), std::io::ErrorKind::Interrupted);
+    }
+    assert!(reacquired.unwrap().is_some(), "the dropped owner must release the lock even during a concurrent fork");
+}
+
 #[test]
 fn directories_are_independent_and_requests_are_taken_once() {
     let (a, b) = (dir("a"), dir("b"));
