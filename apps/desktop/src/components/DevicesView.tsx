@@ -17,7 +17,10 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
   const [serverUrl, setServerUrl] = useState<string | null>();
   const [serverRevision, setServerRevision] = useState(0);
   const loadSequence = useRef(0);
+  const actionGeneration = useRef(0);
   const synced = status?.mode === "synced";
+
+  useEffect(() => () => { ++actionGeneration.current; }, [status?.deviceId]);
 
   useEffect(() => {
     if (!synced) return;
@@ -60,21 +63,26 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
   }
 
   const remove = async (d: DeviceView) => {
+    const generation = actionGeneration.current;
     try {
       await api.revokeDevice(d.deviceId);
+      if (generation !== actionGeneration.current) return;
       setRemoving(null);
       await load();
     } catch (e) {
-      setError(String(e));
+      if (generation === actionGeneration.current) setError(String(e));
     }
   };
 
   const makeCode = async () => {
+    const generation = actionGeneration.current;
     try {
-      setCode(await api.newConnectionCode());
+      const nextCode = await api.newConnectionCode();
+      if (generation !== actionGeneration.current) return;
+      setCode(nextCode);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      if (generation === actionGeneration.current) setError(String(e));
     }
   };
 
@@ -175,6 +183,7 @@ export function DevicesView({ status, onCount }: { status: AppStatus | null; onC
       {synced && <div className="row">
         <p className="muted small">{t("devices.footer", { server: serverUrl === undefined ? t("changeServer.reading") : serverUrl ?? t("changeServer.addressUnavailable") })}</p>
         <ChangeServerButton onChanged={() => {
+          ++actionGeneration.current;
           ++loadSequence.current;
           setCode(null); setRemoving(null); setList(null); setError(null);
           setServerRevision((value) => value + 1);

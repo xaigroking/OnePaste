@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 declare global {
   interface Window {
     __serverChanges?: { code: string; passphrase: string | null; recoveryKit: string | null }[];
+    __finishDeviceAction?: (fail?: boolean) => void;
   }
 }
 
@@ -119,3 +120,27 @@ test("change server: unexpected invoke errors never expose their contents", asyn
   await expect(dialog.getByRole("alert")).toHaveText("The server change could not be confirmed. Your local history is kept. Close this dialog and reopen Settings to check the saved server address before retrying.");
   await expect(dialog).not.toContainText("do-not-show-error");
 });
+
+for (const action of ["code", "code-error", "revoke-error"]) {
+  test(`change server: late old-server ${action} responses cannot change the new view`, async ({ page }) => {
+    await page.goto("/?screen=dev&lang=en&deviceAction=pending");
+    if (action === "revoke-error") {
+      await page.getByRole("button", { name: "Remove", exact: true }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Remove device", exact: true }).click();
+    } else {
+      await page.getByRole("button", { name: "Make a connection code", exact: true }).click();
+    }
+    await page.getByRole("button", { name: "Change server", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Enter a new code" }).click();
+    await dialog.getByLabel("Connection code", { exact: true }).fill(CODE);
+    await dialog.getByRole("button", { name: "Check server" }).click();
+    await dialog.getByRole("button", { name: "Review change" }).click();
+    await dialog.getByRole("button", { name: "Confirm change" }).click();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(page.getByText("https://new-server.example:8443", { exact: false })).toBeVisible();
+    await page.evaluate((fail) => window.__finishDeviceAction?.(fail), action !== "code");
+    await expect(page.getByTestId("connection-code")).toHaveCount(0);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+}

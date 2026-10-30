@@ -34,6 +34,12 @@ const called = (name: string) => {
 };
 
 const never = <T,>() => new Promise<T>(() => undefined);
+const deviceAction = <T,>(value: T): Promise<T> => {
+  if (q.get("deviceAction") !== "pending") return Promise.resolve(value);
+  return new Promise<T>((resolve, reject) => {
+    (window as unknown as { __finishDeviceAction?: (fail?: boolean) => void }).__finishDeviceAction = (fail) => fail ? reject("unreachable") : resolve(value);
+  });
+};
 
 const ITEMS: ItemView[] = [
   { itemId: "i1", kind: "text", preview: "Review moved to 3 pm Friday, room B2 \u5468\u4e94\u8bc4\u5ba1\u4f1a\u6539\u5230\u4e0b\u5348\u4e09\u70b9", favorite: false, pinned: true, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Chat", createdAtMs: NOW - 1 * MIN, syncState: "synced" },
@@ -168,8 +174,8 @@ export const api = {
     if (STATE === "empty") return { serverUrl: "https://192.168.1.20:8443", devices: devices().devices.slice(0, 1) };
     return devices();
   },
-  revokeDevice: async () => undefined,
-  newConnectionCode: async () => { called("newConnectionCode"); return "onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9"; },
+  revokeDevice: async () => { called("revokeDevice"); return deviceAction(undefined); },
+  newConnectionCode: async () => { called("newConnectionCode"); return deviceAction("onepaste1:eyJ1IjoiaHR0cHM6Ly8xOTIuMTY4LjEuMjA6ODQ0MyIsImZwIjoiLi4uIiwidCI6Ii4uLiJ9"); },
   version: async () => "0.0.1 (v0.0.1-main.1)",
   probeServer: async () => {
     called("probeServer");
