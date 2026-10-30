@@ -97,6 +97,9 @@ def visible_windows(pid):
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         user32.IsWindowVisible.argtypes = [wintypes.HWND]
+        get_style = getattr(user32, "GetWindowLongPtrW" if ctypes.sizeof(ctypes.c_void_p) == 8 else "GetWindowLongW")
+        get_style.argtypes = [wintypes.HWND, ctypes.c_int]
+        get_style.restype = ctypes.c_ssize_t
         user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
         user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
@@ -104,7 +107,10 @@ def visible_windows(pid):
         def visit(hwnd, _):
             owner = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-            if owner.value == pid and user32.IsWindowVisible(hwnd):
+            # Tao keeps WS_VISIBLE on a transparent, layered, non-activating event target for WM_PAINT delivery.
+            # It has no rendered application surface. A layered window or a tool window alone still counts.
+            passive_target = 0x08000000 | 0x00080000 | 0x00000020
+            if owner.value == pid and user32.IsWindowVisible(hwnd) and get_style(hwnd, -20) & passive_target != passive_target:
                 bounds = wintypes.RECT()
                 title = ctypes.create_unicode_buffer(256)
                 window_class = ctypes.create_unicode_buffer(256)
