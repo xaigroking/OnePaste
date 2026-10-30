@@ -107,7 +107,11 @@ fi
 
 # 9) Rust workspace tests (including known-answer vectors) and the wasm32 build
 if command -v cargo >/dev/null 2>&1 && [ -f Cargo.toml ]; then
-  cargo test --workspace --quiet >/dev/null 2>&1 || { say "FAIL cargo test --workspace did not pass"; fail=1; }
+  if ! workspace_test_output=$(cargo test --workspace --quiet 2>&1); then
+    say "$workspace_test_output"
+    say "FAIL cargo test --workspace did not pass"
+    fail=1
+  fi
   if rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then
     cargo build -p onepaste-core --target wasm32-unknown-unknown --quiet >/dev/null 2>&1 || { say "FAIL onepaste-core does not build for wasm32"; fail=1; }
   else

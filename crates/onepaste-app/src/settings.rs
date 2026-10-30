@@ -13,6 +13,9 @@ pub struct Settings {
     pub auto_apply_remote: bool,
     /// Record what is copied on this computer.
     pub record_clipboard: bool,
+    /// Maximum JSON-encoded item content plus its envelope budget, in mebibytes.
+    #[serde(rename = "maxItemMiB")]
+    pub max_item_mib: u8,
     /// Skip newly copied text with private-key markers or GitHub token prefixes.
     pub skip_suspected_secrets: bool,
     /// Look for a newer version when the program starts and every six hours.
@@ -29,17 +32,56 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { auto_apply_remote: true, record_clipboard: true, skip_suspected_secrets: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
+        Settings { auto_apply_remote: true, record_clipboard: true, max_item_mib: 8, skip_suspected_secrets: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
     }
 }
 
 impl Settings {
     pub fn load(dir: &Path) -> Settings {
-        std::fs::read_to_string(dir.join(FILE_NAME)).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+        let mut settings: Settings = std::fs::read_to_string(dir.join(FILE_NAME)).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        if !valid_item_limit(settings.max_item_mib) { settings.max_item_mib = 8; }
+        settings
     }
 
     pub fn save(&self, dir: &Path) -> Result<(), AppError> {
+        if !valid_item_limit(self.max_item_mib) { return Err(AppError::Other("invalid item size limit".into())); }
         write_private(dir, FILE_NAME, serde_json::to_string(self).unwrap_or_default().as_bytes())
+    }
+}
+
+fn valid_item_limit(mib: u8) -> bool { matches!(mib, 1 | 2 | 4 | 8) }
+
+/// Both text and Base64 image content pass through the same JSON string encoding.
+pub(crate) fn item_within_limit(content: &str, mib: u8) -> bool {
+    let budget = usize::from(mib) * 1024 * 1024;
+    if content.len().saturating_add(1024) > budget { return false; }
+    // Quotes are not part of the content. Base64 has no escapes, so its old size calculation stays the same.
+    serde_json::to_vec(content).map(|bytes| bytes.len().saturating_sub(2).saturating_add(1024) <= budget).unwrap_or(false)
+}
+
+#[cfg(test)]
+mod size_tests {
+    use super::*;
+
+    #[test]
+    fn encoded_content_accepts_equality_and_rejects_one_more_byte_at_every_supported_limit() {
+        for mib in [1, 2, 4, 8] {
+            let mut encoded = "A".repeat(usize::from(mib) * 1024 * 1024 - 1024);
+            assert!(item_within_limit(&encoded, mib));
+            encoded.push('A');
+            assert!(!item_within_limit(&encoded, mib));
+        }
+    }
+
+    #[test]
+    fn old_settings_get_the_default_limit_and_new_settings_round_trip() {
+        let old: Settings = serde_json::from_str(r#"{"recordClipboard":false}"#).unwrap();
+        assert!(!old.record_clipboard);
+        assert_eq!(old.max_item_mib, 8);
+        for mib in [1, 2, 4, 8] {
+            let value = Settings { max_item_mib: mib, ..old.clone() };
+            assert_eq!(serde_json::from_slice::<Settings>(&serde_json::to_vec(&value).unwrap()).unwrap(), value);
+        }
     }
 }
 

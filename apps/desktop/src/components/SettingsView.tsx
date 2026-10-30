@@ -33,6 +33,8 @@ export function SettingsView(p: Props) {
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme);
   const [savingSecrets, setSavingSecrets] = useState(false);
   const [secretsSaveFailed, setSecretsSaveFailed] = useState(false);
+  const [savingLimit, setSavingLimit] = useState(false);
+  const [limitSaveFailed, setLimitSaveFailed] = useState(false);
   const [serverUrl, setServerUrl] = useState<string | null>();
   const [serverRevision, setServerRevision] = useState(0);
   useEffect(() => {
@@ -55,6 +57,13 @@ export function SettingsView(p: Props) {
     }
   };
   const preference = p.language?.preference ?? "system";
+  const changeLimit = async (value: number) => {
+    if (!p.settings || savingLimit) return;
+    setSavingLimit(true); setLimitSaveFailed(false);
+    try { await p.onSettings({ ...p.settings, maxItemMiB: value }); }
+    catch { setLimitSaveFailed(true); }
+    finally { setSavingLimit(false); }
+  };
   const pickTheme = (c: ThemeChoice) => {
     applyTheme(c);
     setTheme(c);
@@ -122,12 +131,14 @@ export function SettingsView(p: Props) {
             <span>{t("settingsMore.excludedApps")}</span>
             <Badge>{t("settingsMore.soon")}</Badge>
           </div>
-          <div className="setting setting-soon">
+          <label className="setting">
             <span>{t("settingsMore.sizeLimit")}</span>
-            <span className="muted">
-              {t("settingsMore.sizeLimitValue")} <Badge>{t("settingsMore.soon")}</Badge>
-            </span>
-          </div>
+            <select value={p.settings.maxItemMiB} disabled={savingLimit} onChange={(e) => void changeLimit(Number(e.target.value))}>
+              {[1, 2, 4, 8].map((size) => <option key={size} value={size}>{t("settingsMore.sizeLimitOption", { size })}</option>)}
+            </select>
+          </label>
+          <p className="muted small">{t("settingsMore.sizeLimitHint")}</p>
+          {limitSaveFailed && <p className="notice notice-warn" role="alert">{t("settingsMore.saveFailed")}</p>}
           {!p.localOnly && (
             <Switch
               checked={p.settings.autoApplyRemote}

@@ -50,7 +50,7 @@ const ITEMS: ItemView[] = [
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
 let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
@@ -162,6 +162,7 @@ export const api = {
   log: async (): Promise<LogEntry[]> => [
     { tsMs: NOW - 5 * MIN, kind: "started", detail: null },
     { tsMs: NOW - 3 * MIN, kind: "captured", detail: "text, 42 bytes" },
+    ...(q.has("captureLimit") ? [{ tsMs: NOW, kind: "capture_failed", detail: "item_too_large" }] : []),
   ],
   hotkey: async (): Promise<HotkeyState> => (SCREEN === "set" && STATE === "error" ? "busy" : "registered"),
   trayState: async (): Promise<TrayState> => status().tray,

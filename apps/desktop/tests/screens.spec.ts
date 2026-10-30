@@ -14,6 +14,7 @@ interface Screen {
   screen: string;
   size: { width: number; height: number };
   hash?: string;
+  query?: string;
   states: ("empty" | "loading" | "error")[];
   /** Drives the page to the place the screenshot shows. */
   drive?: (page: Page, lang: string, state: string) => Promise<void>;
@@ -29,6 +30,11 @@ async function toCodeStep(page: Page, lang: string) {
 }
 
 const SCREENS: Screen[] = [
+  { name: "item-size-limit", screen: "set", size: { width: 1040, height: 900 }, states: [],
+    drive: async (page, lang) => {
+      await page.getByRole("combobox", { name: locale(lang).settingsMore.sizeLimit, exact: true }).scrollIntoViewIfNeeded();
+    } },
+  { name: "item-size-notice", screen: "main", size: WINDOW, states: [], query: "captureLimit=1" },
   { name: "secret-filter", screen: "set", size: { width: 1040, height: 900 }, states: [],
     drive: async (page, lang) => {
       await page.getByText(locale(lang).settingsMore.skipSecretsScope, { exact: true }).click();
@@ -97,7 +103,7 @@ const SCREENS: Screen[] = [
 async function open(page: Page, s: Screen, theme: string, lang: string, state: string) {
   await page.setViewportSize(s.size);
   await page.addInitScript((t) => window.localStorage.setItem("onepaste.theme", t), theme);
-  await page.goto(`/?screen=${s.screen}&lang=${lang}&state=${state}${s.hash ?? ""}`);
+  await page.goto(`/?screen=${s.screen}&lang=${lang}&state=${state}${s.query ? `&${s.query}` : ""}${s.hash ?? ""}`);
   await page.waitForLoadState("networkidle");
   await s.drive?.(page, lang, state);
   // Let the first render and the fonts settle

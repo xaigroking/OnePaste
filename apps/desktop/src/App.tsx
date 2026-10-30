@@ -25,6 +25,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { CloseNotice } from "./components/CloseNotice";
 import { UpdateDialog } from "./components/UpdateDialog";
+import { Button } from "./components/ui";
 import type { View } from "./components/Sidebar";
 
 const IS_MAC = navigator.userAgent.includes("Mac");
@@ -40,6 +41,7 @@ export default function App() {
   const [view, setView] = useState<View>("history");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [dismissedSizeNotice, setDismissedSizeNotice] = useState(0);
   const [hotkey, setHotkey] = useState<HotkeyState>("unknown");
   const [tray, setTray] = useState<TrayState>("synced");
   const [diag, setDiag] = useState<ActionResult | null>(null);
@@ -211,6 +213,7 @@ export default function App() {
   };
 
   const joined = status?.joined ?? false;
+  const rejectedCopy = log.reduce((latest, entry) => entry.kind === "capture_failed" && entry.detail === "item_too_large" ? Math.max(latest, entry.tsMs) : latest, 0);
   const activeView: View = joined ? view : "settings";
 
   if (status && !joined && view !== "settings") {
@@ -255,6 +258,10 @@ export default function App() {
       />
       <main className="content">
         {joined && <TopBar tray={tray} status={status} recording={settings?.recordClipboard ?? true} />}
+        {joined && rejectedCopy > dismissedSizeNotice && <div className="notice notice-warn" role="alert">
+          <p>{t("settingsMore.sizeLimitNotice")}</p>
+          <Button onClick={() => setDismissedSizeNotice(rejectedCopy)}>{t("settingsMore.dismissSizeNotice")}</Button>
+        </div>}
         {joined && status?.paused && (
           <p className="notice notice-danger" role="alert">
             {t(`paused.${status.paused}`, { defaultValue: t("paused.other", { code: status.paused }) })}
