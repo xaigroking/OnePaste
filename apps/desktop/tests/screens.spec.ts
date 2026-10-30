@@ -22,6 +22,21 @@ interface Screen {
 
 const WINDOW = { width: 1040, height: 640 };
 
+for (const mode of ["mac-ready", "mac-permission"] as const) {
+  for (const theme of THEMES) for (const lang of LANGS) {
+    test(`quick-paste ${mode} ${theme} ${lang}`, async ({ page }) => {
+      await page.setViewportSize({ width: 560, height: 520 });
+      await page.addInitScript((value) => {
+        localStorage.setItem("onepaste.theme", value);
+        Object.defineProperty(navigator, "userAgent", { value: "Macintosh" });
+      }, theme);
+      await page.goto(`/?screen=qp&lang=${lang}${mode === "mac-permission" ? "&pastePermission=no" : ""}#/quick`);
+      await page.evaluate(() => document.fonts.ready);
+      await expect(page).toHaveScreenshot(`quick-paste-${mode}-${theme}-${lang}.png`);
+    });
+  }
+}
+
 for (const mode of ["recording", "conflict"] as const) {
   for (const theme of THEMES) for (const lang of LANGS) {
     test(`hotkey ${mode} ${theme} ${lang}`, async ({ page }) => {

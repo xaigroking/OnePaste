@@ -160,6 +160,9 @@ export const api = {
   devices: () => invoke<DeviceList>("app_devices"),
   revokeDevice: (deviceId: string) => invoke<void>("app_revoke_device", { deviceId }),
   newConnectionCode: () => invoke<string>("app_new_connection_code"),
+  quickPaste: (itemId: string) => invoke<string>("quick_paste", { itemId }),
+  pastePermission: () => invoke<boolean>("paste_permission"),
+  openAccessibilitySettings: () => invoke<void>("open_accessibility_settings"),
   hideQuickPanel: () => invoke<void>("hide_quick_panel"),
   setDeviceCount: (count: number | null) => invoke<void>("set_device_count", { count }),
   /** The version and the build id, for example `0.0.1 (v0.0.1-main.7)`. */

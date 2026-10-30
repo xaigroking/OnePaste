@@ -5,3 +5,5 @@ pub(crate) mod network;
 pub(crate) mod power;
 pub(crate) mod system;
 mod window;
+
+pub(crate) mod paste;

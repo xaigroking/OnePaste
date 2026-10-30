@@ -10,9 +10,13 @@ describe("shortcut input", () => {
     expect(fromKeyEvent(event("Digit1", false, false, true))).toBe("Shift+Digit1");
     expect(fromKeyEvent(event("ArrowUp", false, false, false, true))).toBe("Super+ArrowUp");
   });
-  it("reserves only the platform standard paste combination", () => {
+  it("reserves the platform clipboard and quick-panel paste combinations", () => {
     expect(isPasteShortcut("Control+KeyV")).toBe(true);
     expect(isPasteShortcut("Super+KeyV", true)).toBe(true);
+    expect(isPasteShortcut("Control+Enter")).toBe(true);
+    expect(isPasteShortcut("Super+Enter", true)).toBe(true);
+    expect(isPasteShortcut("Control+NumpadEnter")).toBe(true);
+    expect(isPasteShortcut("Control+Enter", true)).toBe(false);
     expect(isPasteShortcut("Control+Alt+KeyV")).toBe(false);
     expect(isPasteShortcut("Control+KeyV", true)).toBe(false);
     expect(isPasteShortcut("Super+KeyV")).toBe(false);
