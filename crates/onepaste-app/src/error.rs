@@ -43,6 +43,8 @@ pub enum AppError {
     NotText,
     #[error("the image is too large to sync")]
     ImageTooLarge,
+    #[error("the item exceeds the configured size limit")]
+    ItemTooLarge,
     #[error("clipboard failed ({0})")]
     Clipboard(String),
     #[error("storage failed ({0})")]
@@ -76,6 +78,7 @@ impl AppError {
             AppError::NotAnImage => "not_an_image".into(),
             AppError::NotText => "not_text".into(),
             AppError::ImageTooLarge => "image_too_large".into(),
+            AppError::ItemTooLarge => "item_too_large".into(),
             AppError::Clipboard(c) => format!("clipboard_{c}"),
             AppError::Storage(_) => "storage".into(),
             AppError::Update(c) => c.clone(),

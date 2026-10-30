@@ -21,7 +21,6 @@ use tokio::sync::{mpsc, Mutex, Notify, RwLock};
 use tokio::task::JoinHandle;
 
 /// The server refuses items whose ciphertext is larger than this.
-const MAX_ITEM_BYTES: usize = 8 * 1024 * 1024;
 const MAX_LOG: usize = 200;
 const PREVIEW_CHARS: usize = 120;
 
@@ -666,14 +665,16 @@ impl App {
                 }
                 if let Err(e) = self.capture(content).await {
                     self.log("capture_failed", Some(e.code()));
+                    self.notify_status();
                 }
             }
         }
     }
 
     async fn capture(&self, content: Content) -> Result<(), AppError> {
+        let settings = self.settings();
         let _connection = self.0.connection.read().await;
-        if self.settings().skip_suspected_secrets {
+        if settings.skip_suspected_secrets {
             if let Content::Text(text) = &content {
                 if let Some(reason) = crate::secrets::detect(text) {
                     self.log("skipped_suspected_secret", Some(reason.code().into()));
@@ -691,11 +692,6 @@ impl App {
             Content::Text(t) => (ItemPayload { kind: "text".into(), content: Some(t.clone()), device, ..Default::default() }, "text", t.len()),
             Content::Image { png, width, height } => {
                 let encoded = B64.encode(png);
-                // The ciphertext is about the size of the encoded content; the server refuses anything above its limit
-                if encoded.len() + 1024 > MAX_ITEM_BYTES {
-                    self.log("image_too_large", Some(format!("{} bytes", png.len())));
-                    return Err(AppError::ImageTooLarge);
-                }
                 let mut p = ItemPayload { kind: "image".into(), content: Some(encoded), device, ..Default::default() };
                 p.extra.insert("width".into(), (*width).into());
                 p.extra.insert("height".into(), (*height).into());
@@ -704,6 +700,10 @@ impl App {
                 (p, "image", png.len())
             }
         };
+        if !crate::settings::item_within_limit(payload.content.as_deref().unwrap_or_default(), settings.max_item_mib) {
+            self.log(if kind == "image" { "image_too_large" } else { "item_too_large" }, Some(format!("{size} bytes")));
+            return Err(AppError::ItemTooLarge);
+        }
         self.with_engine(|e| e.enqueue_create(now_ms(), &payload)).await?.map_err(AppError::from)?;
         lock(&self.0.shared).last_fp = Some(fp);
         self.log("captured", Some(format!("{kind}, {size} bytes")));

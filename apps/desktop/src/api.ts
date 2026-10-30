@@ -81,6 +81,7 @@ export interface ImageData {
 export interface AppSettings {
   autoApplyRemote: boolean;
   recordClipboard: boolean;
+  maxItemMiB: number;
   skipSuspectedSecrets: boolean;
   checkUpdates: boolean;
   /** null means the default for this version. */

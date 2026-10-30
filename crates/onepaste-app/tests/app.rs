@@ -275,6 +275,86 @@ async fn joining_never_creates_a_vault() {
 
 // ---- 2. capturing -------------------------------------------------------------------------------------------------
 
+fn with_item_limit(app: &App, mib: u8) -> Settings {
+    let mut value = serde_json::to_value(app.settings()).unwrap();
+    value["maxItemMiB"] = mib.into();
+    serde_json::from_value(value).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn configurable_size_text_boundary_is_inclusive_and_rejections_do_not_enter_the_queue() {
+    let mut w = World::new().await;
+    let d = w.app("size-text", quiet()).await;
+    d.app.set_settings(with_item_limit(&d.app, 1)).unwrap();
+    let capacity = 1024 * 1024 - 1024;
+    let value = "\u{e9}".repeat(capacity / 2);
+    d.app.on_clip_event(ClipEvent::Captured(text(&value))).await;
+    assert_eq!(d.app.status().await.pending, 1);
+    d.app.on_clip_event(ClipEvent::Captured(text(&format!("{value}x")))).await;
+    assert_eq!(d.app.status().await.pending, 1, "one extra encoded byte must not be queued");
+    assert!(d.app.event_log().iter().any(|e| e.kind == "capture_failed" && e.detail.as_deref() == Some("item_too_large")));
+    d.app.sync_now().await.unwrap();
+    assert_eq!(d.app.search("", Filter::All, 10, 0).await.unwrap().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn configurable_size_counts_json_escaping_before_queueing_text() {
+    let mut w = World::new().await;
+    let d = w.app("size-escaping", quiet()).await;
+    d.app.set_settings(with_item_limit(&d.app, 1)).unwrap();
+    let value = "\n".repeat((1024 * 1024 - 1024) / 2);
+    d.app.on_clip_event(ClipEvent::Captured(text(&value))).await;
+    assert_eq!(d.app.status().await.pending, 1);
+    d.app.on_clip_event(ClipEvent::Captured(text(&format!("{value}x")))).await;
+    assert_eq!(d.app.status().await.pending, 1, "the JSON-encoded content is one byte over the budget");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn configurable_size_image_boundary_uses_base64_bytes_and_one_extra_source_byte_is_rejected() {
+    let mut w = World::new().await;
+    let d = w.app("size-image", quiet()).await;
+    d.app.set_settings(with_item_limit(&d.app, 1)).unwrap();
+    // Base64 has four-byte steps: one extra source byte takes this exact budget four bytes over it.
+    let bytes = (1024 * 1024 - 1024) / 4 * 3;
+    for (extra, expected) in [(0, 1), (1, 1)] {
+        let image = Content::Image { png: vec![0; bytes + extra], width: 1, height: 1 };
+        d.app.on_clip_event(ClipEvent::Captured(image)).await;
+        assert_eq!(d.app.status().await.pending, expected);
+    }
+    assert!(d.app.event_log().iter().any(|e| e.kind == "capture_failed" && e.detail.as_deref() == Some("item_too_large")));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn configurable_size_changes_only_future_copies_and_survives_restart() {
+    let mut w = World::new().await;
+    let d = w.app("size-restart", quiet()).await;
+    assert_eq!(serde_json::to_value(d.app.settings()).unwrap()["maxItemMiB"], 8);
+    d.app.on_clip_event(ClipEvent::Captured(text(&"a".repeat(2 * 1024 * 1024)))).await;
+    d.app.set_settings(with_item_limit(&d.app, 1)).unwrap();
+    d.app.on_clip_event(ClipEvent::Captured(text(&"b".repeat(2 * 1024 * 1024)))).await;
+    assert_eq!(d.app.status().await.pending, 1, "lowering the limit keeps the old item and queue entry");
+    d.app.shutdown();
+    let again = App::new(d.dir.clone(), d.secrets.clone(), d.clipboard.clone(), quiet());
+    assert!(again.start().await.unwrap());
+    assert_eq!(serde_json::to_value(again.settings()).unwrap()["maxItemMiB"], 1);
+    assert_eq!(again.status().await.pending, 1);
+    again.sync_now().await.unwrap();
+    assert_eq!(again.search("", Filter::All, 10, 0).await.unwrap().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn configurable_size_rejects_invalid_values_without_changing_the_saved_settings() {
+    let mut w = World::new().await;
+    let d = w.app("size-invalid", quiet()).await;
+    for mib in [0, 3, 9, 16, 255] {
+        let before = d.app.settings();
+        let saved = std::fs::read(d.dir.join("app-settings.json")).ok();
+        assert!(d.app.set_settings(with_item_limit(&d.app, mib)).is_err());
+        assert_eq!(d.app.settings(), before);
+        assert_eq!(std::fs::read(d.dir.join("app-settings.json")).ok(), saved);
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_copied_text_is_queued_and_reaches_the_other_device() {
     let mut w = World::new().await;
