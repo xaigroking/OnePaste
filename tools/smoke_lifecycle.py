@@ -33,7 +33,8 @@ def find_exe(root):
         hits = [h for h in glob.glob(os.path.join(root, "*.app", "Contents", "MacOS", "*")) if os.access(h, os.X_OK)]
     if not hits:
         raise SystemExit("FAIL: no program found in %s" % root)
-    return hits[0]
+    # launchd resolves ProgramArguments independently of the caller's working directory.
+    return os.path.abspath(hits[0])
 
 
 def running(name):
@@ -213,6 +214,7 @@ def mac_launch_agent(exe):
                 if match:
                     pid = int(match.group(1))
                 elif time.monotonic() >= until:
+                    print(result.stdout, flush=True)
                     raise SystemExit("FAIL: launchd did not start the ad-hoc package")
                 else:
                     time.sleep(0.25)
