@@ -255,8 +255,8 @@ fn open_in_browser(url: &str) -> std::io::Result<()> {
 
 /// The saved server address, even when that server cannot be reached.
 #[tauri::command]
-pub async fn app_current_server_url(core: State<'_, App>) -> Option<String> {
-    core.current_server_url().await
+pub async fn app_current_server_url(core: State<'_, App>) -> Result<Option<String>, String> {
+    Ok(core.current_server_url().await)
 }
 
 #[tauri::command]
