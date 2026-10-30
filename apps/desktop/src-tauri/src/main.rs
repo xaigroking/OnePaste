@@ -105,6 +105,7 @@ fn main() {
             commands::app_set_settings,
             commands::get_log,
             commands::get_hotkey_state,
+            commands::set_hotkey,
             commands::get_tray_state,
             commands::set_texts,
             commands::copy_diagnostics,

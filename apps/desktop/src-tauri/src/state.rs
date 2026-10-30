@@ -96,6 +96,8 @@ pub struct Inner {
     pub log: VecDeque<LogEntry>,
     pub tray: TrayState,
     pub hotkey: HotkeyState,
+    pub hotkey_binding: Option<String>,
+    pub hotkey_warning: Option<&'static str>,
     pub texts: TrayTexts,
     /// The language preference chosen by the user (`system` by default).
     pub language: Preference,
@@ -151,6 +153,8 @@ impl AppState {
             log: VecDeque::new(),
             tray: TrayState::Synced,
             hotkey: HotkeyState::Unknown,
+            hotkey_binding: None,
+            hotkey_warning: None,
             texts,
             language,
             system_locale,

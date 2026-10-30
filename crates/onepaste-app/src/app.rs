@@ -337,9 +337,23 @@ impl App {
         lock(&self.0.shared).settings.clone()
     }
 
-    pub fn set_settings(&self, s: Settings) -> Result<(), AppError> {
+    pub fn set_settings(&self, mut s: Settings) -> Result<(), AppError> {
+        let mut shared = lock(&self.0.shared);
+        // Only the native registration operation changes this preference. A stale settings form must not undo it.
+        s.quick_hotkey = shared.settings.quick_hotkey.clone();
         s.save(&self.0.dir)?;
-        lock(&self.0.shared).settings = s;
+        shared.settings = s;
+        Ok(())
+    }
+
+    /// Called by the shell after registering a shortcut; the key itself never reaches the clipboard or sync engine.
+    pub fn set_quick_hotkey(&self, binding: Option<&str>) -> Result<(), AppError> {
+        let binding = binding.map(crate::hotkeys::normalize).transpose().map_err(|_| AppError::Other("invalid hotkey".into()))?;
+        let mut shared = lock(&self.0.shared);
+        let mut next = shared.settings.clone();
+        next.quick_hotkey = binding;
+        next.save(&self.0.dir)?;
+        shared.settings = next;
         Ok(())
     }
 

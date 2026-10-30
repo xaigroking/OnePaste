@@ -22,6 +22,26 @@ interface Screen {
 
 const WINDOW = { width: 1040, height: 640 };
 
+for (const mode of ["recording", "conflict"] as const) {
+  for (const theme of THEMES) for (const lang of LANGS) {
+    test(`hotkey ${mode} ${theme} ${lang}`, async ({ page }) => {
+      const l = locale(lang);
+      await page.setViewportSize({ width: 1040, height: 900 });
+      await page.addInitScript((value) => localStorage.setItem("onepaste.theme", value), theme);
+      await page.goto(`/?screen=set&lang=${lang}${mode === "conflict" ? "&hotkeySave=busy" : ""}`);
+      await page.getByRole("button", { name: l.hotkey.change, exact: true }).click();
+      await page.getByRole("textbox", { name: l.hotkey.new, exact: true }).press("Control+Alt+K");
+      if (mode === "conflict") {
+        await page.getByRole("button", { name: l.hotkey.save, exact: true }).click();
+        await page.getByRole("alert").waitFor();
+      }
+      await page.locator(".card").filter({ has: page.getByRole("heading", { name: l.settings.shortcuts, exact: true }) }).scrollIntoViewIfNeeded();
+      await page.evaluate(() => document.fonts.ready);
+      await expect(page).toHaveScreenshot(`hotkey-${mode}-${theme}-${lang}.png`);
+    });
+  }
+}
+
 async function toCodeStep(page: Page, lang: string) {
   const l = locale(lang);
   await page.locator('input[value="server"]').check();

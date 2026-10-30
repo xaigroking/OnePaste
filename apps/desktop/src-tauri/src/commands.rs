@@ -1,7 +1,7 @@
 //! Commands the UI can call. Responses carry nothing sensitive beyond clipboard content; key material is never returned.
 
 use crate::lang::{self, Preference};
-use crate::state::{AppState, HotkeyState, LogEntry, TrayState, TrayTexts};
+use crate::state::{AppState, LogEntry, TrayState, TrayTexts};
 use crate::{diag, tray};
 use onepaste_app::{parse_filter, App, DeviceList, ImageData, ItemView, Mode, ServerVault, Settings, Status, UpdateInfo};
 use onepaste_platform::clipboard::{self, Content};
@@ -75,8 +75,13 @@ pub fn get_log(state: State<AppState>, core: State<App>) -> Vec<LogEntry> {
 }
 
 #[tauri::command]
-pub fn get_hotkey_state(state: State<AppState>) -> HotkeyState {
-    state.0.lock().unwrap().hotkey
+pub fn get_hotkey_state(state: State<AppState>) -> crate::hotkey::Info {
+    crate::hotkey::info(&state)
+}
+
+#[tauri::command]
+pub async fn set_hotkey(app: AppHandle, shortcut: Option<String>) -> Result<crate::hotkey::Info, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::hotkey::configure(&app, shortcut.as_deref())).await.map_err(|_| "hotkey_failed".to_string())?
 }
 
 #[tauri::command]
