@@ -118,6 +118,104 @@ fn png(n: usize) -> Content {
     Content::Image { png: bytes, width: 4, height: 3 }
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn suspected_secrets_never_enter_storage_or_upload_even_after_offline_capture() {
+    let mut w = World::new().await;
+    let d = w.app("filtered", quiet()).await;
+    let samples = [
+        format!("-----BEGIN OPENSSH PRIVATE KEY-----\n{}", "SYNC_PRIVATE_MARKER"),
+        format!("export AUTH={}{}", "ghp_", "SYNC_TOKEN_MARKER"),
+    ];
+    for sample in &samples {
+        d.app.on_clip_event(ClipEvent::Captured(text(sample))).await;
+        assert_eq!(d.app.status().await.pending, 0, "rejected text cannot be queued");
+        assert_eq!(d.app.status().await.items, 0, "rejected text cannot become an item");
+        assert!(d.app.search("", Filter::All, 10, 0).await.unwrap().is_empty());
+        let mut store = onepaste_client::SqliteStore::open(&d.dir.join("onepaste.db")).unwrap();
+        onepaste_sync::Store::transact(&mut store, &mut |tx| {
+            assert!(tx.items()?.is_empty());
+            assert!(tx.outbox()?.is_empty());
+            Ok(())
+        }).unwrap();
+    }
+    d.app.sync_now().await.unwrap();
+    w.cli_syncs().await;
+    assert_eq!(w.cli_live_count(), 0, "the real server must have no rejected items");
+    w.server.take().unwrap().shutdown().await;
+    assert!(matches!(d.app.sync_now().await, Err(AppError::Unreachable)));
+    for sample in &samples {
+        d.app.on_clip_event(ClipEvent::Captured(text(sample))).await;
+    }
+    assert_eq!(d.app.status().await.pending, 0);
+    w.server = Some(Server::start(server_config(&w.dir, w.port)).await.unwrap());
+    d.app.notify_network(true);
+    d.app.sync_now().await.unwrap();
+    w.cli_syncs().await;
+    assert_eq!(w.cli_live_count(), 0, "reconnecting must not backfill rejected copies");
+    assert!(d.clipboard.writes().is_empty());
+    let events: Vec<_> = d.app.event_log().into_iter().filter(|e| e.kind == "skipped_suspected_secret").collect();
+    assert_eq!(events.len(), 4);
+    for (i, event) in events.iter().enumerate() {
+        assert_eq!(event.detail.as_deref(), Some(if i % 2 == 0 { "private_key_marker" } else { "github_token_prefix" }));
+    }
+    let output = format!("{}{}", serde_json::to_string(&d.app.event_log()).unwrap(), d.app.diagnostics().await);
+    for needle in samples.iter().map(String::as_str).chain(["SYNC_PRIVATE_MARKER", "SYNC_TOKEN_MARKER", "-----BEGIN", "ghp_"]) {
+        assert!(!output.contains(needle), "no rejected content or fragments in logs or diagnostics");
+    }
+    d.app.shutdown();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn suspected_secrets_switch_allows_recopies_but_keeps_system_guards_and_remote_import() {
+    let mut w = World::new().await;
+    let d = w.app("filter-switch", quiet()).await;
+    let samples = [format!("-----BEGIN EC PRIVATE KEY-----\n{}", "SWITCH_PRIVATE_SAMPLE"), format!("{}{}", "gho_", "SWITCH_TOKEN_SAMPLE")];
+    for sample in &samples {
+        d.app.on_clip_event(ClipEvent::Captured(text(sample))).await;
+        let mut settings = d.app.settings();
+        settings.skip_suspected_secrets = false;
+        d.app.set_settings(settings.clone()).unwrap();
+        d.app.on_clip_event(ClipEvent::Captured(text(sample))).await;
+        settings.skip_suspected_secrets = true;
+        d.app.set_settings(settings).unwrap();
+    }
+    assert_eq!(d.app.status().await.pending, 2, "both rejected samples can be recopied after switching off");
+    let mut settings = d.app.settings();
+    settings.skip_suspected_secrets = false;
+    d.app.set_settings(settings.clone()).unwrap();
+    d.app.on_clip_event(ClipEvent::SkippedSensitive).await;
+    d.app.on_clip_event(ClipEvent::SkippedSelf).await;
+    assert_eq!(d.app.status().await.pending, 2);
+    settings.skip_suspected_secrets = true;
+    d.app.set_settings(settings.clone()).unwrap();
+    d.app.on_clip_event(ClipEvent::Captured(text(&format!("{}{}", "ghs_", "NEW_REJECTED_SAMPLE")))).await;
+    assert_eq!(d.app.status().await.pending, 2);
+    // Disabling content rules does not override listening or existing image size limits.
+    settings.skip_suspected_secrets = false;
+    settings.record_clipboard = false;
+    d.app.set_settings(settings.clone()).unwrap();
+    d.app.on_clip_event(ClipEvent::Captured(text(&samples[0]))).await;
+    assert_eq!(d.app.status().await.pending, 2);
+    settings.record_clipboard = true;
+    d.app.set_settings(settings.clone()).unwrap();
+    d.app.on_clip_event(ClipEvent::Captured(png(7 * 1024 * 1024))).await;
+    assert_eq!(d.app.status().await.pending, 2);
+    settings.skip_suspected_secrets = true;
+    d.app.set_settings(settings).unwrap();
+    d.app.on_clip_event(ClipEvent::Captured(text("ordinary copy still works"))).await;
+    d.app.on_clip_event(ClipEvent::Captured(png(100))).await;
+    assert_eq!(d.app.status().await.pending, 4);
+    d.app.sync_now().await.unwrap();
+    w.cli_syncs().await;
+    assert_eq!(w.cli_live_count(), 4);
+    // CLI writes and remote pulls remain outside this local-copy heuristic.
+    let remote = format!("{}{}", "ghu_", "REMOTE_SYNTHETIC_SAMPLE");
+    w.cli_adds(&remote).await;
+    d.app.sync_now().await.unwrap();
+    assert_eq!(d.app.search("REMOTE_SYNTHETIC_SAMPLE", Filter::Text, 10, 0).await.unwrap().len(), 1);
+    d.app.shutdown();
+}
+
 async fn wait_for<F: std::future::Future<Output = bool>>(what: &str, mut f: impl FnMut() -> F) {
     for _ in 0..150 {
         if f().await {

@@ -10,7 +10,7 @@ import { UpdatesCard } from "./UpdatesCard";
 
 interface Props {
   settings: AppSettings | null;
-  onSettings: (s: AppSettings) => void;
+  onSettings: (s: AppSettings) => Promise<void>;
   language: LanguageState | null;
   onLanguage: (p: LanguagePreference) => void;
   hotkey: HotkeyState;
@@ -29,6 +29,20 @@ interface Props {
 export function SettingsView(p: Props) {
   const { t } = useTranslation();
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme);
+  const [savingSecrets, setSavingSecrets] = useState(false);
+  const [secretsSaveFailed, setSecretsSaveFailed] = useState(false);
+  const changeSecrets = async (value: boolean) => {
+    if (!p.settings || savingSecrets) return;
+    setSavingSecrets(true);
+    setSecretsSaveFailed(false);
+    try {
+      await p.onSettings({ ...p.settings, skipSuspectedSecrets: value });
+    } catch {
+      setSecretsSaveFailed(true);
+    } finally {
+      setSavingSecrets(false);
+    }
+  };
   const preference = p.language?.preference ?? "system";
   const pickTheme = (c: ThemeChoice) => {
     applyTheme(c);
@@ -79,7 +93,19 @@ export function SettingsView(p: Props) {
             onChange={(v) => p.onSettings({ ...p.settings!, recordClipboard: v })}
             label={t("settings.record")}
           />
-          <Switch checked disabled onChange={() => undefined} label={t("settingsMore.skipSecrets")} hint={t("settingsMore.soon")} />
+          <Switch
+            checked={p.settings.skipSuspectedSecrets}
+            disabled={savingSecrets}
+            onChange={(v) => void changeSecrets(v)}
+            label={t("settingsMore.skipSecrets")}
+            hint={t("settingsMore.skipSecretsHint")}
+          />
+          {secretsSaveFailed && <p className="notice notice-warn" role="alert">{t("settingsMore.saveFailed")}</p>}
+          <details>
+            <summary>{t("settingsMore.skipSecretsScope")}</summary>
+            <p className="muted small">{t("settingsMore.skipSecretsRules")}</p>
+            <p className="muted small">{t("settingsMore.skipSecretsBoundary")}</p>
+          </details>
           <Switch checked disabled onChange={() => undefined} label={t("settingsMore.respectMarker")} hint={t("settingsMore.soon")} />
           <div className="setting setting-soon">
             <span>{t("settingsMore.excludedApps")}</span>

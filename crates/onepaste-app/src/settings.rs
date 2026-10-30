@@ -1,4 +1,4 @@
-//! The two settings this version has. They live next to the databases, in the same data directory.
+//! Application settings live next to the databases, in the same data directory.
 
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,8 @@ pub struct Settings {
     pub auto_apply_remote: bool,
     /// Record what is copied on this computer.
     pub record_clipboard: bool,
+    /// Skip newly copied text with private-key markers or GitHub token prefixes.
+    pub skip_suspected_secrets: bool,
     /// Look for a newer version when the program starts and every six hours.
     pub check_updates: bool,
     /// The update channel; `None` means the default for this version (see `update::default_channel`).
@@ -27,7 +29,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { auto_apply_remote: true, record_clipboard: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
+        Settings { auto_apply_remote: true, record_clipboard: true, skip_suspected_secrets: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
     }
 }
 
