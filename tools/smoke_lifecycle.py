@@ -98,15 +98,27 @@ def visible_windows(pid):
         callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         user32.IsWindowVisible.argtypes = [wintypes.HWND]
         user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
         def visit(hwnd, _):
             owner = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
             if owner.value == pid and user32.IsWindowVisible(hwnd):
-                found.append(hwnd)
+                bounds = wintypes.RECT()
+                title = ctypes.create_unicode_buffer(256)
+                window_class = ctypes.create_unicode_buffer(256)
+                user32.GetWindowRect(hwnd, ctypes.byref(bounds))
+                user32.GetClassNameW(hwnd, window_class, len(window_class))
+                user32.GetWindowTextW(hwnd, title, len(title))
+                found.append({"class": window_class.value, "title": title.value,
+                              "bounds": [bounds.left, bounds.top, bounds.right, bounds.bottom]})
             return True
         callback = callback_type(visit)
         user32.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
         user32.EnumWindows(callback, 0)
+        if found:
+            print("visible native windows: %s" % found, flush=True)
         return len(found)
     cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
     cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
