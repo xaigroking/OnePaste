@@ -55,6 +55,11 @@ pub struct Session {
 }
 
 impl Session {
+    pub(crate) fn for_connection(store: SqliteStore, mk: &Key, info: Info, token: String) -> Session {
+        let transport = Transport::new(&info.url, &info.fingerprint);
+        Session { engine: Engine::new(store, mk.clone(), token.clone()), transport, info, mk: mk.clone(), token }
+    }
+
     /// Opens the local vault and unlocks it with the passphrase. A wrong passphrase is `WrongPassphrase`.
     pub fn open(dir: &Path, passphrase: &str) -> Result<Session, ClientError> {
         let store = SqliteStore::open(&db_path(dir))?;

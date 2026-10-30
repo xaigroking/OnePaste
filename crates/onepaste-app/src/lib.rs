@@ -11,6 +11,7 @@ pub mod ports;
 pub mod instance;
 mod settings;
 mod secrets;
+mod server_change;
 pub mod update;
 
 pub use app::{App, AppConfig, ImageData, UpdateSetup, DeviceList, DeviceView, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
