@@ -257,7 +257,9 @@ if command -v python3 > /dev/null && python3 -c 'import yaml' 2> /dev/null; then
 else
   skip "python3 with PyYAML is not available, so the workflows are not syntax checked"
 fi
-# 13f) The notes generator produces every section the release check wants
+# 13f) Both release paths preserve the complete desktop setup instructions
+python3 tools/test_release_notes.py || { say "FAIL generated self-hosting instructions"; release_fail=1; }
+# The notes generator produces every section the release check wants
 notes_tmp=$(mktemp)
 bash scripts/make-release-notes.sh v0.0.1-main.1 "$(git rev-parse HEAD 2> /dev/null || echo 0000000)" > "$notes_tmp" 2> /dev/null || { say "FAIL make-release-notes.sh failed"; release_fail=1; }
 for title in "Read first" "First launch" "Try it in 3 steps" "Run the server with Docker" "What's changed" "Verify downloads"; do

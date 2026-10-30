@@ -29,6 +29,16 @@ async function toCodeStep(page: Page, lang: string) {
 }
 
 const SCREENS: Screen[] = [
+  { name: "server-help", screen: "ob1", size: { width: 1040, height: 900 }, states: [],
+    drive: async (page, lang) => {
+      await toCodeStep(page, lang);
+      await page.locator("summary").click();
+    } },
+  { name: "device-code", screen: "dev", size: { width: 1040, height: 900 }, states: [],
+    drive: async (page, lang) => {
+      await page.getByRole("button", { name: locale(lang).devices.addMake }).click();
+      await page.getByTestId("connection-code").waitFor();
+    } },
   { name: "main", screen: "main", size: WINDOW, states: ["empty", "loading", "error"] },
   { name: "dev", screen: "dev", size: WINDOW, states: ["empty", "loading", "error"] },
   { name: "set", screen: "set", size: WINDOW, states: ["loading", "error"] },

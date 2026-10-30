@@ -1,10 +1,8 @@
 ## Try it in 3 steps
-Everything you need is in the downloads below; you do not have to install anything else.
+Use the portable desktop downloads for Windows and macOS. No source build or development tools are needed.
 
-1. **Start the server** on a computer that stays on. Unzip the `tools` package for that computer, open a terminal in the unzipped folder and run the server. It prints a connection code, a line that starts with `onepaste1:`.
-   - Windows: `.\onepaste-server.exe`
-   - macOS and Linux: `./onepaste-server`
-2. **Open OnePaste** on your computer (the desktop download), choose "Connect to my own server", paste the connection code and follow the steps: choose a passphrase, then save the recovery kit it shows you somewhere offline.
-3. **Add a second device.** In the server folder, run the same program with `connect-code` to print a new code (`.\onepaste-server.exe connect-code` on Windows, `./onepaste-server connect-code` on macOS and Linux). On the second device open OnePaste, choose "Connect to my own server", paste the new code and type your passphrase.
+1. **Start the server** on a computer that stays on and is reachable by both desktops. For Docker, follow **Run the server with Docker** below from start to finish; it does not require a `tools` download. Alternatively, unzip the `tools` package on the server and run `.\onepaste-server.exe` on Windows or `./onepaste-server` on macOS/Linux. Copy the complete `onepaste1:` connection code it prints. For cross-network access, configure `ONEPASTE_PUBLIC_URL` with the server's reachable HTTPS address.
+2. **Open the first desktop.** Unzip the desktop download, follow **First launch**, choose **Connect to my own server**, paste the code and click **Next**. For an empty vault, choose and confirm a passphrase, save the recovery kit offline, check the saved confirmation and click **Done**. For an existing vault, use its original passphrase to **Join**, or use the recovery-kit entry if you forgot it.
+3. **Add the second desktop.** On the connected desktop, open **Devices → Add a device → Make a connection code** and copy the new code. On the second desktop, choose **Connect to my own server**, paste the new code and join with the same passphrase. If the connected desktop is unavailable, run the server program with `connect-code` to obtain a fresh code. Codes are single-use and a newly generated code replaces unused older codes. Keep them private. Copy distinctive text A → B and then different text B → A; confirm each appears in the receiving history and can be copied. Server startup alone does not confirm sync.
 
-The `tools` packages also hold the command line client `onepaste`. On macOS the two programs are not signed either; `READ-ME-FIRST.txt` in the package shows how to allow them.
+The server programs on macOS are also unsigned; `READ-ME-FIRST.txt` in the tools package explains how to allow them.

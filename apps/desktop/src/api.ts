@@ -157,6 +157,7 @@ export const api = {
   checkUpdate: (manual: boolean) => invoke<UpdateInfo | null>("app_check_update", { manual }),
   availableUpdate: () => invoke<UpdateInfo | null>("app_available_update"),
   skipUpdate: (version: string) => invoke<void>("app_skip_update", { version }),
+  openServerHelp: () => invoke<void>("app_open_server_help"),
   openRelease: (url: string) => invoke<void>("app_open_release", { url }),
   closeToTray: (dontShowAgain: boolean) => invoke<void>("close_to_tray", { dontShowAgain }),
   itemImage: (itemId: string) => invoke<ImageData>("app_item_image", { itemId }),

@@ -1,9 +1,25 @@
 ## Run the server with Docker
-If you have Docker, you do not need the `tools` download to run the server. Replace `192.168.1.20` with the address other computers use to reach this one:
+Use a server with Docker that both computers can reach. Docker runs on that server; the desktop app runs on your Windows or macOS computers. Linux is supported here as a server platform, not a desktop platform. You do not need the `tools` download or development tools for this path.
 
-```
-docker run -d --name onepaste -p 8443:8443 -v onepaste-data:/data -e ONEPASTE_PUBLIC_URL=https://192.168.1.20:8443 ghcr.io/xaigroking/onepaste-server:{{TAG}}
-docker logs onepaste
-```
+1. **Start one server.** For access across networks, replace `YOUR_SERVER_PUBLIC_IP` below with your server's public IP address. This placeholder is not a running service. Allow inbound TCP port 8443 on your server and network.
 
-The connection code is the line that starts with `onepaste1:`. To print a new one later: `docker exec onepaste /onepaste-server connect-code`. The image is for 64-bit Intel/AMD and for Arm. See the README for backups and upgrades.
+   ```
+   docker run -d --name onepaste -p 8443:8443 -v onepaste-data:/data -e ONEPASTE_PUBLIC_URL=https://YOUR_SERVER_PUBLIC_IP:8443 ghcr.io/xaigroking/onepaste-server:{{TAG}}
+   ```
+
+2. **Get a connection code.** Run this on the Docker server and copy the complete `onepaste1:` line:
+
+   ```
+   docker exec onepaste /onepaste-server connect-code
+   ```
+
+   Each code is single-use. Generating a new code invalidates previous unused codes; keep it private. The first-start code is also available in `docker logs onepaste`.
+3. **First desktop.** Download the Windows or macOS portable zip from this same release, unzip it, and follow **First launch** above to allow the app to open. Choose **Connect to my own server**, paste the code, optionally name this device, and click **Next**. For an empty server, choose and confirm a passphrase, click **Next**, save the recovery kit offline, check **I have saved it somewhere offline**, and click **Done**. If the server already has a vault, enter its original passphrase and click **Join** instead; use **I forgot my passphrase, I have a recovery kit** if needed.
+4. **Second desktop.** On the connected first desktop, open **Devices → Add a device → Make a connection code** and copy the new code. On the second desktop, unzip its desktop download, follow **First launch**, choose **Connect to my own server**, paste this new code, click **Next**, and enter the same passphrase to **Join**. Both desktops use the same server; do not deploy another server. If the first desktop is unavailable, use the server's `connect-code` command above to get a new code.
+5. **Check both directions.** Copy distinctive text on computer A; confirm it appears in B's history and can be copied there. Then copy different text on B and confirm it arrives in A's history and can be copied. A healthy container or running process only checks server availability; it does not establish that two desktops are syncing. This walkthrough is not a claim of verified public-network stability.
+
+For LAN-only use, replace the public IP with the server's LAN address. Both computers must be on the same network; this does not ensure sync after leaving that network.
+
+The server creates its HTTPS certificate on first start and persists it with the data in `onepaste-data:/data`. The connection code pins the certificate fingerprint, so no domain name or public certificate is required. Keep TLS verification enabled. The server address is not an administration webpage; enter the connection code in the desktop app.
+
+The image supports 64-bit Intel/AMD and Arm. Keep the volume when upgrading so the data and certificate survive. See [Run your own server](https://github.com/xaigroking/OnePaste#run-your-own-server) for backup, restore and upgrade commands.
