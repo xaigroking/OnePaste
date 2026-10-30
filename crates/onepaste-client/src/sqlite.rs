@@ -4,7 +4,7 @@
 use crate::error::ClientError;
 use onepaste_sync::{ItemRow, OpState, OutboxRow, PauseReason, Store, StoreError, SyncMeta, Tx};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -20,6 +20,38 @@ CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value BLOB NOT NULL);
 
 pub struct SqliteStore {
     conn: Connection,
+    path: PathBuf,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ConnectionSnapshot {
+    pub values: Vec<(String, String)>,
+    secrets: Vec<(String, Vec<u8>)>,
+    pub items: Vec<ItemRow>,
+    pub outbox: Vec<OutboxRow>,
+    pub sync: SyncMeta,
+}
+
+impl ConnectionSnapshot {
+    pub fn value(&self, key: &str) -> Option<&str> {
+        self.values.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+}
+
+pub(crate) struct ConnectionReplacement {
+    pub values: Vec<(String, String)>,
+    pub token: Vec<u8>,
+    pub items: Vec<ItemRow>,
+    pub outbox: Vec<OutboxRow>,
+    pub next_op_id: u64,
+}
+
+fn connection_snapshot(tx: &Transaction<'_>) -> Result<ConnectionSnapshot, ClientError> {
+    let values = tx.prepare("SELECT key, value FROM meta ORDER BY key")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<Vec<_>, _>>()?;
+    let secrets = tx.prepare("SELECT name, value FROM secrets ORDER BY name")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<Vec<_>, _>>()?;
+    let t = SqliteTx { tx };
+    let convert = |e: StoreError| ClientError::Storage(e.to_string());
+    Ok(ConnectionSnapshot { values, secrets, items: t.items().map_err(convert)?, outbox: t.outbox().map_err(convert)?, sync: t.meta().map_err(convert)? })
 }
 
 fn fail(e: rusqlite::Error) -> StoreError {
@@ -27,6 +59,34 @@ fn fail(e: rusqlite::Error) -> StoreError {
 }
 
 impl SqliteStore {
+    pub(crate) fn reopen(&self) -> Result<SqliteStore, ClientError> {
+        Self::open(&self.path)
+    }
+    pub(crate) fn connection_snapshot(&mut self) -> Result<ConnectionSnapshot, ClientError> {
+        let tx = self.conn.transaction()?;
+        let result = connection_snapshot(&tx)?;
+        tx.commit()?;
+        Ok(result)
+    }
+
+    /// Connection credentials, queue rebasing and cursor reset share one durable transaction.
+    pub(crate) fn replace_connection(&mut self, before: &ConnectionSnapshot, next: &ConnectionReplacement) -> Result<(), ClientError> {
+        let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if connection_snapshot(&tx)? != *before {
+            return Err(ClientError::Storage("local state changed during server replacement".into()));
+        }
+        let mut t = SqliteTx { tx: &tx };
+        let convert = |e: StoreError| ClientError::Storage(e.to_string());
+        for old in &before.outbox { t.remove_outbox(old.op_id).map_err(convert)?; }
+        for row in &next.items { t.put_item(row).map_err(convert)?; }
+        for row in &next.outbox { t.put_outbox(row).map_err(convert)?; }
+        t.set_meta(&SyncMeta { next_op_id: next.next_op_id, ..Default::default() }).map_err(convert)?;
+        for (key, value) in &next.values { t.put(key, value).map_err(convert)?; }
+        tx.execute("INSERT INTO secrets (name, value) VALUES ('devtoken', ?1) ON CONFLICT(name) DO UPDATE SET value = excluded.value", [&next.token])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn open(path: &Path) -> Result<SqliteStore, ClientError> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
@@ -46,7 +106,7 @@ impl SqliteStore {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.execute_batch(SCHEMA)?;
-        Ok(SqliteStore { conn })
+        Ok(SqliteStore { conn, path: path.to_path_buf() })
     }
 
     pub fn meta_get(&self, key: &str) -> Result<Option<String>, ClientError> {
@@ -199,5 +259,40 @@ impl Store for SqliteStore {
             f(&mut t)?;
         }
         tx.commit().map_err(fail)
+    }
+}
+
+#[cfg(test)]
+mod replacement_tests {
+    use super::*;
+
+    #[test]
+    fn replacement_rolls_back_connection_items_queue_and_sync_state_when_the_last_write_fails() {
+        let dir = std::env::temp_dir().join(format!("onepaste-replacement-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rollback.db");
+        let _ = std::fs::remove_file(&path);
+        let mut store = SqliteStore::open(&path).unwrap();
+        store.save(&[("u", "old-address"), ("fp", "old-pin"), ("device_id", "old-device"), ("keyparams", "old-record")], &[("devtoken", &[1, 2, 3])]).unwrap();
+        store.transact(&mut |tx| {
+            tx.put_item(&ItemRow { id: "item".into(), seq: 45, deleted: false, envelope_json: Some("old-envelope".into()), mark: 9 })?;
+            tx.put_outbox(&OutboxRow { op_id: 4, item_id: "item".into(), sealed_intent: vec![4, 5], idem_key: "old-idempotency".into(), attempts: 3, state: OpState::Pending, last_error: None })?;
+            tx.set_meta(&SyncMeta { cursor: 45, max_seen_seq: 45, next_op_id: 5, ..Default::default() })
+        }).unwrap();
+        let before = store.connection_snapshot().unwrap();
+        let mut row = before.items[0].clone(); row.seq = 0; row.mark = 0;
+        let replacement = ConnectionReplacement { values: vec![("u".into(), "new-address".into()), ("fp".into(), "new-pin".into()), ("device_id".into(), "new-device".into()), ("keyparams".into(), "new-record".into())], token: vec![8, 9], items: vec![row], outbox: vec![], next_op_id: 1 };
+        store.conn.execute_batch("CREATE TRIGGER fail_switch BEFORE UPDATE ON secrets BEGIN SELECT RAISE(ABORT, 'injected switch failure'); END;").unwrap();
+        assert!(store.replace_connection(&before, &replacement).is_err());
+        assert_eq!(store.connection_snapshot().unwrap(), before);
+        store.conn.execute_batch("DROP TRIGGER fail_switch;").unwrap();
+        store.replace_connection(&before, &replacement).unwrap();
+        let after = store.connection_snapshot().unwrap();
+        assert_eq!(after.value("u"), Some("new-address"));
+        assert_eq!(after.value("fp"), Some("new-pin"));
+        assert_eq!(after.value("device_id"), Some("new-device"));
+        assert!(after.outbox.is_empty());
+        assert_eq!(after.items[0].seq, 0);
+        assert_eq!(after.sync.cursor, 0);
     }
 }

@@ -9,6 +9,7 @@ mod join;
 pub mod pin;
 pub mod public;
 mod session;
+mod server_change;
 mod sqlite;
 mod transport;
 

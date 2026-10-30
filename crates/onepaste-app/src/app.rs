@@ -17,7 +17,7 @@ use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
-use tokio::sync::{mpsc, Mutex, Notify};
+use tokio::sync::{mpsc, Mutex, Notify, RwLock};
 use tokio::task::JoinHandle;
 
 /// The server refuses items whose ciphertext is larger than this.
@@ -192,6 +192,8 @@ struct Inner {
     clipboard: Arc<dyn ClipboardPort>,
     cfg: AppConfig,
     session: Mutex<Option<Session>>,
+    connection: RwLock<()>,
+    sync_task: StdMutex<Option<JoinHandle<()>>>,
     /// The engine of a local-only setup: it keeps items but has no device, no token and no queue.
     local: Mutex<Option<SyncEngine<SqliteStore>>>,
     /// A new vault whose recovery kit is on screen. Nothing of it is on the server or on disk until it is confirmed.
@@ -208,6 +210,14 @@ struct Inner {
 
 #[derive(Clone)]
 pub struct App(Arc<Inner>);
+
+struct EventListener(Option<JoinHandle<()>>);
+
+impl Drop for EventListener {
+    fn drop(&mut self) {
+        if let Some(task) = &self.0 { task.abort(); }
+    }
+}
 
 enum RoundEnd {
     Idle,
@@ -248,6 +258,8 @@ impl App {
             clipboard,
             cfg,
             session: Mutex::new(None),
+            connection: RwLock::new(()),
+            sync_task: StdMutex::new(None),
             local: Mutex::new(None),
             pending: StdMutex::new(None),
             history: StdMutex::new(None),
@@ -380,6 +392,38 @@ impl App {
         })
     }
 
+    /// The configured server address, available even when that server is offline.
+    pub async fn current_server_url(&self) -> Option<String> {
+        self.0.session.lock().await.as_ref().map(|s| s.info.url.clone())
+    }
+
+    /// Reconnects an existing synced setup without discarding its history.
+    pub async fn change_server(&self, code: &str, passphrase: Option<&str>, kit: Option<&str>) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
+        if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
+        let mut session = self.0.session.lock().await;
+        let current = session.as_mut().ok_or(AppError::NotJoined)?;
+        if let Err(error) = current.change_server(code, passphrase, kit).await {
+            let error = crate::server_change::safe_error(error);
+            self.log("server_change_failed", Some(error.code()));
+            return Err(error);
+        }
+        {
+            let mut g = lock(&self.0.shared);
+            g.device_id = current.info.device_id.clone();
+            g.paused = None;
+            g.incompatible = false;
+            g.initial_sync_done = false;
+            g.tray = TrayState::Syncing;
+        }
+        if let Some(old) = lock(&self.0.sync_task).take() { old.abort(); }
+        drop(session);
+        self.start_sync();
+        self.log("server_changed", None);
+        self.notify_status();
+        Ok(())
+    }
+
     /// Joins an existing vault with the connection code and the passphrase. The passphrase is used once and dropped;
     /// the master key goes into the secure store. A wrong passphrase registers nothing.
     pub async fn join(&self, code: &str, passphrase: &str, device_name: &str) -> Result<(), AppError> {
@@ -485,6 +529,7 @@ impl App {
     /// Deletes everything this program keeps on this computer: both databases, the two small files and the key in the
     /// secure store. The server is not touched. Afterwards the program is as on the first run.
     pub async fn wipe_local_data(&self) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
         self.shutdown();
         *self.0.session.lock().await = None;
         *self.0.local.lock().await = None;
@@ -543,8 +588,9 @@ impl App {
         if !joined_here {
             return Ok(false);
         }
-        let session = Session::open_with_key(&self.0.dir, &mk).map_err(AppError::from)?;
+        let mut session = Session::open_with_key(&self.0.dir, &mk).map_err(AppError::from)?;
         let device_id = session.info.device_id.clone();
+        let initial_sync_done = session.engine.store_mut().meta_get("server_initial_sync_done")?.map(|v| v == "true").unwrap_or(state.initial_sync_done);
         let history = HistoryStore::open(&self.0.dir, &mk).map_err(AppError::from)?;
         *self.0.session.lock().await = Some(session);
         *lock(&self.0.history) = Some(history);
@@ -554,16 +600,21 @@ impl App {
             g.started = true;
             g.mode = Mode::Synced;
             g.device_id = device_id;
-            g.initial_sync_done = state.initial_sync_done;
+            g.initial_sync_done = initial_sync_done;
         }
         self.start_monitor();
-        if self.0.cfg.background_sync {
-            let app = self.clone();
-            lock(&self.0.tasks).push(tokio::spawn(async move { app.drive().await }));
-            self.0.wake.notify_one();
-        }
+        self.start_sync();
         self.notify_status();
         Ok(true)
+    }
+
+    fn start_sync(&self) {
+        if self.0.cfg.background_sync {
+            let app = self.clone();
+            let next = tokio::spawn(async move { app.drive().await });
+            if let Some(old) = lock(&self.0.sync_task).replace(next) { old.abort(); }
+            self.0.wake.notify_one();
+        }
     }
 
     /// Runs `f` on the engine of whichever mode is active.
@@ -621,6 +672,7 @@ impl App {
     }
 
     async fn capture(&self, content: Content) -> Result<(), AppError> {
+        let _connection = self.0.connection.read().await;
         if self.settings().skip_suspected_secrets {
             if let Content::Text(text) = &content {
                 if let Some(reason) = crate::secrets::detect(text) {
@@ -696,6 +748,7 @@ impl App {
     }
 
     async fn sync_round(&self) -> RoundEnd {
+        let _connection = self.0.connection.read().await;
         let before = {
             let mut g = self.0.session.lock().await;
             let Some(s) = g.as_mut() else { return RoundEnd::Idle };
@@ -763,7 +816,8 @@ impl App {
         if first_sync && matches!(end, RoundEnd::Idle) {
             // From the next round on, what arrives is news
             if (StateFile { initial_sync_done: true, local_only: false }).save(&self.0.dir).is_ok() {
-                lock(&self.0.shared).initial_sync_done = true;
+                let saved = self.0.session.lock().await.as_mut().is_some_and(|s| s.engine.store_mut().save(&[("server_initial_sync_done", "true")], &[]).is_ok());
+                if saved { lock(&self.0.shared).initial_sync_done = true; }
             }
         }
         if let Err(e) = self.refresh_history().await {
@@ -815,11 +869,11 @@ impl App {
     /// The background loop: sync when asked, when the server announces a change, and from time to time.
     async fn drive(self) {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let listener = if self.0.cfg.listen_for_changes {
+        let listener = EventListener(if self.0.cfg.listen_for_changes {
             self.0.session.lock().await.as_ref().map(|s| s.listen_for_changes(tx.clone()))
         } else {
             None
-        };
+        });
         let _keep_open = tx;
         let mut wait = Duration::ZERO;
         let mut backoff = 1u64;
@@ -828,6 +882,7 @@ impl App {
                 _ = self.0.wake.notified() => {}
                 msg = rx.recv() => {
                     if let Some(Some(seq)) = msg {
+                        let _connection = self.0.connection.read().await;
                         if let Some(s) = self.0.session.lock().await.as_mut() {
                             let _ = s.engine.note_event_seq(seq);
                         }
@@ -849,7 +904,7 @@ impl App {
                 RoundEnd::Waiting(until) => Duration::from_millis(until.saturating_sub(now_ms()).max(500)),
                 RoundEnd::Paused => Duration::from_secs(3600),
             };
-            if let Some(l) = &listener {
+            if let Some(l) = &listener.0 {
                 if l.is_finished() {
                     break;
                 }
@@ -905,7 +960,7 @@ impl App {
                 let mk = e.master_key().clone();
                 let mut h = lock(history);
                 match h.as_mut() {
-                    Some(h) => h.refresh(e.store_mut(), &mk).map(|_| ()),
+                    Some(h) => crate::server_change::refresh_history(h, e.store_mut(), &mk),
                     None => Ok(()),
                 }
             })
@@ -1177,6 +1232,7 @@ impl App {
 
     /// Stops the background work.
     pub fn shutdown(&self) {
+        if let Some(task) = lock(&self.0.sync_task).take() { task.abort(); }
         for t in lock(&self.0.tasks).drain(..) {
             t.abort();
         }

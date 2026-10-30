@@ -157,6 +157,30 @@ async fn register_device(
     new_vault: bool,
     device_name: &str,
 ) -> Result<String, ClientError> {
+    let registration = register_remote(code, transport, record, mk, new_vault, device_name).await?;
+    let record_json = serde_json::to_string(record).map_err(|_| ClientError::Other("record".into()))?;
+    store.save(
+        &[("u", code.u.as_str()), ("fp", code.fp.as_str()), ("device_id", registration.device_id.as_str()), ("keyparams", record_json.as_str()), ("sealed_device_name", registration.sealed_name.as_str())],
+        &[("devtoken", registration.sealed_token.as_slice())],
+    )?;
+    Ok(registration.device_id)
+}
+
+pub(crate) struct Registration {
+    pub device_id: String,
+    pub token: String,
+    pub sealed_token: Vec<u8>,
+    pub sealed_name: String,
+}
+
+pub(crate) async fn register_remote(
+    code: &ConnectionCode,
+    transport: &Transport,
+    record: &KeyParams,
+    mk: &Key,
+    new_vault: bool,
+    device_name: &str,
+) -> Result<Registration, ClientError> {
     let device_id = onepaste_core::id::new_id()?;
     let sealed_name = B64.encode(crypto::seal(mk, &aad::device(&device_id), device_name.as_bytes())?);
     let proof = B64URL.encode(vault_proof(mk));
@@ -177,12 +201,7 @@ async fn register_device(
         .and_then(|v| v.get("device_token")?.as_str().map(str::to_string))
         .ok_or_else(|| ClientError::Other("malformed registration answer".into()))?;
     let sealed_token = crypto::seal(mk, aad::DEVTOKEN, token.as_bytes())?;
-    let record_json = serde_json::to_string(record).map_err(|_| ClientError::Other("record".into()))?;
-    store.save(
-        &[("u", code.u.as_str()), ("fp", code.fp.as_str()), ("device_id", device_id.as_str()), ("keyparams", record_json.as_str())],
-        &[("devtoken", sealed_token.as_slice())],
-    )?;
-    Ok(device_id)
+    Ok(Registration { device_id, token, sealed_token, sealed_name })
 }
 
 pub async fn join(dir: &Path, opts: JoinOptions) -> Result<JoinResult, ClientError> {
