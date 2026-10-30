@@ -281,7 +281,7 @@ export default function App() {
         {activeView === "settings" && (
           <SettingsView
             settings={settings}
-            onSettings={(s) => void changeSetting(s)}
+            onSettings={changeSetting}
             language={language}
             onLanguage={(p) => void changeLanguage(p)}
             hotkey={hotkey}

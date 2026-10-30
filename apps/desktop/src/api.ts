@@ -81,6 +81,7 @@ export interface ImageData {
 export interface AppSettings {
   autoApplyRemote: boolean;
   recordClipboard: boolean;
+  skipSuspectedSecrets: boolean;
   checkUpdates: boolean;
   /** null means the default for this version. */
   updateChannel: UpdateChannel | null;

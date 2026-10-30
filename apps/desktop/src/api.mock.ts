@@ -44,7 +44,7 @@ const ITEMS: ItemView[] = [
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
@@ -146,7 +146,12 @@ export const api = {
   setFlags: async () => undefined,
   remove: async () => undefined,
   settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
-  setSettings: async () => undefined,
+  setSettings: async (next: AppSettings) => {
+    const w = window as unknown as { __settingsCalls?: AppSettings[] };
+    w.__settingsCalls = [...(w.__settingsCalls ?? []), { ...next }];
+    if (q.get("settingsSave") === "error") throw "storage";
+    Object.assign(settings, next);
+  },
   log: async (): Promise<LogEntry[]> => [
     { tsMs: NOW - 5 * MIN, kind: "started", detail: null },
     { tsMs: NOW - 3 * MIN, kind: "captured", detail: "text, 42 bytes" },

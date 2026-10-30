@@ -29,6 +29,11 @@ async function toCodeStep(page: Page, lang: string) {
 }
 
 const SCREENS: Screen[] = [
+  { name: "secret-filter", screen: "set", size: { width: 1040, height: 900 }, states: [],
+    drive: async (page, lang) => {
+      await page.getByText(locale(lang).settingsMore.skipSecretsScope, { exact: true }).click();
+      await page.getByRole("heading", { name: locale(lang).settings.clipboard, exact: true }).scrollIntoViewIfNeeded();
+    } },
   { name: "server-help", screen: "ob1", size: { width: 1040, height: 900 }, states: [],
     drive: async (page, lang) => {
       await toCodeStep(page, lang);

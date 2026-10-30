@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { AppSettings } from "../src/api";
 
 // Keyboard walkthroughs. The page is the quick panel and the first-run screens with the stand-in api.
 
@@ -7,8 +8,42 @@ declare global {
     __copied?: string[];
     __hidden?: boolean;
     __called?: string[];
+    __settingsCalls?: AppSettings[];
   }
 }
+
+test("suspected secret filter switches with the keyboard and preserves other settings", async ({ page }) => {
+  await page.goto("/?screen=set&lang=en");
+  const toggle = page.getByRole("switch", { name: /Do not record things that look like keys or tokens/ });
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).toBeChecked();
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).not.toBeChecked();
+  const original = { autoApplyRemote: true, recordClipboard: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+  await expect.poll(() => page.evaluate(() => window.__settingsCalls)).toEqual([{ ...original, skipSuspectedSecrets: false }]);
+  await page.keyboard.press("Space");
+  await expect(toggle).toBeChecked();
+  await expect.poll(() => page.evaluate(() => window.__settingsCalls?.at(-1))).toEqual({ ...original, skipSuspectedSecrets: true });
+  const scope = page.getByText("What this detects", { exact: true });
+  await scope.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("details").filter({ has: scope })).toHaveAttribute("open", "");
+  await expect(page.getByText(/These are offline heuristics/)).toBeVisible();
+  await expect(page.getByText(/Turning this off still respects system sensitive markers/)).toBeVisible();
+});
+
+test("suspected secret filter reports a failed save and keeps the saved value", async ({ page }) => {
+  await page.goto("/?screen=set&lang=en&settingsSave=error");
+  const toggle = page.getByRole("switch", { name: /Do not record things that look like keys or tokens/ });
+  await expect(toggle).toBeEnabled();
+  await toggle.click();
+  await expect(page.getByRole("alert")).toHaveText("Could not save this setting. Try again.");
+  await expect(toggle).toBeChecked();
+  await expect.poll(() => page.evaluate(() => window.__settingsCalls?.length)).toBe(1);
+  await page.reload();
+  await expect(toggle).toBeChecked();
+});
 
 test("quick panel: search, move down, Enter copies the selected item and closes the panel", async ({ page }) => {
   await page.goto("/?screen=qp&lang=en#/quick");
