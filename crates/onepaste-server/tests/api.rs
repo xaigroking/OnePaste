@@ -547,3 +547,32 @@ async fn a_full_pull_in_pages_is_not_cut_off_by_the_purge_point() {
     env.server().cleanup_now();
     assert_eq!(env.get(&format!("/v1/items?after={next}&limit=2"), &a.token).await.status, 410);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn oversized_upload_can_finish_sending_before_reading_its_413_response() {
+    let env = Env::new().await;
+    let device = first_device(&env).await;
+    let address = env.server().addr;
+    let fingerprint = env.fingerprint.clone();
+    tokio::task::spawn_blocking(move || {
+        use std::io::{Read, Write};
+        let config = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions().unwrap().dangerous()
+            .with_custom_certificate_verifier(std::sync::Arc::new(onepaste_client::pin::PinVerifier::new(&fingerprint)))
+            .with_no_client_auth();
+        let connection = rustls::ClientConnection::new(std::sync::Arc::new(config), rustls::pki_types::ServerName::try_from("localhost").unwrap()).unwrap();
+        let socket = std::net::TcpStream::connect(address).unwrap();
+        socket.set_read_timeout(Some(std::time::Duration::from_secs(10))).unwrap();
+        socket.set_write_timeout(Some(std::time::Duration::from_secs(10))).unwrap();
+        let mut stream = rustls::StreamOwned::new(connection, socket);
+        let headers = format!("PUT /v1/items/{} HTTP/1.1\r\nHost: localhost\r\nOnePaste-Proto: 1\r\nAuthorization: Bearer {}\r\nIdempotency-Key: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",new_id(),device.token,new_id(),13*1024*1024);
+        stream.write_all(headers.as_bytes()).unwrap(); stream.flush().unwrap();
+        // An early close must not replace the API's size error with a TLS/body write failure.
+        for _ in 0..13*64 {
+            stream.write_all(&[b'a';16*1024]).unwrap(); stream.flush().unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        let mut response=String::new(); stream.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 413")); assert!(response.contains("too_large"));
+    }).await.unwrap();
+}
