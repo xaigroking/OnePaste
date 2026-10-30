@@ -621,6 +621,14 @@ impl App {
     }
 
     async fn capture(&self, content: Content) -> Result<(), AppError> {
+        if self.settings().skip_suspected_secrets {
+            if let Content::Text(text) = &content {
+                if let Some(reason) = crate::secrets::detect(text) {
+                    self.log("skipped_suspected_secret", Some(reason.code().into()));
+                    return Ok(());
+                }
+            }
+        }
         let fp = fingerprint(&content);
         if lock(&self.0.shared).last_fp == Some(fp) {
             self.log("skipped_duplicate", None);
