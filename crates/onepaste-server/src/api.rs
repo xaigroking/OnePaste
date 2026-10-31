@@ -5,7 +5,8 @@ use crate::error::{ApiError, ErrParts};
 use crate::ratelimit::{Kind, Limiter};
 use crate::store::{ItemWrite, RegisterIn, Reply, Store};
 use crate::util::{b64url_decode_32, b64url_encode, hex, random_token, request_id, sha256, Clock};
-use axum::body::{Body, Bytes};
+use axum::body::{Body, Bytes, HttpBody};
+use http_body_util::BodyExt;
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, RawQuery, Request, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
@@ -73,6 +74,21 @@ async fn common(State(s): St, ConnectInfo(addr): ConnectInfo<SocketAddr>, req: R
         ApiError::new(StatusCode::BAD_REQUEST, "unsupported_version").with("min", json!(1)).with("max", json!(1)).into_response()
     } else if let Err(wait) = s.limiter.check(Kind::AuthFail, addr.ip()) {
         ApiError::rate_limited(wait).into_response()
+    } else if req.body().size_hint().lower() > MAX_BODY_BYTES as u64 {
+        // Let ordinary oversized uploads finish so closing TLS cannot replace 413 with a body-write error.
+        // Discard without buffering, with both a byte budget and a deadline for untrusted peers.
+        let mut body = req.into_body();
+        let _ = tokio::time::timeout(Duration::from_secs(5), async {
+            let mut received = 0usize;
+            while let Some(frame) = body.frame().await {
+                let Ok(frame) = frame else { break; };
+                if let Some(data) = frame.data_ref() {
+                    received = received.saturating_add(data.len());
+                    if received > MAX_BODY_BYTES * 2 { break; }
+                }
+            }
+        }).await;
+        ApiError::too_large().into_response()
     } else {
         next.run(req).await
     };
