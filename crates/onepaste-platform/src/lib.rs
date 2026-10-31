@@ -4,6 +4,7 @@
 //! [`PlatformError::Unsupported`], so the whole workspace still builds and tests on Linux.
 //! This crate writes no logs and never puts clipboard content or keys into any error message.
 
+pub mod autostart;
 pub mod clipboard;
 pub mod network;
 pub mod power;

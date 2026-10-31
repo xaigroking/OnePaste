@@ -103,6 +103,10 @@ const UPDATE: UpdateInfo = {
   releaseUrl: "https://github.com/xaigroking/OnePaste/releases/tag/v0.0.1-main.12",
 };
 
+let startupEnabled = q.get("autostart") === "on";
+window.addEventListener("onepaste-test-remove-autostart", () => { startupEnabled = false; });
+const startupInfo = () => ({ enabled: startupEnabled, canEnable: q.get("autostart") !== "unstable", reason: q.get("autostart") === "unstable" ? "startup_unstable_path" : null });
+
 export const api = {
   closeToTray: async (_dontShowAgain: boolean) => {
     called("closeToTray");
@@ -165,6 +169,11 @@ export const api = {
   setFlags: async () => undefined,
   remove: async () => undefined,
   settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
+  autostart: async () => startupInfo(),
+  setAutostart: async (enabled: boolean) => {
+    if (q.get("autostartSave") === "error") throw "startup_write";
+    startupEnabled = enabled; return startupInfo();
+  },
   setSettings: async (next: AppSettings) => {
     const w = window as unknown as { __settingsCalls?: AppSettings[] };
     w.__settingsCalls = [...(w.__settingsCalls ?? []), { ...next }];

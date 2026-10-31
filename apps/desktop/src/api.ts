@@ -10,6 +10,8 @@ export interface HotkeyInfo {
   warning: "fallback" | "cleanup" | null;
 }
 
+export interface AutostartInfo { enabled: boolean; canEnable: boolean; reason: string | null; }
+
 export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files" | "code";
 export type Page = "history" | "devices" | "settings";
 
@@ -185,6 +187,8 @@ export const api = {
     invoke<void>("app_set_flags", { itemId, favorite: flags.favorite ?? null, pinned: flags.pinned ?? null, note: flags.note ?? null }),
   remove: (itemId: string) => invoke<void>("app_delete", { itemId }),
   settings: () => invoke<AppSettings>("app_get_settings"),
+  autostart: () => invoke<AutostartInfo>("get_autostart"),
+  setAutostart: (enabled: boolean) => invoke<AutostartInfo>("set_autostart", { enabled }),
   setSettings: (settings: AppSettings) => invoke<void>("app_set_settings", { settings }),
   log: () => invoke<LogEntry[]>("get_log"),
   hotkey: () => invoke<HotkeyInfo>("get_hotkey_state"),

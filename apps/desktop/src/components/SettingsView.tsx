@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useTranslation } from "react-i18next";
-import type { ActionResult, AppSettings, AppStatus, HotkeyInfo, LanguagePreference, LanguageState, LogEntry } from "../api";
+import type { ActionResult, AutostartInfo, AppSettings, AppStatus, HotkeyInfo, LanguagePreference, LanguageState, LogEntry } from "../api";
 import { applyTheme, formatClock, loadTheme } from "../format";
 import { LANGUAGES, languageInfo, resolveLanguage } from "../i18n";
 import type { ThemeChoice } from "../format";
@@ -36,6 +36,27 @@ export function SettingsView(p: Props) {
   const [secretsSaveFailed, setSecretsSaveFailed] = useState(false);
   const [savingLimit, setSavingLimit] = useState(false);
   const [limitSaveFailed, setLimitSaveFailed] = useState(false);
+  const [startup, setStartup] = useState<AutostartInfo | null>(null);
+  const [startupBusy, setStartupBusy] = useState(false);
+  const [startupError, setStartupError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    let sequence = 0;
+    const refresh = () => {
+      const request = ++sequence;
+      void api.autostart().then((info) => { if (active && request === sequence) { setStartup(info); setStartupError(false); } })
+        .catch(() => { if (active && request === sequence) { setStartup(null); setStartupError(true); } });
+    };
+    refresh(); window.addEventListener("focus", refresh);
+    return () => { active = false; sequence++; window.removeEventListener("focus", refresh); };
+  }, []);
+  const changeStartup = async (enabled: boolean) => {
+    if (startupBusy) return;
+    setStartupBusy(true); setStartupError(false);
+    try { setStartup(await api.setAutostart(enabled)); }
+    catch { setStartupError(true); try { setStartup(await api.autostart()); } catch { setStartup(null); } }
+    finally { setStartupBusy(false); }
+  };
   const [serverUrl, setServerUrl] = useState<string | null>();
   const [serverRevision, setServerRevision] = useState(0);
   useEffect(() => {
@@ -98,7 +119,8 @@ export function SettingsView(p: Props) {
             {preference !== "system" && !languageInfo(preference) && <option value={preference}>{preference}</option>}
           </select>
         </label>
-        <Switch checked={false} disabled onChange={() => undefined} label={t("settingsMore.startup")} hint={t("settingsMore.soon")} />
+        <Switch checked={startup?.enabled ?? false} disabled={startupBusy || !startup || (!startup.canEnable && !startup.enabled)} onChange={(enabled) => void changeStartup(enabled)} label={t("settingsMore.startup")} hint={t(!startup ? "startup.reading" : startup.canEnable ? "startup.hint" : "startup.unstable")} />
+        {startupError && <p className="notice notice-warn" role="alert">{t("startup.failed")}</p>}
         <p className="muted small">{t("settingsMore.trayNote")}</p>
         <p className="muted small">
           {preference === "system"
