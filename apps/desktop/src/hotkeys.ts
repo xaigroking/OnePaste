@@ -16,5 +16,5 @@ export function formatHotkey(binding: string, mac = false): string {
 }
 
 export function isPasteShortcut(binding: string, mac = false): boolean {
-  return binding === (mac ? "Super+KeyV" : "Control+KeyV");
+  return ["KeyV", "Enter", "NumpadEnter"].some((key) => binding === `${mac ? "Super" : "Control"}+${key}`);
 }

@@ -154,6 +154,15 @@ export const api = {
   copy: async (itemId: string) => {
     (window as unknown as { __copied: string[] }).__copied = [...((window as unknown as { __copied?: string[] }).__copied ?? []), itemId];
   },
+  pastePermission: async () => q.get("pastePermission") !== "no",
+  openAccessibilitySettings: async () => { called("openAccessibilitySettings"); },
+  quickPaste: async (itemId: string) => {
+    const w = window as unknown as { __copied?: string[]; __hidden?: boolean; __pasted?: string[] };
+    w.__copied = [...(w.__copied ?? []), itemId]; w.__hidden = true;
+    if (q.get("pastePermission") === "no") return "copied_no_permission";
+    if (q.get("pasteTarget") === "missing") return "copied_manual";
+    w.__pasted = [...(w.__pasted ?? []), itemId]; return "paste_requested";
+  },
   hideQuickPanel: async () => {
     (window as unknown as { __hidden: boolean }).__hidden = true;
   },

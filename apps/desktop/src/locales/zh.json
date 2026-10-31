@@ -22,7 +22,7 @@
     "active": "当前快捷键",
     "togglePanel": "显示／隐藏",
     "errors": {
-      "reserved_hotkey": "系统标准粘贴键已保留，以便正常粘贴剪贴板内容。请选择其他组合。",
+      "reserved_hotkey": "此组合键已保留用于粘贴操作，请选择其他快捷键。",
       "invalid_hotkey": "请使用修饰键加一个非修饰键。已保存的快捷键未改变，请按下其他组合。",
       "hotkey_busy": "无法注册此快捷键，它可能已被占用。原快捷键仍可使用，请选择其他组合。",
       "hotkey_storage": "无法保存快捷键。原快捷键仍可使用，请检查磁盘空间与权限后重试。",
@@ -324,6 +324,14 @@
     "failed": "没有成功（{{code}}）。"
   },
   "qp": {
+    "keyPaste": "复制并粘贴",
+    "pastePermission": "请在“系统设置 → 隐私与安全性 → 辅助功能”中授权 OnePaste。未授权时，此快捷键仅复制并关闭面板。",
+    "openAccessibility": "打开辅助功能设置",
+    "dismiss": "关闭提示",
+    "keyNotice": "提示操作 / 搜索",
+    "manualPaste": "已复制。无法确认已完成前台恢复与粘贴按键发送，请先检查目标应用，再决定是否手动粘贴。",
+    "copyFailed": "无法完成复制并关闭。请重试，或按 Esc 关闭面板。",
+    "settingsFailed": "无法打开辅助功能设置。请打开系统设置中的“隐私与安全性 → 辅助功能”，并添加 OnePaste。",
     "title": "快速面板",
     "placeholder": "搜索剪贴板历史…",
     "loading": "搜索中…",

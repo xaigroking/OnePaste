@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onChanged, onQuickOpened } from "../api";
 import type { Filter, ItemView, HotkeyInfo } from "../api";
 import { formatRelative, formatSize } from "../format";
 import { kindIcon } from "./HistoryView";
 import { Icon } from "./Icon";
-import { Badge, Chip } from "./ui";
+import { Badge, Button, Chip } from "./ui";
 import { formatHotkey } from "../hotkeys";
 
 /** The types the panel offers. Links, files and code have no type of their own in the history yet, so they show nothing. */
@@ -22,6 +22,13 @@ export function QuickPanel() {
   const [selected, setSelected] = useState(0);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
+  const [pasteAllowed, setPasteAllowed] = useState<boolean | null>(null);
+  const [permissionDismissed, dismissPermission] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const acting = useRef(false);
+  const noticeRef = useRef<HTMLDivElement>(null);
+  const isMac = navigator.userAgent.includes("Mac");
+  const refreshPermission = useCallback(() => { void api.pastePermission().then(setPasteAllowed).catch(() => setPasteAllowed(false)); }, []);
   const [hotkey, setHotkey] = useState<HotkeyInfo | null>(null);
   const refreshHotkey = useCallback(() => { void api.hotkey().then(setHotkey).catch(() => setHotkey(null)); }, []);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,16 +62,16 @@ export function QuickPanel() {
   useEffect(() => {
     let live = true;
     let unlisten: (() => void) | undefined;
-    refreshHotkey();
+    refreshHotkey(); refreshPermission();
     void onChanged(refreshHotkey).then((stop) => { if (live) unlisten = stop; else stop(); });
     return () => { live = false; unlisten?.(); };
-  }, [refreshHotkey]);
+  }, [refreshHotkey, refreshPermission]);
 
   // Every time the panel is brought up it starts clean, with the search box focused
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void onQuickOpened(() => {
-      refreshHotkey();
+      refreshHotkey(); refreshPermission();
       setQuery("");
       setFilter("all");
       inputRef.current?.focus();
@@ -74,19 +81,34 @@ export function QuickPanel() {
     });
     inputRef.current?.focus();
     return () => unlisten?.();
-  }, [load, refreshHotkey]);
+  }, [load, refreshHotkey, refreshPermission]);
 
   const choose = useCallback(
-    async (it: ItemView | undefined) => {
-      if (!it) return;
-      await api.copy(it.itemId);
-      await api.hideQuickPanel();
+    async (it: ItemView | undefined, paste = false) => {
+      if (!it || acting.current) return;
+      acting.current = true;
+      try {
+        if (paste) {
+          const result = await api.quickPaste(it.itemId);
+          if (result === "copied_no_permission") setPasteAllowed(false);
+          if (result === "copied_manual") setActionNotice("manualPaste");
+        } else { await api.copy(it.itemId); await api.hideQuickPanel(); }
+      } catch { setActionNotice("copyFailed"); }
+      finally { acting.current = false; }
     },
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F6" && noticeRef.current) {
+        e.preventDefault();
+        if (noticeRef.current.contains(document.activeElement)) inputRef.current?.focus();
+        else noticeRef.current.querySelector<HTMLButtonElement>("button")?.focus();
+        return;
+      }
+      if (e.key === "Enter" && (isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey && !e.shiftKey) { e.preventDefault(); if (!e.repeat) void choose(items[selected], true); return; }
+      if (noticeRef.current?.contains(document.activeElement) && e.key !== "Escape") return;
       if (e.key === "Escape") {
         e.preventDefault();
         void api.hideQuickPanel();
@@ -115,7 +137,7 @@ export function QuickPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, selected, filter, query, choose]);
+  }, [items, selected, filter, query, choose, isMac]);
 
   useEffect(() => {
     document.querySelector(".qp-row-selected")?.scrollIntoView({ block: "nearest" });
@@ -188,8 +210,18 @@ export function QuickPanel() {
           })}
         </ul>
       )}
+      {((isMac && pasteAllowed === false && !permissionDismissed) || actionNotice) && <div ref={noticeRef} className="notice notice-warn" role="note">
+        {isMac && pasteAllowed === false && !permissionDismissed && <>
+          <p>{t("qp.pastePermission")}</p>
+          <Button onClick={() => { void api.openAccessibilitySettings().catch(() => setActionNotice("settingsFailed")); }}>{t("qp.openAccessibility")}</Button>
+          <Button onClick={() => { dismissPermission(true); inputRef.current?.focus(); }}>{t("qp.dismiss")}</Button>
+        </>}
+        {actionNotice && <><p>{t(`qp.${actionNotice}`)}</p><Button onClick={() => { setActionNotice(null); inputRef.current?.focus(); }}>{t("qp.dismiss")}</Button></>}
+        <span className="muted small"><kbd>F6</kbd> {t("qp.keyNotice")}</span>
+      </div>}
       <div className="qp-keys" aria-label={t("qp.keys")}>
         <span><kbd>↑</kbd><kbd>↓</kbd> {t("qp.keySelect")}</span>
+        <span><kbd>{isMac ? "\u2318" : "Ctrl"}+Enter</kbd> {t("qp.keyPaste")}</span>
         <span><kbd>Enter</kbd> {t("qp.keyCopy")}</span>
         <span><kbd>1</kbd>–<kbd>9</kbd> {t("qp.keyPick")}</span>
         <span><kbd>Tab</kbd> {t("qp.keyFilter")}</span>

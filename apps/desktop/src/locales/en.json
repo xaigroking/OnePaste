@@ -22,7 +22,7 @@
     "active": "Active shortcut",
     "togglePanel": "Show/hide",
     "errors": {
-      "reserved_hotkey": "The standard paste shortcut is reserved so clipboard pasting keeps working. Choose another combination.",
+      "reserved_hotkey": "This combination is reserved for paste commands. Choose another shortcut.",
       "invalid_hotkey": "Use a modifier and a non-modifier key. Your saved shortcut is unchanged. Press another combination.",
       "hotkey_busy": "This shortcut could not be registered; it may already be in use. Your previous shortcut still works. Choose another combination.",
       "hotkey_storage": "The shortcut could not be saved. Your previous shortcut still works. Check disk space and permissions, then retry.",
@@ -324,6 +324,14 @@
     "failed": "That did not work ({{code}})."
   },
   "qp": {
+    "keyPaste": "Copy and paste",
+    "pastePermission": "Enable Accessibility for OnePaste in System Settings → Privacy & Security → Accessibility. Without it, this shortcut only copies and closes.",
+    "openAccessibility": "Open Accessibility Settings",
+    "dismiss": "Dismiss",
+    "keyNotice": "Notice controls / search",
+    "manualPaste": "Copied. Could not finish restoring the previous app and sending the paste keys. Check the destination before pasting manually.",
+    "copyFailed": "Could not finish copying and closing. Try again, or press Escape to close the panel.",
+    "settingsFailed": "Could not open Accessibility Settings. Open System Settings, then Privacy & Security → Accessibility. Add OnePaste there.",
     "title": "Quick panel",
     "placeholder": "Search your clipboard history\u2026",
     "loading": "Searching\u2026",
