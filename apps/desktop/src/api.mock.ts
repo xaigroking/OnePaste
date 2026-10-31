@@ -123,6 +123,9 @@ const stageDeletion = async (ids: string[]): Promise<PendingDeletion> => {
   }, 10000);
   pendingDeletes.set(token, value); changed(); return deleteView(token, value);
 };
+let startupEnabled = q.get("autostart") === "on";
+window.addEventListener("onepaste-test-remove-autostart", () => { startupEnabled = false; });
+const startupInfo = () => ({ enabled: startupEnabled, canEnable: q.get("autostart") !== "unstable", reason: q.get("autostart") === "unstable" ? "startup_unstable_path" : null });
 
 export const api = {
   closeToTray: async (_dontShowAgain: boolean) => {
@@ -193,6 +196,11 @@ export const api = {
   },
   remove: async (itemId: string) => { await stageDeletion([itemId]); },
   settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
+  autostart: async () => startupInfo(),
+  setAutostart: async (enabled: boolean) => {
+    if (q.get("autostartSave") === "error") throw "startup_write";
+    startupEnabled = enabled; return startupInfo();
+  },
   setSettings: async (next: AppSettings) => {
     const w = window as unknown as { __settingsCalls?: AppSettings[] };
     w.__settingsCalls = [...(w.__settingsCalls ?? []), { ...next }];

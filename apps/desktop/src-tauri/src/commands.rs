@@ -392,3 +392,13 @@ pub fn app_pending_deletions(core: State<'_, App>) -> onepaste_app::DeletionStat
 pub fn app_undo_deletion(app: AppHandle, core: State<'_, App>, token: String) -> bool {
     let result = core.undo_deletion(&token); tray::notify_changed(&app); result
 }
+
+#[tauri::command]
+pub async fn get_autostart() -> Result<crate::autostart::Info, String> {
+    tauri::async_runtime::spawn_blocking(crate::autostart::get).await.map_err(|_| "startup_read".to_string())?
+}
+
+#[tauri::command]
+pub async fn set_autostart(enabled: bool) -> Result<crate::autostart::Info, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::autostart::set(enabled)).await.map_err(|_| "startup_write".to_string())?
+}

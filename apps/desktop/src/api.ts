@@ -12,6 +12,7 @@ export interface HotkeyInfo {
 
 export interface PendingDeletion { token: string; itemIds: string[]; remainingMs: number; committing: boolean; }
 export interface DeletionStatus { pending: PendingDeletion[]; failedBatches: number; }
+export interface AutostartInfo { enabled: boolean; canEnable: boolean; reason: string | null; }
 
 export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files" | "code";
 export type Page = "history" | "devices" | "settings";
@@ -190,6 +191,8 @@ export const api = {
   undoDeletion: (token: string) => invoke<boolean>("app_undo_deletion", { token }),
   remove: (itemId: string) => invoke<void>("app_delete", { itemId }),
   settings: () => invoke<AppSettings>("app_get_settings"),
+  autostart: () => invoke<AutostartInfo>("get_autostart"),
+  setAutostart: (enabled: boolean) => invoke<AutostartInfo>("set_autostart", { enabled }),
   setSettings: (settings: AppSettings) => invoke<void>("app_set_settings", { settings }),
   log: () => invoke<LogEntry[]>("get_log"),
   hotkey: () => invoke<HotkeyInfo>("get_hotkey_state"),
