@@ -1,10 +1,11 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { Button, Card } from "./ui";
 
 /** Security and privacy: show the recovery kit again, and clear what this computer holds. Both ask first. */
-export function SecurityCard({ localOnly, onWiped }: { localOnly: boolean; onWiped: () => void }) {
+export function SecurityCard({ localOnly, onWiped, children }: { localOnly: boolean; onWiped: () => void; children?: ReactNode }) {
   const { t } = useTranslation();
   const [asking, setAsking] = useState(false);
   const [kit, setKit] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export function SecurityCard({ localOnly, onWiped }: { localOnly: boolean; onWip
 
   return (
     <Card title={t("security.title")}>
+      {children}
       {!localOnly &&
         (kit === null ? (
           !asking ? (

@@ -37,7 +37,8 @@
   "log": {
     "title": "Event log",
     "empty": "No events yet.",
-    "startup_repair_failed": "Login startup registration could not be updated",
+    "passphrase_changed": "Passphrase changed",
+    "passphrase_change_failed": "Passphrase change could not be confirmed",
     "started": "App started",
     "wake": "System woke from sleep",
     "network_online": "Network connected",
@@ -75,7 +76,8 @@
     "joined_with_recovery_kit": "Joined the vault with the recovery kit",
     "vault_created": "Created a new vault",
     "local_only_chosen": "Chose to keep the history on this computer only",
-    "local_data_wiped": "Cleared the data on this computer"
+    "local_data_wiped": "Cleared the data on this computer",
+    "startup_repair_failed": "Login startup registration could not be updated"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -99,13 +101,13 @@
     "open": "Open window",
     "quit": "Quit",
     "statusLine": "Status: {state}",
-    "tooltip": "OnePaste \u00b7 {state}",
+    "tooltip": "OnePaste · {state}",
     "quickPanel": "Quick panel",
     "pause": "Pause listening",
     "resume": "Resume listening",
     "syncNow": "Sync now",
-    "devices": "Devices\u2026",
-    "settings": "Settings\u2026",
+    "devices": "Devices…",
+    "settings": "Settings…",
     "devicesCount": "{count} devices",
     "diagnostics": "Copy diagnostics"
   },
@@ -143,11 +145,11 @@
   "results": {
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
     "noMatch": "Nothing matches.",
-    "loading": "Loading your history\u2026",
+    "loading": "Loading your history…",
     "error": "The history could not be read ({{code}}). Your data is safe on this computer. Try again in a moment, or restart OnePaste."
   },
   "item": {
-    "image": "Image {{width}}\u00d7{{height}}, {{size}}",
+    "image": "Image {{width}}×{{height}}, {{size}}",
     "copy": "Copy",
     "favorite": "Favorite",
     "unfavorite": "Unfavorite",
@@ -201,7 +203,7 @@
     "thisDevice": "This device",
     "thisBadge": "This device",
     "listTitle": "Devices in this vault",
-    "loading": "Loading\u2026",
+    "loading": "Loading…",
     "colName": "Name",
     "colSeen": "Last seen",
     "colState": "Status",
@@ -235,7 +237,7 @@
   "onboarding": {
     "next": "Next",
     "back": "Back",
-    "working": "Please wait\u2026",
+    "working": "Please wait…",
     "passphrase": "Passphrase",
     "deviceName": "Name of this device",
     "mode": {
@@ -257,9 +259,9 @@
       "stepsTitle": "How to connect your computers",
       "steps": {
         "code": "Get the complete onepaste1: connection code from the server, paste it here, then click Next. The server address is not an administration webpage.",
-        "first": "First computer on an empty server: choose and confirm a passphrase \u2192 Next \u2192 save the recovery kit offline \u2192 check the saved confirmation \u2192 Done.",
-        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose \u201cI forgot my passphrase, I have a recovery kit\u201d.",
-        "second": "For a second computer, get a fresh code from the connected desktop: Devices \u2192 Add a device \u2192 Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
+        "first": "First computer on an empty server: choose and confirm a passphrase → Next → save the recovery kit offline → check the saved confirmation → Done.",
+        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose “I forgot my passphrase, I have a recovery kit”.",
+        "second": "For a second computer, get a fresh code from the connected desktop: Devices → Add a device → Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
       }
     },
     "unlock": {
@@ -325,8 +327,8 @@
   },
   "qp": {
     "title": "Quick panel",
-    "placeholder": "Search your clipboard history\u2026",
-    "loading": "Searching\u2026",
+    "placeholder": "Search your clipboard history…",
+    "loading": "Searching…",
     "error": "The search did not work ({{code}}). Your data is safe. Press Esc and try again.",
     "keys": "Keyboard shortcuts",
     "keySelect": "Select",
@@ -388,7 +390,7 @@
       "stable": "Only releases that are not pre-releases. There is none yet."
     },
     "checkNow": "Check now",
-    "checking": "Checking\u2026",
+    "checking": "Checking…",
     "none": "You have the newest version.",
     "found": "A new version is available.",
     "errors": {
@@ -408,7 +410,7 @@
   },
   "image": {
     "alt": "Image, {{width}} by {{height}} pixels",
-    "loading": "Loading the picture\u2026",
+    "loading": "Loading the picture…",
     "failed": "The picture could not be shown.",
     "tools": "Picture tools",
     "viewLarger": "View larger",
@@ -420,7 +422,7 @@
     "close": "Close",
     "viewerTitle": "Picture",
     "copy": "Copy image",
-    "saveAs": "Save as\u2026",
+    "saveAs": "Save as…",
     "saved": "Saved.",
     "saveFailed": "The picture could not be saved. Check the place you chose and try again."
   },
@@ -465,6 +467,7 @@
     "reading": "Reading the saved address...",
     "addressUnavailable": "Saved address unavailable",
     "errors": {
+      "passphrase_pending": "Confirm the pending passphrase change in Settings before changing servers.",
       "unreachable": "The new server could not be reached. Your local history and current connection are unchanged. Check the new code and network, then try again.",
       "invalid_connection_code": "The connection code is not valid. Your local history and current connection are unchanged. Paste the complete new code and try again.",
       "registration_invalid": "The connection code has expired or was already used. Your local history and current connection are unchanged. Get a fresh code and try again.",
@@ -478,6 +481,38 @@
       "not_joined": "This computer is no longer connected to a server. Your history was not changed by this attempt. Close this dialog and check its setup.",
       "other": "The server change could not be confirmed. Your local history is kept. Close this dialog and reopen Settings to check the saved server address before retrying.",
       "server_change_failed": "The server could not be changed. Your local history and current connection are unchanged. Check the new code and try again."
+    }
+  },
+  "changePassphrase": {
+    "show": "Show new passphrase",
+    "hide": "Hide new passphrase",
+    "copy": "Copy new passphrase",
+    "action": "Change passphrase",
+    "title": "Change vault passphrase",
+    "old": "Current passphrase",
+    "new": "New passphrase",
+    "again": "Confirm new passphrase",
+    "save": "Save new passphrase",
+    "cancel": "Cancel",
+    "close": "Close",
+    "working": "Working…",
+    "retry": "Confirm previous change",
+    "done": "Passphrase changed. Use the new passphrase when adding a computer.",
+    "devices": "This re-wraps the same master key. Existing history is not re-encrypted, and devices that already have the key stay connected. Revoke a device if you no longer trust it.",
+    "recovery": "Your existing recovery kit remains valid. If you forget the new passphrase and lose the recovery kit, your data cannot be recovered.",
+    "pending": "A previous save has not been confirmed. Keep the new passphrase. Confirm that request before starting another change; closing this dialog will not cancel it.",
+    "errors": {
+      "wrong_passphrase": "The current passphrase is incorrect. Check it and try again.",
+      "passphrase_required": "Enter a new passphrase.",
+      "passphrase_pending": "The server result could not be confirmed. Keep the new passphrase and use Confirm previous change when the server is reachable.",
+      "passphrase_stale": "Another change replaced this request. Check the current passphrase and try again.",
+      "unreachable": "The server could not be reached before a change was submitted. Your local state is unchanged. Check the connection and retry.",
+      "revoked": "This device has been revoked and cannot change the passphrase.",
+      "rate_limited": "Too many requests. Wait and try again.",
+      "storage": "Could not prepare the change in local storage. Reopen OnePaste and retry.",
+      "wrong_key": "The server record does not match this vault. No change was made.",
+      "not_joined": "This computer is not connected to a self-hosted server.",
+      "other": "Could not confirm the change. Reopen this dialog to check for a pending request before retrying."
     }
   },
   "startup": {

@@ -22,6 +22,28 @@ interface Screen {
 
 const WINDOW = { width: 1040, height: 640 };
 
+for (const mode of ["input", "pending", "error"] as const) {
+  for (const theme of THEMES) for (const lang of LANGS) {
+    test(`passphrase ${mode} ${theme} ${lang}`, async ({ page }) => {
+      const l = locale(lang);
+      await page.setViewportSize({ width: 1040, height: 900 });
+      await page.addInitScript((value) => localStorage.setItem("onepaste.theme", value), theme);
+      await page.goto(`/?screen=set&lang=${lang}${mode === "pending" ? "&passphrase=pending" : mode === "error" ? "&passphraseError=wrong_passphrase" : ""}`);
+      await page.getByRole("button", { name: l.changePassphrase.action, exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      if (mode === "error") {
+        await dialog.getByLabel(l.changePassphrase.old, { exact: true }).fill("wrong-old");
+        await dialog.getByLabel(l.changePassphrase.new, { exact: true }).fill("new-example-passphrase");
+        await dialog.getByLabel(l.changePassphrase.again, { exact: true }).fill("new-example-passphrase");
+        await dialog.getByRole("button", { name: l.changePassphrase.save, exact: true }).click();
+        await dialog.getByRole("alert").waitFor();
+      }
+      await page.evaluate(() => document.fonts.ready);
+      await expect(page).toHaveScreenshot(`passphrase-${mode}-${theme}-${lang}.png`);
+    });
+  }
+}
+
 for (const mode of ["recording", "conflict"] as const) {
   for (const theme of THEMES) for (const lang of LANGS) {
     test(`hotkey ${mode} ${theme} ${lang}`, async ({ page }) => {

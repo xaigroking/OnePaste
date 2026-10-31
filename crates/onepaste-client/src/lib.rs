@@ -6,6 +6,7 @@ mod crash;
 mod error;
 mod harden;
 mod join;
+mod passphrase;
 pub mod pin;
 pub mod public;
 mod session;

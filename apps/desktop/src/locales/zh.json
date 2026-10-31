@@ -37,7 +37,8 @@
   "log": {
     "title": "事件日志",
     "empty": "还没有事件。",
-    "startup_repair_failed": "无法更新登录自启登记",
+    "passphrase_changed": "口令已修改",
+    "passphrase_change_failed": "无法确认口令更改",
     "started": "应用已启动",
     "wake": "系统从睡眠中唤醒",
     "network_online": "网络已连接",
@@ -75,7 +76,8 @@
     "joined_with_recovery_kit": "已用恢复套件加入库",
     "vault_created": "已新建库",
     "local_only_chosen": "已选择只在本机保存历史",
-    "local_data_wiped": "已清空本机数据"
+    "local_data_wiped": "已清空本机数据",
+    "startup_repair_failed": "无法更新登录自启登记"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -465,6 +467,7 @@
     "reading": "正在读取已保存的地址……",
     "addressUnavailable": "暂时无法读取已保存的地址",
     "errors": {
+      "passphrase_pending": "请先在设置中确认尚未完成的口令更改，再更换服务器。",
       "unreachable": "无法连接新服务器。本机历史和当前连接未改变。请检查新连接码及网络后重试。",
       "invalid_connection_code": "连接码格式无效。本机历史和当前连接未改变。请粘贴完整的新连接码后重试。",
       "registration_invalid": "连接码已过期或已使用。本机历史和当前连接未改变。请取得新连接码后重试。",
@@ -478,6 +481,38 @@
       "not_joined": "这台电脑当前已不再连接服务器。本次操作没有改变历史。请关闭此窗口并检查使用方式。",
       "other": "未能确认更改结果。本机历史仍然保留。请关闭窗口并重新打开设置，核对已保存的服务器地址后再重试。",
       "server_change_failed": "未能更改服务器。本机历史和当前连接未改变。请检查新连接码后重试。"
+    }
+  },
+  "changePassphrase": {
+    "show": "显示新口令",
+    "hide": "隐藏新口令",
+    "copy": "复制新口令",
+    "action": "修改口令",
+    "title": "修改保险库口令",
+    "old": "当前口令",
+    "new": "新口令",
+    "again": "确认新口令",
+    "save": "保存新口令",
+    "cancel": "取消",
+    "close": "关闭",
+    "working": "正在处理…",
+    "retry": "确认上次更改",
+    "done": "口令已修改。添加新电脑时请使用新口令。",
+    "devices": "本操作仅重新包装同一个主密钥，不重新加密历史，已持有密钥的设备仍可连接。若不再信任某台设备，请撤销它。",
+    "recovery": "现有恢复套件仍然有效。若忘记新口令且丢失恢复套件，数据将无法恢复。",
+    "pending": "上次保存的结果尚未确认。请保留新口令，先确认该请求再开始其他更改；关闭此对话框不会取消该请求。",
+    "errors": {
+      "wrong_passphrase": "当前口令不正确，请检查后重试。",
+      "passphrase_required": "请输入新口令。",
+      "passphrase_pending": "尚无法确认服务端结果。请保留新口令，服务端恢复连接后点击“确认上次更改”。",
+      "passphrase_stale": "其他更改已取代本次请求，请核对当前口令后重试。",
+      "unreachable": "提交更改前无法连接服务端，本机状态未改变。请检查连接后重试。",
+      "revoked": "此设备已被撤销，无法修改口令。",
+      "rate_limited": "请求过于频繁，请稍候重试。",
+      "storage": "无法在本机存储中准备更改，请重新打开 OnePaste 后重试。",
+      "wrong_key": "服务端记录与此保险库不匹配，未进行更改。",
+      "not_joined": "此电脑未连接自建服务器。",
+      "other": "无法确认更改。请重新打开此对话框，检查是否有未确认请求后再重试。"
     }
   },
   "startup": {

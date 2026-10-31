@@ -21,6 +21,7 @@ impl Session {
     /// Replaces this connection without replacing the vault key or writing to the old server.
     /// A failed request or local commit leaves every local row and this session unchanged.
     pub async fn change_server(&mut self, raw_code: &str, passphrase: Option<&str>, kit: Option<&str>) -> Result<(), ClientError> {
+        if self.passphrase_change_pending()? { return Err(ClientError::PassphrasePending); }
         if passphrase.is_some() && kit.is_some() { return Err(ClientError::Other("choose one vault credential".into())); }
         let code = ConnectionCode::parse(raw_code)?;
         let before = self.engine.store_mut().connection_snapshot()?;

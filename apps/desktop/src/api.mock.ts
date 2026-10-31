@@ -103,6 +103,7 @@ const UPDATE: UpdateInfo = {
   releaseUrl: "https://github.com/xaigroking/OnePaste/releases/tag/v0.0.1-main.12",
 };
 
+let passphrasePending = q.get("passphrase") === "pending";
 let startupEnabled = q.get("autostart") === "on";
 window.addEventListener("onepaste-test-remove-autostart", () => { startupEnabled = false; });
 const startupInfo = () => ({ enabled: startupEnabled, canEnable: q.get("autostart") !== "unstable", reason: q.get("autostart") === "unstable" ? "startup_unstable_path" : null });
@@ -160,6 +161,12 @@ export const api = {
   setFlags: async () => undefined,
   remove: async () => undefined,
   settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
+  passphrasePending: async () => passphrasePending,
+  changePassphrase: async (_old: string, _next: string) => {
+    const error = q.get("passphraseError");
+    if (error) { if (error === "passphrase_pending") passphrasePending = true; throw error; }
+  },
+  resumePassphraseChange: async () => { if (q.get("passphraseRetry") === "error") throw "passphrase_pending"; passphrasePending = false; },
   autostart: async () => startupInfo(),
   setAutostart: async (enabled: boolean) => {
     if (q.get("autostartSave") === "error") throw "startup_write";
