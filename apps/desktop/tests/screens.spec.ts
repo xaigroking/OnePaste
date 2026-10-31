@@ -50,6 +50,13 @@ async function toCodeStep(page: Page, lang: string) {
 }
 
 const SCREENS: Screen[] = [
+  { name: "startup-on", screen: "set", size: WINDOW, query: "autostart=on", states: [] },
+  { name: "startup-unavailable", screen: "set", size: WINDOW, query: "autostart=unstable", states: [] },
+  { name: "startup-error", screen: "set", size: WINDOW, query: "autostartSave=error", states: [],
+    drive: async (page, lang) => {
+      await page.getByRole("switch", { name: new RegExp(locale(lang).settingsMore.startup) }).click();
+      await page.getByRole("alert").waitFor();
+    } },
   { name: "item-size-limit", screen: "set", size: { width: 1040, height: 900 }, states: [],
     drive: async (page, lang) => {
       await page.getByRole("combobox", { name: locale(lang).settingsMore.sizeLimit, exact: true }).scrollIntoViewIfNeeded();

@@ -37,6 +37,7 @@
   "log": {
     "title": "Event log",
     "empty": "No events yet.",
+    "startup_repair_failed": "Login startup registration could not be updated",
     "started": "App started",
     "wake": "System woke from sleep",
     "network_online": "Network connected",
@@ -336,7 +337,7 @@
   },
   "settingsMore": {
     "soon": "Coming soon",
-    "startup": "Start OnePaste when I sign in",
+    "startup": "Launch at login",
     "trayNote": "Closing the window keeps OnePaste running in the tray. Quit from the tray menu.",
     "skipSecrets": "Do not record things that look like keys or tokens",
     "skipSecretsHint": "Only new text copied on this computer. May skip ordinary text or miss secrets.",
@@ -478,5 +479,11 @@
       "other": "The server change could not be confirmed. Your local history is kept. Close this dialog and reopen Settings to check the saved server address before retrying.",
       "server_change_failed": "The server could not be changed. Your local history and current connection are unchanged. Check the new code and try again."
     }
+  },
+  "startup": {
+    "reading": "Reading login startup registration…",
+    "hint": "Starts hidden in the tray or menu bar when you sign in. Moving the portable folder updates the registration the next time you open OnePaste.",
+    "unstable": "Move OnePaste to a permanent folder with a shorter path and reopen it before enabling login startup. Temporary download locations or very long paths cannot be registered.",
+    "failed": "Could not update login startup or read its system registration. Try again after reopening OnePaste."
   }
 }

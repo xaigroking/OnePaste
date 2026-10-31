@@ -371,3 +371,13 @@ pub async fn copy_diagnostics_impl(app: &AppHandle) -> ActionResult {
 pub async fn copy_diagnostics(app: AppHandle) -> ActionResult {
     copy_diagnostics_impl(&app).await
 }
+
+#[tauri::command]
+pub async fn get_autostart() -> Result<crate::autostart::Info, String> {
+    tauri::async_runtime::spawn_blocking(crate::autostart::get).await.map_err(|_| "startup_read".to_string())?
+}
+
+#[tauri::command]
+pub async fn set_autostart(enabled: bool) -> Result<crate::autostart::Info, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::autostart::set(enabled)).await.map_err(|_| "startup_write".to_string())?
+}

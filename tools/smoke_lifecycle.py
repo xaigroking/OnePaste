@@ -11,7 +11,10 @@ The program is found inside the directory (OnePaste.exe on Windows, the executab
 Three rounds from the same package and then from a copy show that the data directory is free again after a quit and that no
 second copy ever stays alive. With --mac-open the first start of the last round is `open -n` on the .app, as a user does.
 """
+import ctypes
 import glob
+import plistlib
+import re
 import os
 import shutil
 import subprocess
@@ -30,7 +33,8 @@ def find_exe(root):
         hits = [h for h in glob.glob(os.path.join(root, "*.app", "Contents", "MacOS", "*")) if os.access(h, os.X_OK)]
     if not hits:
         raise SystemExit("FAIL: no program found in %s" % root)
-    return hits[0]
+    # launchd resolves ProgramArguments independently of the caller's working directory.
+    return os.path.abspath(hits[0])
 
 
 def running(name):
@@ -85,11 +89,156 @@ def round_trip(exe, label, use_open=None):
         raise SystemExit("FAIL: %d programs are still running after quit" % left)
 
 
+
+def visible_windows(pid):
+    """Count on-screen application windows without requesting accessibility permission."""
+    if sys.platform == "win32":
+        from ctypes import wintypes
+        found = []
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        user32.IsWindowVisible.argtypes = [wintypes.HWND]
+        get_style = getattr(user32, "GetWindowLongPtrW" if ctypes.sizeof(ctypes.c_void_p) == 8 else "GetWindowLongW")
+        get_style.argtypes = [wintypes.HWND, ctypes.c_int]
+        get_style.restype = ctypes.c_ssize_t
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        def visit(hwnd, _):
+            owner = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+            # Tao keeps WS_VISIBLE on a transparent, layered, non-activating event target for WM_PAINT delivery.
+            # It has no rendered application surface. A layered window or a tool window alone still counts.
+            passive_target = 0x08000000 | 0x00080000 | 0x00000020
+            if owner.value == pid and user32.IsWindowVisible(hwnd) and get_style(hwnd, -20) & passive_target != passive_target:
+                bounds = wintypes.RECT()
+                title = ctypes.create_unicode_buffer(256)
+                window_class = ctypes.create_unicode_buffer(256)
+                user32.GetWindowRect(hwnd, ctypes.byref(bounds))
+                user32.GetClassNameW(hwnd, window_class, len(window_class))
+                user32.GetWindowTextW(hwnd, title, len(title))
+                found.append({"class": window_class.value, "title": title.value,
+                              "bounds": [bounds.left, bounds.top, bounds.right, bounds.bottom]})
+            return True
+        callback = callback_type(visit)
+        user32.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
+        user32.EnumWindows(callback, 0)
+        if found:
+            print("visible native windows: %s" % found, flush=True)
+        return len(found)
+    cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+    cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+    cg.CGWindowListCopyWindowInfo.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
+    cg.CGWindowListCopyWindowInfo.restype = ctypes.c_void_p
+    cf.CFPropertyListCreateData.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_long, ctypes.c_ulong, ctypes.c_void_p]
+    cf.CFPropertyListCreateData.restype = ctypes.c_void_p
+    cf.CFDataGetLength.argtypes = [ctypes.c_void_p]
+    cf.CFDataGetLength.restype = ctypes.c_long
+    cf.CFDataGetBytePtr.argtypes = [ctypes.c_void_p]
+    cf.CFDataGetBytePtr.restype = ctypes.c_void_p
+    cf.CFRelease.argtypes = [ctypes.c_void_p]
+    windows = cg.CGWindowListCopyWindowInfo(1 | 16, 0)
+    if not windows:
+        raise SystemExit("FAIL: could not read visible windows")
+    data = cf.CFPropertyListCreateData(None, windows, 100, 0, None)
+    try:
+        if not data:
+            raise SystemExit("FAIL: could not inspect visible windows")
+        entries = plistlib.loads(ctypes.string_at(cf.CFDataGetBytePtr(data), cf.CFDataGetLength(data)))
+        return sum(w.get("kCGWindowOwnerPID") == pid and w.get("kCGWindowLayer") == 0 for w in entries)
+    finally:
+        if data:
+            cf.CFRelease(data)
+        cf.CFRelease(windows)
+
+
+def assert_hidden(pid, seconds=RUN_SECONDS, process=None):
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        if process is not None:
+            if process.poll() is not None:
+                raise SystemExit("FAIL: the hidden program exited early")
+        else:
+            os.kill(pid, 0)
+        if visible_windows(pid):
+            raise SystemExit("FAIL: a hidden start showed a window")
+        time.sleep(0.25)
+
+
+def hidden_round_trip(exe):
+    print("== hidden start and hidden duplicate", flush=True)
+    first = subprocess.Popen([exe, "--hidden"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        assert_hidden(first.pid, process=first)
+        second = subprocess.Popen([exe, "--hidden"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        wait_gone(second, "the second hidden start")
+        if second.returncode != 0:
+            raise SystemExit("FAIL: the second hidden start did not exit cleanly")
+        assert_hidden(first.pid, 2, process=first)
+        # The same invisible window must remain usable from a normal second launch.
+        normal = subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        wait_gone(normal, "the normal start after a hidden start")
+        until = time.monotonic() + END_SECONDS
+        while not visible_windows(first.pid):
+            if time.monotonic() >= until:
+                raise SystemExit("FAIL: a normal second start did not show the hidden window")
+            time.sleep(0.25)
+    finally:
+        quit_proc = subprocess.Popen([exe, "--quit"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        wait_gone(quit_proc, "the hidden quit request")
+        wait_gone(first, "the hidden program after quit")
+    print("hidden lifecycle passed", flush=True)
+
+
+def mac_launch_agent(exe):
+    """Load the ad-hoc signed package through launchd, without a login or global registration."""
+    app = exe.split(".app/")[0] + ".app"
+    signature = subprocess.run(["codesign", "-dv", "--verbose=4", app], capture_output=True, text=True, check=True)
+    if "Signature=adhoc" not in signature.stderr:
+        raise SystemExit("FAIL: this launch-agent trial requires the ad-hoc signed CI package")
+    label = "dev.onepaste.spike.smoke.%d" % os.getpid()
+    domain = "gui/%d" % os.getuid()
+    with tempfile.TemporaryDirectory(prefix="onepaste-launch-agent-") as directory:
+        path = os.path.join(directory, label + ".plist")
+        with open(path, "wb") as output:
+            plistlib.dump({"Label": label, "ProgramArguments": [exe, "--hidden"], "RunAtLoad": True,
+                          "LimitLoadToSessionType": "Aqua", "AssociatedBundleIdentifiers": ["dev.onepaste.spike"]}, output)
+        subprocess.run(["launchctl", "bootstrap", domain, path], check=True)
+        try:
+            until = time.monotonic() + END_SECONDS
+            pid = None
+            while not pid:
+                result = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True, text=True, check=True)
+                match = re.search(r"\bpid = (\d+)", result.stdout)
+                if match:
+                    pid = int(match.group(1))
+                elif time.monotonic() >= until:
+                    print(result.stdout, flush=True)
+                    raise SystemExit("FAIL: launchd did not start the ad-hoc package")
+                else:
+                    time.sleep(0.25)
+            assert_hidden(pid)
+            quit_proc = subprocess.Popen([exe, "--quit"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            wait_gone(quit_proc, "the launch-agent quit request")
+            until = time.monotonic() + END_SECONDS
+            while running("onepaste-desktop"):
+                if time.monotonic() >= until:
+                    raise SystemExit("FAIL: the launch-agent program did not quit")
+                time.sleep(0.25)
+        finally:
+            subprocess.run(["launchctl", "bootout", domain + "/" + label], check=True)
+    print("ad-hoc launch-agent hidden startup passed; actual login remains a manual trial", flush=True)
+
+
 def main(argv):
     if not argv:
         raise SystemExit(__doc__)
     root, mac_open = argv[0], "--mac-open" in argv
     exe = find_exe(root)
+    hidden_round_trip(exe)
+    if mac_open and sys.platform == "darwin":
+        mac_launch_agent(exe)
     round_trip(exe, "1 (the package)")
     round_trip(exe, "2 (the same package again)")
     # Round 3: a copy in another place, as a second download or the translocated copy of macOS
