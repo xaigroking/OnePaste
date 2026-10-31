@@ -76,7 +76,8 @@
     "joined_with_recovery_kit": "Joined the vault with the recovery kit",
     "vault_created": "Created a new vault",
     "local_only_chosen": "Chose to keep the history on this computer only",
-    "local_data_wiped": "Cleared the data on this computer"
+    "local_data_wiped": "Cleared the data on this computer",
+    "startup_repair_failed": "Login startup registration could not be updated"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -100,13 +101,13 @@
     "open": "Open window",
     "quit": "Quit",
     "statusLine": "Status: {state}",
-    "tooltip": "OnePaste \u00b7 {state}",
+    "tooltip": "OnePaste · {state}",
     "quickPanel": "Quick panel",
     "pause": "Pause listening",
     "resume": "Resume listening",
     "syncNow": "Sync now",
-    "devices": "Devices\u2026",
-    "settings": "Settings\u2026",
+    "devices": "Devices…",
+    "settings": "Settings…",
     "devicesCount": "{count} devices",
     "diagnostics": "Copy diagnostics"
   },
@@ -144,11 +145,11 @@
   "results": {
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
     "noMatch": "Nothing matches.",
-    "loading": "Loading your history\u2026",
+    "loading": "Loading your history…",
     "error": "The history could not be read ({{code}}). Your data is safe on this computer. Try again in a moment, or restart OnePaste."
   },
   "item": {
-    "image": "Image {{width}}\u00d7{{height}}, {{size}}",
+    "image": "Image {{width}}×{{height}}, {{size}}",
     "copy": "Copy",
     "favorite": "Favorite",
     "unfavorite": "Unfavorite",
@@ -202,7 +203,7 @@
     "thisDevice": "This device",
     "thisBadge": "This device",
     "listTitle": "Devices in this vault",
-    "loading": "Loading\u2026",
+    "loading": "Loading…",
     "colName": "Name",
     "colSeen": "Last seen",
     "colState": "Status",
@@ -236,7 +237,7 @@
   "onboarding": {
     "next": "Next",
     "back": "Back",
-    "working": "Please wait\u2026",
+    "working": "Please wait…",
     "passphrase": "Passphrase",
     "deviceName": "Name of this device",
     "mode": {
@@ -258,9 +259,9 @@
       "stepsTitle": "How to connect your computers",
       "steps": {
         "code": "Get the complete onepaste1: connection code from the server, paste it here, then click Next. The server address is not an administration webpage.",
-        "first": "First computer on an empty server: choose and confirm a passphrase \u2192 Next \u2192 save the recovery kit offline \u2192 check the saved confirmation \u2192 Done.",
-        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose \u201cI forgot my passphrase, I have a recovery kit\u201d.",
-        "second": "For a second computer, get a fresh code from the connected desktop: Devices \u2192 Add a device \u2192 Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
+        "first": "First computer on an empty server: choose and confirm a passphrase → Next → save the recovery kit offline → check the saved confirmation → Done.",
+        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose “I forgot my passphrase, I have a recovery kit”.",
+        "second": "For a second computer, get a fresh code from the connected desktop: Devices → Add a device → Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
       }
     },
     "unlock": {
@@ -326,8 +327,8 @@
   },
   "qp": {
     "title": "Quick panel",
-    "placeholder": "Search your clipboard history\u2026",
-    "loading": "Searching\u2026",
+    "placeholder": "Search your clipboard history…",
+    "loading": "Searching…",
     "error": "The search did not work ({{code}}). Your data is safe. Press Esc and try again.",
     "keys": "Keyboard shortcuts",
     "keySelect": "Select",
@@ -338,7 +339,7 @@
   },
   "settingsMore": {
     "soon": "Coming soon",
-    "startup": "Start OnePaste when I sign in",
+    "startup": "Launch at login",
     "trayNote": "Closing the window keeps OnePaste running in the tray. Quit from the tray menu.",
     "skipSecrets": "Do not record things that look like keys or tokens",
     "skipSecretsHint": "Only new text copied on this computer. May skip ordinary text or miss secrets.",
@@ -389,7 +390,7 @@
       "stable": "Only releases that are not pre-releases. There is none yet."
     },
     "checkNow": "Check now",
-    "checking": "Checking\u2026",
+    "checking": "Checking…",
     "none": "You have the newest version.",
     "found": "A new version is available.",
     "errors": {
@@ -409,7 +410,7 @@
   },
   "image": {
     "alt": "Image, {{width}} by {{height}} pixels",
-    "loading": "Loading the picture\u2026",
+    "loading": "Loading the picture…",
     "failed": "The picture could not be shown.",
     "tools": "Picture tools",
     "viewLarger": "View larger",
@@ -421,7 +422,7 @@
     "close": "Close",
     "viewerTitle": "Picture",
     "copy": "Copy image",
-    "saveAs": "Save as\u2026",
+    "saveAs": "Save as…",
     "saved": "Saved.",
     "saveFailed": "The picture could not be saved. Check the place you chose and try again."
   },
@@ -513,5 +514,11 @@
       "not_joined": "This computer is not connected to a self-hosted server.",
       "other": "Could not confirm the change. Reopen this dialog to check for a pending request before retrying."
     }
+  },
+  "startup": {
+    "reading": "Reading login startup registration…",
+    "hint": "Starts hidden in the tray or menu bar when you sign in. Moving the portable folder updates the registration the next time you open OnePaste.",
+    "unstable": "Move OnePaste to a permanent folder with a shorter path and reopen it before enabling login startup. Temporary download locations or very long paths cannot be registered.",
+    "failed": "Could not update login startup or read its system registration. Try again after reopening OnePaste."
   }
 }

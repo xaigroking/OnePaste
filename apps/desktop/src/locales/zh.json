@@ -76,7 +76,8 @@
     "joined_with_recovery_kit": "已用恢复套件加入库",
     "vault_created": "已新建库",
     "local_only_chosen": "已选择只在本机保存历史",
-    "local_data_wiped": "已清空本机数据"
+    "local_data_wiped": "已清空本机数据",
+    "startup_repair_failed": "无法更新登录自启登记"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -338,7 +339,7 @@
   },
   "settingsMore": {
     "soon": "即将推出",
-    "startup": "登录系统时启动 OnePaste",
+    "startup": "登录时自动启动",
     "trayNote": "关闭窗口后 OnePaste 继续在托盘运行，要退出请用托盘菜单。",
     "skipSecrets": "不记录疑似密钥与令牌的内容",
     "skipSecretsHint": "仅过滤本机新复制的文字，可能误判普通文字，也可能漏掉秘密。",
@@ -513,5 +514,11 @@
       "not_joined": "此电脑未连接自建服务器。",
       "other": "无法确认更改。请重新打开此对话框，检查是否有未确认请求后再重试。"
     }
+  },
+  "startup": {
+    "reading": "正在读取系统自启登记…",
+    "hint": "登录后在托盘或菜单栏中静默启动。移动便携文件夹后，再次打开 OnePaste 会更新已启用的登记路径。",
+    "unstable": "请先将 OnePaste 移到路径较短的固定文件夹并重新打开，再启用登录自启。无法登记临时下载位置或过长路径。",
+    "failed": "无法更新登录自启或读取系统登记。请重新打开 OnePaste 后重试。"
   }
 }

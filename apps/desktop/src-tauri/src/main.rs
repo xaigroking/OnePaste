@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod adapters;
+mod autostart;
 mod commands;
 mod diag;
 mod hotkey;
@@ -33,11 +34,14 @@ fn main() {
     let settings_dir = lang::settings_dir();
     // One program per data directory. A second start asks the running one to show its window (or, with --quit, to quit)
     // and ends at once, before it touches a database.
+    let hidden = std::env::args().skip(1).any(|a| a == "--hidden");
     let quit_flag = std::env::args().skip(1).any(|a| a == "--quit");
     let lock_dir = settings_dir.clone().unwrap_or_else(|| std::env::temp_dir().join("dev.onepaste.spike"));
     let _instance_lock = match onepaste_app::instance::InstanceLock::acquire(&lock_dir) {
         Ok(Some(lock)) => Some(lock),
         Ok(None) => {
+            if !quit_flag && !hidden { let _ = autostart::repair(); }
+            if hidden && !quit_flag { return; }
             let _ = onepaste_app::instance::send_request(&lock_dir, if quit_flag { onepaste_app::instance::Request::Quit } else { onepaste_app::instance::Request::Show });
             return;
         }
@@ -109,6 +113,8 @@ fn main() {
             commands::get_log,
             commands::get_hotkey_state,
             commands::set_hotkey,
+            commands::get_autostart,
+            commands::set_autostart,
             commands::get_tray_state,
             commands::set_texts,
             commands::copy_diagnostics,
@@ -116,13 +122,14 @@ fn main() {
             commands::set_language,
         ])
         .setup(move |app| {
-            // The window is shown at start, so the Dock icon is there; hiding the window takes it away again
-            // (lifecycle::hide_main_window) and showing the window brings it back.
+            // The configured window starts invisible, including while the native setup and webview are loading.
             lifecycle::watch_requests(app.handle(), lock_dir.clone());
             let handle = app.handle().clone();
             tray::build(&handle)?;
             quick::create(&handle)?;
             hotkey::register(&handle);
+            if let Err(code) = autostart::repair() { handle.state::<AppState>().0.lock().unwrap().push_log("startup_repair_failed", Some(code)); }
+            if hidden { lifecycle::hide_main_window(&handle); } else { tray::show_main_window(&handle); }
             let watchers = watchers::start(&handle, &core);
             app.manage(watchers);
             // The tray shows what the sync is really doing

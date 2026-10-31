@@ -10,6 +10,8 @@ export interface HotkeyInfo {
   warning: "fallback" | "cleanup" | null;
 }
 
+export interface AutostartInfo { enabled: boolean; canEnable: boolean; reason: string | null; }
+
 export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files" | "code";
 export type Page = "history" | "devices" | "settings";
 
@@ -185,6 +187,8 @@ export const api = {
   passphrasePending: () => invoke<boolean>("app_passphrase_pending"),
   changePassphrase: (oldPassphrase: string, newPassphrase: string) => invoke<void>("app_change_passphrase", { oldPassphrase, newPassphrase }),
   resumePassphraseChange: () => invoke<void>("app_resume_passphrase_change"),
+  autostart: () => invoke<AutostartInfo>("get_autostart"),
+  setAutostart: (enabled: boolean) => invoke<AutostartInfo>("set_autostart", { enabled }),
   setSettings: (settings: AppSettings) => invoke<void>("app_set_settings", { settings }),
   log: () => invoke<LogEntry[]>("get_log"),
   hotkey: () => invoke<HotkeyInfo>("get_hotkey_state"),
