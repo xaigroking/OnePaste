@@ -273,6 +273,7 @@ export default function App() {
         )}
         {activeView === "history" && (
           <HistoryView
+            localOnly={status?.mode === "local_only"}
             items={items}
             query={query}
             filter={filter}

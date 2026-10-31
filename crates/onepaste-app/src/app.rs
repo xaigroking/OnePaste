@@ -135,6 +135,7 @@ pub struct LogEntry {
 pub struct AppConfig {
     /// Listen for change notifications from the server (turned off in some tests).
     pub listen_for_changes: bool,
+    pub deletion_clock: Arc<dyn crate::DeletionClock>,
     /// How often to look for changes when nothing else triggers a sync.
     pub poll_interval: Duration,
     /// Run the sync loop in the background (turned off in tests that drive each round by hand with `sync_now`).
@@ -161,7 +162,7 @@ pub struct UpdateSetup {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        AppConfig { listen_for_changes: true, poll_interval: Duration::from_secs(30), background_sync: true, update_checks: false, update_version: "0.0.0".into(), built_at: 0, update_source: None }
+        AppConfig { deletion_clock: Arc::new(crate::deletions::MonotonicClock::default()), listen_for_changes: true, poll_interval: Duration::from_secs(30), background_sync: true, update_checks: false, update_version: "0.0.0".into(), built_at: 0, update_source: None }
     }
 }
 
@@ -198,6 +199,7 @@ struct Inner {
     /// A new vault whose recovery kit is on screen. Nothing of it is on the server or on disk until it is confirmed.
     pending: StdMutex<Option<NewVault>>,
     history: StdMutex<Option<HistoryStore>>,
+    deletions: StdMutex<crate::deletions::Queue>,
     shared: StdMutex<Shared>,
     wake: Notify,
     /// What an update check found last, and the listener that is told about a new version.
@@ -262,6 +264,7 @@ impl App {
             local: Mutex::new(None),
             pending: StdMutex::new(None),
             history: StdMutex::new(None),
+            deletions: StdMutex::new(crate::deletions::Queue::default()),
             shared: StdMutex::new(Shared {
                 settings,
                 tray: TrayState::Synced,
@@ -430,6 +433,7 @@ impl App {
             g.tray = TrayState::Syncing;
         }
         if let Some(old) = lock(&self.0.sync_task).take() { old.abort(); }
+        lock(&self.0.deletions).cancel_all();
         drop(session);
         self.start_sync();
         self.log("server_changed", None);
@@ -579,6 +583,7 @@ impl App {
         let Some(mk) = self.0.secrets.load()? else {
             return Ok(false);
         };
+        lock(&self.0.deletions).reopen();
         let state = StateFile::load(&self.0.dir);
         if state.local_only {
             let engine = SyncEngine::new_local(SqliteStore::open(&db_path(&self.0.dir)).map_err(AppError::from)?, Key::from_bytes(*mk.as_bytes()));
@@ -1094,6 +1099,77 @@ impl App {
         Ok(())
     }
 
+    pub async fn copy_items(&self, ids: &[String]) -> Result<usize, AppError> {
+        let _connection = self.0.connection.read().await;
+        let ids = crate::deletions::unique_ids(ids)?;
+        let texts = self.with_engine(|engine| -> Result<Vec<String>, AppError> {
+            let mut texts = Vec::new();
+            for id in &ids {
+                let item = engine.get_item(id).map_err(|_| AppError::NotFound)?;
+                if item.kind == "text" { if let Some(Content::Text(text)) = content_of(&item) { texts.push(text); } }
+            }
+            Ok(texts)
+        }).await??;
+        if texts.is_empty() { return Err(AppError::NotText); }
+        self.0.clipboard.write(&Content::Text(texts.join("\n\n")), true)?;
+        Ok(texts.len())
+    }
+
+    pub async fn favorite_items(&self, ids: &[String], favorite: bool) -> Result<(), AppError> {
+        let _connection = self.0.connection.read().await;
+        let ids = crate::deletions::unique_ids(ids)?;
+        self.with_engine(|engine| -> Result<(), AppError> {
+            for id in &ids { engine.get_item(id).map_err(|_| AppError::NotFound)?; }
+            for id in &ids { engine.enqueue_edit(now_ms(), id, Edit::Favorite(favorite)).map_err(AppError::from)?; }
+            Ok(())
+        }).await??;
+        self.0.wake.notify_one(); Ok(())
+    }
+
+    pub fn pending_deletions(&self) -> crate::DeletionStatus { lock(&self.0.deletions).status(self.0.cfg.deletion_clock.now()) }
+
+    pub async fn stage_deletion(&self, ids: &[String]) -> Result<crate::PendingDeletion, AppError> {
+        let _connection = self.0.connection.read().await;
+        let ids = crate::deletions::unique_ids(ids)?;
+        self.with_engine(|engine| -> Result<(), AppError> {
+            for id in &ids { engine.get_item(id).map_err(|_| AppError::NotFound)?; } Ok(())
+        }).await??;
+        let token = onepaste_core::id::new_id().map_err(|_| AppError::Other("random id unavailable".into()))?;
+        let clock = self.0.cfg.deletion_clock.clone();
+        let deadline = clock.now() + crate::DELETE_GRACE;
+        lock(&self.0.deletions).stage(token.clone(), ids.clone(), deadline)?;
+        let view = crate::PendingDeletion { token: token.clone(), item_ids: ids, remaining_ms: 10_000, committing: false };
+        let weak = Arc::downgrade(&self.0);
+        let task = tokio::spawn(async move {
+            clock.wait_until(deadline).await;
+            if let Some(inner) = weak.upgrade() { App(inner).commit_deletion(&token).await; }
+        });
+        { let mut tasks = lock(&self.0.tasks); tasks.retain(|task| !task.is_finished()); tasks.push(task); }
+        self.notify_status(); Ok(view)
+    }
+
+    pub fn undo_deletion(&self, token: &str) -> bool {
+        let undone = lock(&self.0.deletions).undo(token, self.0.cfg.deletion_clock.now());
+        if undone { self.notify_status(); } undone
+    }
+
+    async fn commit_deletion(&self, token: &str) {
+        let _connection = self.0.connection.read().await;
+        let ids = { lock(&self.0.deletions).mark_committing(token, self.0.cfg.deletion_clock.now()) };
+        let Some(ids) = ids else { return; };
+        let result = self.with_engine(|engine| -> Result<(), AppError> {
+            let queue = lock(&self.0.deletions);
+            if !queue.is_committing(token) { return Ok(()); }
+            for id in &ids {
+                match engine.enqueue_delete(now_ms(), id) { Ok(()) | Err(onepaste_sync::Error::NotFound) => {}, Err(error) => return Err(AppError::from(error)) }
+            }
+            Ok(())
+        }).await.and_then(|result| result);
+        lock(&self.0.deletions).finish(token, result.is_err());
+        self.log(if result.is_ok() { "items_deleted" } else { "delete_failed" }, None);
+        self.0.wake.notify_one(); self.notify_status();
+    }
+
     /// Text for the "copy diagnostics" button: versions, state, counts and recent event kinds. No content and no keys.
     pub async fn diagnostics(&self) -> String {
         let st = self.status().await;
@@ -1246,6 +1322,7 @@ impl App {
 
     /// Stops the background work.
     pub fn shutdown(&self) {
+        lock(&self.0.deletions).stop();
         if let Some(task) = lock(&self.0.sync_task).take() { task.abort(); }
         for t in lock(&self.0.tasks).drain(..) {
             t.abort();

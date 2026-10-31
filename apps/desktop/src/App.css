@@ -202,3 +202,10 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .viewer-level { min-width: 64px; text-align: center; font-size: 13px; color: var(--muted); }
 .viewer-pane { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; cursor: grab; }
 .viewer-pane:active { cursor: grabbing; }
+
+.history-selection-hint { margin: 0; }
+.batch-toolbar { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); }
+.batch-toolbar .row { flex-wrap: wrap; margin-top: 8px; }
+.batch-toolbar p { margin-bottom: 0; }
+.row-check { width: 16px; height: 16px; flex: none; border: 1px solid var(--muted); border-radius: 3px; display: grid; place-items: center; color: var(--accent); }
+.undo-deletion { display: flex; gap: 10px; align-items: center; justify-content: space-between; }

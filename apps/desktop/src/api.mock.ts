@@ -6,6 +6,8 @@ import type {
   AppSettings,
   AppStatus,
   DeviceList,
+  DeletionStatus,
+  PendingDeletion,
   Filter,
   HotkeyInfo,
   ImageData,
@@ -103,6 +105,25 @@ const UPDATE: UpdateInfo = {
   releaseUrl: "https://github.com/xaigroking/OnePaste/releases/tag/v0.0.1-main.12",
 };
 
+const pendingDeletes = new Map<string, { ids: string[]; deadline: number; timer: number }>();
+let deleteNumber = 0;
+const changed = () => window.dispatchEvent(new Event("onepaste-mock-changed"));
+const deleteView = (token: string, value: { ids: string[]; deadline: number }): PendingDeletion => ({ token, itemIds: [...value.ids], remainingMs: Math.max(0, value.deadline - Date.now()), committing: false });
+const deletionStatus = (): DeletionStatus => ({ pending: [...pendingDeletes].map(([token, value]) => deleteView(token, value)), failedBatches: 0 });
+const stageDeletion = async (ids: string[]): Promise<PendingDeletion> => {
+  const itemIds = [...new Set(ids)];
+  if ([...pendingDeletes.values()].some((entry) => entry.ids.some((id) => itemIds.includes(id)))) throw "delete_pending";
+  const w = window as unknown as { __deleteStages?: string[][]; __deleted?: string[] };
+  w.__deleteStages = [...(w.__deleteStages ?? []), itemIds];
+  const token = `deletion-${++deleteNumber}`;
+  const value = { ids: itemIds, deadline: Date.now() + 10000, timer: 0 };
+  value.timer = window.setTimeout(() => {
+    for (let index = ITEMS.length - 1; index >= 0; index--) if (itemIds.includes(ITEMS[index].itemId)) ITEMS.splice(index, 1);
+    w.__deleted = [...(w.__deleted ?? []), ...itemIds]; pendingDeletes.delete(token); changed();
+  }, 10000);
+  pendingDeletes.set(token, value); changed(); return deleteView(token, value);
+};
+
 export const api = {
   closeToTray: async (_dontShowAgain: boolean) => {
     called("closeToTray");
@@ -153,8 +174,24 @@ export const api = {
   hideQuickPanel: async () => {
     (window as unknown as { __hidden: boolean }).__hidden = true;
   },
-  setFlags: async () => undefined,
-  remove: async () => undefined,
+  setFlags: async (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) => {
+    const item = ITEMS.find((value) => value.itemId === itemId); if (item) Object.assign(item, flags); changed();
+  },
+  copyItems: async (ids: string[]) => {
+    const w = window as unknown as { __batchCopies?: string[][] }; w.__batchCopies = [...(w.__batchCopies ?? []), [...ids]];
+    return ITEMS.filter((item) => ids.includes(item.itemId) && item.kind === "text").length;
+  },
+  favoriteItems: async (ids: string[], favorite: boolean) => {
+    for (const item of ITEMS) if (ids.includes(item.itemId)) item.favorite = favorite; changed();
+  },
+  stageDeletion,
+  pendingDeletions: async () => deletionStatus(),
+  undoDeletion: async (token: string) => {
+    const value = pendingDeletes.get(token); if (!value || Date.now() >= value.deadline) return false;
+    window.clearTimeout(value.timer); pendingDeletes.delete(token);
+    const w = window as unknown as { __deleteUndos?: string[] }; w.__deleteUndos = [...(w.__deleteUndos ?? []), token]; changed(); return true;
+  },
+  remove: async (itemId: string) => { await stageDeletion([itemId]); },
   settings: () => (SCREEN === "set" && STATE === "loading" ? never<AppSettings>() : Promise.resolve(settings)),
   setSettings: async (next: AppSettings) => {
     const w = window as unknown as { __settingsCalls?: AppSettings[] };
@@ -223,8 +260,9 @@ export const api = {
   copySecret: async () => { called("copySecret"); },
 };
 
-export async function onChanged(_handler: () => void): Promise<() => void> {
-  return () => undefined;
+export async function onChanged(handler: () => void): Promise<() => void> {
+  window.addEventListener("onepaste-mock-changed", handler);
+  return () => window.removeEventListener("onepaste-mock-changed", handler);
 }
 
 /** The scene's page is opened once, as the tray menu would. */

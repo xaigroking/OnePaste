@@ -101,6 +101,11 @@ fn main() {
             commands::app_copy,
             commands::app_set_flags,
             commands::app_delete,
+            commands::app_copy_items,
+            commands::app_favorite_items,
+            commands::app_stage_deletion,
+            commands::app_pending_deletions,
+            commands::app_undo_deletion,
             commands::app_get_settings,
             commands::app_set_settings,
             commands::get_log,
@@ -174,6 +179,7 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build the application")
         .run(|app, event| {
+            if matches!(&event, tauri::RunEvent::Exit) { app.state::<App>().shutdown(); }
             // Clicking the Dock icon, or opening the program again, while the window is hidden brings the window back
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = event {

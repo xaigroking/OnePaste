@@ -74,7 +74,9 @@
     "joined_with_recovery_kit": "已用恢复套件加入库",
     "vault_created": "已新建库",
     "local_only_chosen": "已选择只在本机保存历史",
-    "local_data_wiped": "已清空本机数据"
+    "local_data_wiped": "已清空本机数据",
+    "items_deleted": "记录已删除",
+    "delete_failed": "删除未能完成"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -478,5 +480,37 @@
       "other": "未能确认更改结果。本机历史仍然保留。请关闭窗口并重新打开设置，核对已保存的服务器地址后再重试。",
       "server_change_failed": "未能更改服务器。本机历史和当前连接未改变。请检查新连接码后重试。"
     }
+  },
+  "batch": {
+    "hint": "Ctrl+单击切换选中；Shift+单击选择范围。空格切换，Esc 清除选择。",
+    "hintMac": "Cmd+单击切换选中；Shift+单击选择范围。空格切换，Esc 清除选择。",
+    "actions": "选中记录操作",
+    "selected_one": "已选 {{count}} 条",
+    "selected_other": "已选 {{count}} 条",
+    "copy": "复制文本",
+    "favorite": "收藏所选",
+    "unfavorite": "取消收藏所选",
+    "delete": "删除所选（同步至所有设备）",
+    "deleteLocal": "删除所选（仅本机）",
+    "singleDeleteLocal": "删除（仅本机）",
+    "clear": "清除选择",
+    "copyPolicy": "按列表顺序复制文本，以空行分隔；跳过图片。",
+    "pending_one": "{{count}} 条记录等待删除。",
+    "pending_other": "{{count}} 条记录等待删除。",
+    "remaining": "{{seconds}} 秒内可撤销。",
+    "committing": "正在删除…",
+    "undo": "撤销删除",
+    "pendingRow": "等待删除",
+    "copied_one": "已复制 {{count}} 条文本。",
+    "copied_other": "已复制 {{count}} 条文本。",
+    "actionFailed": "操作未能完成，请刷新列表后重试。",
+    "deleteFailed": "删除未能全部完成。仍显示的记录可以继续使用，请选中后重试。",
+    "statusFailed": "无法读取等待删除的记录，请重新打开历史记录查看状态。",
+    "undoExpired": "撤销期限已过，请刷新列表查看结果。",
+    "deleteTitle": "删除选中的记录？",
+    "deleteBody": "删除将同步至所有设备。记录会保留显示并标记至少 10 秒，在此期间撤销可在提交前取消删除。",
+    "deleteBodyLocal": "删除仅影响本机。记录会保留显示并标记至少 10 秒，在此期间撤销可在提交前取消删除。",
+    "exitPolicy": "删除前退出 OnePaste 会取消删除；关闭到托盘后，倒计时会继续。",
+    "cancel": "取消"
   }
 }

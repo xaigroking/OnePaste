@@ -10,6 +10,9 @@ export interface HotkeyInfo {
   warning: "fallback" | "cleanup" | null;
 }
 
+export interface PendingDeletion { token: string; itemIds: string[]; remainingMs: number; committing: boolean; }
+export interface DeletionStatus { pending: PendingDeletion[]; failedBatches: number; }
+
 export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files" | "code";
 export type Page = "history" | "devices" | "settings";
 
@@ -180,6 +183,11 @@ export const api = {
   copy: (itemId: string) => invoke<void>("app_copy", { itemId }),
   setFlags: (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) =>
     invoke<void>("app_set_flags", { itemId, favorite: flags.favorite ?? null, pinned: flags.pinned ?? null, note: flags.note ?? null }),
+  copyItems: (itemIds: string[]) => invoke<number>("app_copy_items", { itemIds }),
+  favoriteItems: (itemIds: string[], favorite: boolean) => invoke<void>("app_favorite_items", { itemIds, favorite }),
+  stageDeletion: (itemIds: string[]) => invoke<PendingDeletion>("app_stage_deletion", { itemIds }),
+  pendingDeletions: () => invoke<DeletionStatus>("app_pending_deletions"),
+  undoDeletion: (token: string) => invoke<boolean>("app_undo_deletion", { token }),
   remove: (itemId: string) => invoke<void>("app_delete", { itemId }),
   settings: () => invoke<AppSettings>("app_get_settings"),
   setSettings: (settings: AppSettings) => invoke<void>("app_set_settings", { settings }),

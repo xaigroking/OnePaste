@@ -74,7 +74,9 @@
     "joined_with_recovery_kit": "Joined the vault with the recovery kit",
     "vault_created": "Created a new vault",
     "local_only_chosen": "Chose to keep the history on this computer only",
-    "local_data_wiped": "Cleared the data on this computer"
+    "local_data_wiped": "Cleared the data on this computer",
+    "items_deleted": "Items deleted",
+    "delete_failed": "Deletion could not be completed"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -478,5 +480,37 @@
       "other": "The server change could not be confirmed. Your local history is kept. Close this dialog and reopen Settings to check the saved server address before retrying.",
       "server_change_failed": "The server could not be changed. Your local history and current connection are unchanged. Check the new code and try again."
     }
+  },
+  "batch": {
+    "hint": "Ctrl+click toggles selection; Shift+click selects a range. Space toggles; Esc clears.",
+    "hintMac": "Cmd+click toggles selection; Shift+click selects a range. Space toggles; Esc clears.",
+    "actions": "Selected history actions",
+    "selected_one": "{{count}} item selected",
+    "selected_other": "{{count}} items selected",
+    "copy": "Copy text",
+    "favorite": "Favorite selected",
+    "unfavorite": "Unfavorite selected",
+    "delete": "Delete selected (syncs to all devices)",
+    "deleteLocal": "Delete selected (this computer)",
+    "singleDeleteLocal": "Delete (this computer)",
+    "clear": "Clear selection",
+    "copyPolicy": "Copies text in list order, separated by blank lines. Images are skipped.",
+    "pending_one": "{{count}} item scheduled for deletion.",
+    "pending_other": "{{count}} items scheduled for deletion.",
+    "remaining": "Undo available for {{seconds}}s.",
+    "committing": "Deleting…",
+    "undo": "Undo deletion",
+    "pendingRow": "Pending deletion",
+    "copied_one": "Copied {{count}} text item.",
+    "copied_other": "Copied {{count}} text items.",
+    "actionFailed": "Could not complete this action. Refresh the list and try again.",
+    "deleteFailed": "Could not complete a deletion. Items that remain are still available. Select them and try again.",
+    "statusFailed": "Could not read pending deletions. Reopen History to check their status.",
+    "undoExpired": "The undo period ended. Refresh the list to check the result.",
+    "deleteTitle": "Delete selected items?",
+    "deleteBody": "Deletion syncs to all devices. Items stay visible and marked for at least 10 seconds. Undo during this period cancels deletion before it is submitted.",
+    "deleteBodyLocal": "Deletion affects this computer. Items stay visible and marked for at least 10 seconds. Undo during this period cancels deletion before it is submitted.",
+    "exitPolicy": "Quitting OnePaste before deletion cancels it. Closing to the tray lets the timer continue.",
+    "cancel": "Cancel"
   }
 }

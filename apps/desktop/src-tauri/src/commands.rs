@@ -338,7 +338,7 @@ pub async fn app_set_flags(core: State<'_, App>, item_id: String, favorite: Opti
 
 #[tauri::command]
 pub async fn app_delete(core: State<'_, App>, item_id: String) -> Result<(), String> {
-    core.delete(&item_id).await.map_err(|e| e.code())
+    core.stage_deletion(&[item_id]).await.map(|_| ()).map_err(|e| e.code())
 }
 
 #[tauri::command]
@@ -370,4 +370,25 @@ pub async fn copy_diagnostics_impl(app: &AppHandle) -> ActionResult {
 #[tauri::command]
 pub async fn copy_diagnostics(app: AppHandle) -> ActionResult {
     copy_diagnostics_impl(&app).await
+}
+
+#[tauri::command]
+pub async fn app_copy_items(core: State<'_, App>, item_ids: Vec<String>) -> Result<usize, String> { core.copy_items(&item_ids).await.map_err(|e| e.code()) }
+
+#[tauri::command]
+pub async fn app_favorite_items(app: AppHandle, core: State<'_, App>, item_ids: Vec<String>, favorite: bool) -> Result<(), String> {
+    let result = core.favorite_items(&item_ids, favorite).await.map_err(|e| e.code()); tray::notify_changed(&app); result
+}
+
+#[tauri::command]
+pub async fn app_stage_deletion(app: AppHandle, core: State<'_, App>, item_ids: Vec<String>) -> Result<onepaste_app::PendingDeletion, String> {
+    let result = core.stage_deletion(&item_ids).await.map_err(|e| e.code()); tray::notify_changed(&app); result
+}
+
+#[tauri::command]
+pub fn app_pending_deletions(core: State<'_, App>) -> onepaste_app::DeletionStatus { core.pending_deletions() }
+
+#[tauri::command]
+pub fn app_undo_deletion(app: AppHandle, core: State<'_, App>, token: String) -> bool {
+    let result = core.undo_deletion(&token); tray::notify_changed(&app); result
 }

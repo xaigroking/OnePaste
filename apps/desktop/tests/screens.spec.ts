@@ -171,3 +171,19 @@ for (const state of ["empty", "loading", "error"] as const) {
     }
   }
 }
+
+for (const mode of ["selection", "confirmation", "undo"] as const) {
+  for (const theme of THEMES) for (const lang of LANGS) {
+    test(`history batch ${mode} ${theme} ${lang}`, async ({ page }) => {
+      const l=locale(lang); await page.setViewportSize({width:1040,height:780});
+      await page.addInitScript((value)=>localStorage.setItem("onepaste.theme",value),theme);
+      await page.clock.install(); await page.goto(`/?screen=main&lang=${lang}`);
+      const rows=page.getByRole("option"); await rows.nth(0).click(); await rows.nth(2).click({modifiers:["Control"]});
+      await page.clock.pauseAt(new Date(Date.now()+2000));
+      if (mode!=="selection") await page.getByRole("button",{name:l.batch.delete,exact:true}).click();
+      if (mode==="undo") { await page.getByRole("dialog").getByRole("button",{name:l.detail.delete,exact:true}).click(); await page.getByRole("button",{name:l.batch.undo,exact:true}).waitFor(); }
+      await page.evaluate(()=>document.fonts.ready);
+      await expect(page).toHaveScreenshot(`history-batch-${mode}-${theme}-${lang}.png`);
+    });
+  }
+}
