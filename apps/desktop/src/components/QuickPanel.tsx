@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onChanged, onQuickOpened } from "../api";
 import type { Filter, ItemView, HotkeyInfo } from "../api";
@@ -85,7 +85,7 @@ export function QuickPanel() {
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
