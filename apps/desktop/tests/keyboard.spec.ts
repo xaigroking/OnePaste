@@ -12,6 +12,17 @@ declare global {
   }
 }
 
+test("system sensitive markers are explained as always on without a toggle", async ({ page }) => {
+  await page.goto("/?screen=set&lang=en");
+  const section = page.getByRole("region", { name: "System sensitive markers" });
+  await expect(section).toContainText("Always on");
+  await expect(section).toContainText("Content marked as sensitive by password managers or other apps is never recorded or synced.");
+  await expect(section.getByRole("switch")).toHaveCount(0);
+  await page.getByRole("switch", { name: /Do not record things that look like keys or tokens/ }).uncheck();
+  await expect(section).toBeVisible();
+  await expect(section).toContainText("Always on");
+});
+
 test("suspected secret filter switches with the keyboard and preserves other settings", async ({ page }) => {
   await page.goto("/?screen=set&lang=en");
   const toggle = page.getByRole("switch", { name: /Do not record things that look like keys or tokens/ });

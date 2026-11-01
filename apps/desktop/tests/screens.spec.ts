@@ -72,6 +72,10 @@ async function toCodeStep(page: Page, lang: string) {
 }
 
 const SCREENS: Screen[] = [
+  { name: "system-markers", screen: "set", size: { width: 1040, height: 900 }, states: [],
+    drive: async (page, lang) => {
+      await page.getByRole("region", { name: locale(lang).settingsMore.respectMarker, exact: true }).scrollIntoViewIfNeeded();
+    } },
   { name: "startup-on", screen: "set", size: WINDOW, query: "autostart=on", states: [] },
   { name: "startup-unavailable", screen: "set", size: WINDOW, query: "autostart=unstable", states: [] },
   { name: "startup-error", screen: "set", size: WINDOW, query: "autostartSave=error", states: [],
