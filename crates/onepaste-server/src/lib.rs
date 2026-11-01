@@ -152,6 +152,11 @@ impl Server {
         self.cleanup.abort();
         let _ = self.cleanup.await;
         let _ = self.task.await;
+        // Hard shutdown ends the accept loop before its spawned connections have necessarily dropped their services.
+        // Those services still own the store, including a pending TLS handshake, so wait before callers copy its files.
+        while self.handle.connection_count() != 0 {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
     }
 }
 
@@ -176,3 +181,6 @@ pub fn connect_code(cfg: &Config) -> Result<String, StartError> {
     let public_url = resolve_public_url(cfg, cfg.listen.port());
     new_code(&store, cfg, &public_url, &tls.fingerprint, util::unix_now()).map_err(|_| StartError("write database".into()))
 }
+
+#[cfg(test)]
+mod shutdown_tests;
