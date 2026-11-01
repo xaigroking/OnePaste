@@ -357,7 +357,7 @@
     "skipSecretsRules": "Private-key start markers: PRIVATE KEY, ENCRYPTED PRIVATE KEY, RSA PRIVATE KEY, DSA PRIVATE KEY, EC PRIVATE KEY and OPENSSH PRIVATE KEY. GitHub token prefixes: ghp_, github_pat_, gho_, ghu_, ghs_ and ghr_. These are offline heuristics, not proof that a key or token is real.",
     "skipSecretsBoundary": "Turning this off still respects system sensitive markers. Existing history, remote items and command line or API writes are not scanned.",
     "saveFailed": "Could not save this setting. Try again.",
-    "respectMarker": "Respect the system's \"exclude from history\" marker",
+    "respectMarker": "System sensitive markers",
     "excludedApps": "Apps whose copies are never recorded",
     "sizeLimit": "Largest item to record",
     "sizeLimitOption": "{{size}} MiB",
@@ -372,7 +372,9 @@
     "hotkeyHint": "Saved changes take effect immediately. If registration fails, an existing working shortcut is kept.",
     "syncMethod": "Method",
     "syncLocal": "Only on this computer",
-    "syncServer": "Your own server"
+    "syncServer": "Your own server",
+    "respectMarkerHint": "Content marked as sensitive by password managers or other apps is never recorded or synced.",
+    "alwaysOn": "Always on"
   },
   "about": {
     "version": "Version {{version}}"

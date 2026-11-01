@@ -150,7 +150,13 @@ export function SettingsView(p: Props) {
             <p className="muted small">{t("settingsMore.skipSecretsRules")}</p>
             <p className="muted small">{t("settingsMore.skipSecretsBoundary")}</p>
           </details>
-          <Switch checked disabled onChange={() => undefined} label={t("settingsMore.respectMarker")} hint={t("settingsMore.soon")} />
+          <div className="setting" role="region" aria-labelledby="system-markers-title">
+            <span className="switch-text">
+              <span id="system-markers-title">{t("settingsMore.respectMarker")}</span>
+              <span className="muted small">{t("settingsMore.respectMarkerHint")}</span>
+            </span>
+            <Badge>{t("settingsMore.alwaysOn")}</Badge>
+          </div>
           <div className="setting setting-soon">
             <span>{t("settingsMore.excludedApps")}</span>
             <Badge>{t("settingsMore.soon")}</Badge>

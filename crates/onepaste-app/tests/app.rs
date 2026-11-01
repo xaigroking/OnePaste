@@ -166,6 +166,25 @@ async fn suspected_secrets_never_enter_storage_or_upload_even_after_offline_capt
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn system_sensitive_markers_leave_history_and_outbox_empty_even_with_content_filter_off() {
+    use onepaste_sync::Store;
+    let mut w = World::new().await;
+    let d = w.app("system-marker", quiet()).await;
+    let mut settings = d.app.settings();
+    settings.skip_suspected_secrets = false;
+    d.app.set_settings(settings).unwrap();
+    d.app.on_clip_event(ClipEvent::SkippedSensitive).await;
+    assert!(d.app.search("", Filter::All, 10, 0).await.unwrap().is_empty());
+    let mut db = onepaste_client::SqliteStore::open(&d.dir.join("onepaste.db")).unwrap();
+    db.transact(&mut |tx| {
+        assert!(tx.items()?.is_empty());
+        assert!(tx.outbox()?.is_empty());
+        Ok(())
+    }).unwrap();
+    d.app.shutdown();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn suspected_secrets_switch_allows_recopies_but_keeps_system_guards_and_remote_import() {
     let mut w = World::new().await;
     let d = w.app("filter-switch", quiet()).await;
