@@ -13,6 +13,7 @@ pub(crate) fn safe_error(error: ClientError) -> AppError {
             _ => "server_change_failed",
         }.into()),
         ClientError::Storage(_) => AppError::Storage("server replacement".into()),
+        ClientError::PassphrasePending => AppError::Server("passphrase_pending".into()),
         ClientError::WrongPassphrase => AppError::WrongPassphrase,
         ClientError::WrongRecoveryKit => AppError::WrongRecoveryKit,
         ClientError::WrongKey => AppError::WrongKey,

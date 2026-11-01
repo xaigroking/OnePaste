@@ -437,6 +437,27 @@ impl App {
         Ok(())
     }
 
+    pub async fn passphrase_change_pending(&self) -> Result<bool, AppError> {
+        if self.mode() != Mode::Synced { return Ok(false); }
+        self.0.session.lock().await.as_mut().ok_or(AppError::NotJoined)?.passphrase_change_pending().map_err(AppError::from)
+    }
+
+    pub async fn change_passphrase(&self, old: &str, new: &str) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
+        if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
+        let result = self.0.session.lock().await.as_mut().ok_or(AppError::NotJoined)?.change_passphrase(old, new).await.map_err(AppError::from);
+        self.log(if result.is_ok() { "passphrase_changed" } else { "passphrase_change_failed" }, result.as_ref().err().map(|e| e.code()));
+        result
+    }
+
+    pub async fn resume_passphrase_change(&self) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
+        if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
+        let result = self.0.session.lock().await.as_mut().ok_or(AppError::NotJoined)?.resume_passphrase_change().await.map_err(AppError::from);
+        self.log(if result.is_ok() { "passphrase_changed" } else { "passphrase_change_failed" }, result.as_ref().err().map(|e| e.code()));
+        result
+    }
+
     /// Joins an existing vault with the connection code and the passphrase. The passphrase is used once and dropped;
     /// the master key goes into the secure store. A wrong passphrase registers nothing.
     pub async fn join(&self, code: &str, passphrase: &str, device_name: &str) -> Result<(), AppError> {
