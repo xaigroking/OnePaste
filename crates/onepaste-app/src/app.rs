@@ -1,7 +1,7 @@
 //! The application object: one place that owns the vault session, the history and the background work.
 
 use crate::error::AppError;
-use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, SecretStore};
+use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, KeyStore};
 use crate::settings::{Settings, StateFile, STATE_FILE_NAME};
 use crate::update::{self, Channel, HttpsSource, Source, UpdateInfo};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
@@ -186,13 +186,13 @@ struct Shared {
     listener: Option<Listener>,
 }
 
-struct Inner {
-    dir: PathBuf,
-    secrets: Arc<dyn SecretStore>,
+pub(crate) struct Inner {
+    pub(crate) dir: PathBuf,
+    pub(crate) secrets: Arc<dyn KeyStore>,
     clipboard: Arc<dyn ClipboardPort>,
     cfg: AppConfig,
     session: Mutex<Option<Session>>,
-    connection: RwLock<()>,
+    pub(crate) connection: RwLock<()>,
     sync_task: StdMutex<Option<JoinHandle<()>>>,
     /// The engine of a local-only setup: it keeps items but has no device, no token and no queue.
     local: Mutex<Option<SyncEngine<SqliteStore>>>,
@@ -210,7 +210,7 @@ struct Inner {
 }
 
 #[derive(Clone)]
-pub struct App(Arc<Inner>);
+pub struct App(pub(crate) Arc<Inner>);
 
 struct EventListener(Option<JoinHandle<()>>);
 
@@ -251,7 +251,7 @@ fn paused_code(r: PauseReason) -> &'static str {
 }
 
 impl App {
-    pub fn new(dir: PathBuf, secrets: Arc<dyn SecretStore>, clipboard: Arc<dyn ClipboardPort>, cfg: AppConfig) -> App {
+    pub fn new(dir: PathBuf, secrets: Arc<dyn KeyStore>, clipboard: Arc<dyn ClipboardPort>, cfg: AppConfig) -> App {
         let settings = Settings::load(&dir);
         App(Arc::new(Inner {
             dir,
@@ -382,13 +382,18 @@ impl App {
         Ok(self.mode())
     }
 
-    /// Fails if this computer is already set up. Otherwise clears what an interrupted setup may have left behind: files
-    /// that no key in the secure store opens are of no use to anyone.
+    /// Refuses to start over on existing files. Missing access to a key never authorizes deleting user data.
     async fn require_unset(&self) -> Result<(), AppError> {
         if self.start().await? {
             return Err(AppError::AlreadySetUp);
         }
-        self.remove_local_files();
+        if crate::key_storage::has_existing_data(&self.0.dir)? && !crate::key_storage::empty_setup(&self.0.dir) {
+            return Err(AppError::RecoveryRequired);
+        }
+        if matches!(self.key_state()?, crate::KeyState::Locked) {
+            return Err(AppError::RecoveryRequired);
+        }
+        if !self.0.secrets.ready_for_setup() { return Err(AppError::Locked); }
         Ok(())
     }
 
@@ -463,7 +468,7 @@ impl App {
     }
 
     /// Joins an existing vault with the connection code and the passphrase. The passphrase is used once and dropped;
-    /// the master key goes into the secure store. A wrong passphrase registers nothing.
+    /// the master key goes into the application key storage. A wrong passphrase registers nothing.
     pub async fn join(&self, code: &str, passphrase: &str, device_name: &str) -> Result<(), AppError> {
         self.require_unset().await?;
         let result = join(
@@ -511,9 +516,7 @@ impl App {
     /// Makes a new vault for an empty server and returns its recovery kit for the screen. Nothing is registered and
     /// nothing is written: the vault exists only in memory until [`App::confirm_kit_saved`]. Leaving now changes nothing.
     pub async fn create_vault(&self, code: &str, passphrase: &str, device_name: &str) -> Result<String, AppError> {
-        if self.start().await? {
-            return Err(AppError::AlreadySetUp);
-        }
+        self.require_unset().await?;
         let vault = prepare_new_vault(code, passphrase, device_name).await?;
         let kit = vault.recovery_kit().to_string();
         *lock(&self.0.pending) = Some(vault);
@@ -543,7 +546,7 @@ impl App {
         *lock(&self.0.pending) = None;
     }
 
-    /// Keeps the history on this computer only: a random key goes into the secure store, no device is created and the
+    /// Keeps the history on this computer only: a random key goes into the application key storage, no device is created and the
     /// network is never used.
     pub async fn choose_local_only(&self) -> Result<(), AppError> {
         self.require_unset().await?;
@@ -555,17 +558,15 @@ impl App {
         Ok(())
     }
 
-    /// The recovery kit of the joined vault, computed from the key in the secure store. Local-only mode has none.
+    /// The recovery kit of the joined vault, computed from the key in the application key storage in either mode.
     pub fn show_kit(&self) -> Result<String, AppError> {
-        if self.mode() != Mode::Synced {
-            return Err(AppError::NoRecoveryKit);
-        }
+        if !self.is_joined() { return Err(AppError::NotJoined); }
         let key = self.0.secrets.load()?.ok_or(AppError::NotJoined)?;
         Ok(recovery::encode(&key))
     }
 
     /// Deletes everything this program keeps on this computer: both databases, the two small files and the key in the
-    /// secure store. The server is not touched. Afterwards the program is as on the first run.
+    /// application key storage. The server is not touched. Afterwards the program is as on the first run.
     pub async fn wipe_local_data(&self) -> Result<(), AppError> {
         let _connection = self.0.connection.write().await;
         self.shutdown();
@@ -592,8 +593,8 @@ impl App {
         Ok(())
     }
 
-    /// Opens the vault with the key from the secure store (no passphrase) and starts the background work. Does nothing
-    /// if no key is stored yet. Calling it again is harmless. Returns whether the program is set up.
+    /// Opens the vault with an already unlocked, process-local key and starts the background work. Does nothing
+    /// while application key storage is locked. Calling it again is harmless. Returns whether the program is set up.
     pub async fn start(&self) -> Result<bool, AppError> {
         {
             let g = lock(&self.0.shared);
@@ -622,8 +623,8 @@ impl App {
             self.notify_status();
             return Ok(true);
         }
-        // A key without a joined vault is what an interrupted setup leaves; the screens start over
-        let joined_here = SqliteStore::open(&db_path(&self.0.dir)).ok().and_then(|s| s.meta_get("device_id").ok().flatten()).is_some();
+        // An interrupted setup may leave a key without registration. Callers must preserve existing files.
+        let joined_here = SqliteStore::open_read_only(&db_path(&self.0.dir)).ok().and_then(|s| s.meta_get("device_id").ok().flatten()).is_some();
         if !joined_here {
             return Ok(false);
         }
@@ -1343,6 +1344,7 @@ impl App {
 
     /// Stops the background work.
     pub fn shutdown(&self) {
+        self.0.secrets.clear_session();
         lock(&self.0.deletions).stop();
         if let Some(task) = lock(&self.0.sync_task).take() { task.abort(); }
         for t in lock(&self.0.tasks).drain(..) {

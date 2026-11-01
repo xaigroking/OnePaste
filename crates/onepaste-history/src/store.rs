@@ -77,6 +77,16 @@ fn key_statement(key: &Key) -> String {
 }
 
 impl HistoryStore {
+    /// Validates an existing encrypted history without creating it, changing permissions or running migrations.
+    pub fn verify_existing(dir: &Path, mk: &Key) -> Result<(), HistoryError> {
+        let conn = Connection::open_with_flags(dir.join(FILE_NAME), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let mut stmt = key_statement(&derive_subkey(mk, PURPOSE_HISTORY_DB));
+        let result = conn.execute_batch(&stmt); stmt.zeroize(); result?;
+        // An empty file is not evidence for a key: require our encrypted history schema.
+        conn.query_row("SELECT count(*) FROM history", [], |r| r.get::<_, i64>(0)).map_err(|_| HistoryError::WrongKey)?;
+        Ok(())
+    }
+
     /// Opens (or creates) `<dir>/history.db`, encrypted with a key derived from the master key. The directory gets
     /// mode 0700 and the database files 0600 on Unix. A wrong key is `WrongKey`.
     pub fn open(dir: &Path, mk: &Key) -> Result<HistoryStore, HistoryError> {

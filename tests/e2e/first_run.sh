@@ -84,6 +84,7 @@ step "1: a new vault from the screens, then the command line joins it and both s
 h1 mode; expect '"unset"'
 h1 probe "$CODE"; expect "empty"
 test "$(devices)" -eq 0 || die "probing registered a device"
+h1 prepare "$PASS"; expect "ok"
 h1 create "$CODE" "$PASS" first-desktop
 KIT=$(sed -n 's/^kit //p' <<< "$H_OUT")
 test "${#KIT}" -eq 69 || die "no recovery kit was shown: $H_OUT"
@@ -105,6 +106,7 @@ grep -q "written on the command line" <<< "$H_OUT" || die "the desktop does not 
 ok "a person with no command line can open a vault, and the two sides sync"
 
 step "2: a second desktop joins with the recovery kit"
+h2 prepare "$PASS"; expect "ok"
 h2 join-kit "$(new_code)" "AAAA-AAAA" second-desktop; expect "error wrong_recovery_kit"
 test "$(devices)" -eq 2 || die "a bad kit registered a device"
 h2 join-kit "$(new_code)" "$KIT" second-desktop; expect "ok"
@@ -115,6 +117,7 @@ grep -q "written on the first desktop" <<< "$H_OUT" || die "the second desktop d
 ok "the recovery kit gives access to the same vault, and a bad kit does nothing"
 
 step "3: local-only mode records and searches, with no device"
+h3 prepare "$PASS"; expect "ok"
 h3 local; expect "ok"
 h3 mode; expect '"local_only"'
 h3 copy "only on this computer"
@@ -127,7 +130,7 @@ h3 sync; expect "ok"
 h3 status
 test "$(jq -r '.tray' <<< "$H_OUT")" = "local"
 test "$(jq -r '.deviceId' <<< "$H_OUT")" = ""
-h3 show-kit; expect "error no_recovery_kit"
+h3 show-kit; grep -q "^kit " <<< "$H_OUT" || die "local recovery kit is missing"
 test "$(devices)" -eq 3 || die "local-only mode registered a device"
 test "$(python3 -c 'import sqlite3, sys; print(sqlite3.connect(sys.argv[1]).execute("select count(*) from meta where key in (\"device_id\", \"u\", \"keyparams\")").fetchone()[0])' "$ROOT/H3/onepaste.db")" -eq 0 \
   || die "the local-only database holds a device identity"

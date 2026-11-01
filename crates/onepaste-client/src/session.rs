@@ -68,8 +68,8 @@ impl Session {
         Self::from_parts(store, mk)
     }
 
-    /// Opens the local vault with the master key itself, for programs that keep it in the system secure store and
-    /// never ask for the passphrase again. A key that does not belong to this vault is `WrongKey`.
+    /// Opens the local vault with a master key already unlocked into process memory.
+    /// A key that does not belong to this vault is `WrongKey`.
     pub fn open_with_key(dir: &Path, mk: &Key) -> Result<Session, ClientError> {
         let store = SqliteStore::open(&db_path(dir))?;
         let record = Self::stored_record(&store)?;

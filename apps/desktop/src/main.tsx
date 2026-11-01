@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { LocalAccessGate } from "./components/LocalAccess";
 import { api } from "./api";
 import { QuickPanel } from "./components/QuickPanel";
 import { initI18n } from "./i18n";
@@ -18,7 +19,7 @@ async function start() {
   const language = await api.languageState().catch(() => ({ effective: "en" }));
   await initI18n(language.effective);
   applyTheme(loadTheme());
-  let page = isQuickPanel() ? <QuickPanel /> : <App />;
+  let page = <LocalAccessGate>{isQuickPanel() ? <QuickPanel /> : <App />}</LocalAccessGate>;
   // Only the screenshot build (vite --mode mock) can show the drawing of the tray menu
   if (import.meta.env.MODE === "mock" && new URLSearchParams(window.location.search).get("screen") === "tray") {
     const { TrayPreview } = await import("./preview/TrayPreview");

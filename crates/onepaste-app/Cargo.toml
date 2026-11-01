@@ -30,6 +30,7 @@ minisign-verify = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }
 sha2 = "0.10"
 thiserror = "1"
+zeroize = "1"
 
 [dev-dependencies]
 onepaste-server = { path = "../onepaste-server" }

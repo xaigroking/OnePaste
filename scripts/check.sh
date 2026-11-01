@@ -272,6 +272,10 @@ done
 rm -f "$notes_tmp"
 [ "$release_fail" -eq 0 ] || fail=1
 
+# Application key providers and all locked dependency graphs must remain independent of system credential stores.
+python3 tools/check_no_system_credentials.py || fail=1
+python3 tools/test_no_system_credentials.py || fail=1
+
 # 14) Every translation file has all the keys of English, and the same placeholders
 python3 tools/check_locales.py || fail=1
 

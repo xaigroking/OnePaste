@@ -1,8 +1,8 @@
-//! Test harness: the whole application logic with a fake clipboard and an in-memory secret store, driven by text
+//! Test harness: the whole application logic with a fake clipboard and the production encrypted key store, driven by text
 //! commands on standard input. Each command prints its result and then a line `END`. Only built with the
 //! `test-harness` feature; a release build does not contain it.
 //!
-//! Commands: probe <code> | create <code> <passphrase> <name> (prints the kit) | confirm | cancel | join-kit <code> <kit> <name> |
+//! Commands: prepare <local-passphrase> | unlock <local-passphrase> | access | probe <code> | create <code> <passphrase> <name> (prints the kit) | confirm | cancel | join-kit <code> <kit> <name> |
 //! local | show-kit | wipe | mode | join <code> <passphrase> <name> | copy <text> | copy-image | copy-sensitive <text> | sync |
 //! list | search <query> | click <n> | clipboard | status | flag <n> favorite|pinned true|false | note <n> <text> |
 //! rm <n> | quit
@@ -34,7 +34,7 @@ async fn main() {
         }
     };
     let clipboard = Arc::new(FakeClipboard::new());
-    let secrets = Arc::new(MemorySecretStore::new());
+    let secrets = Arc::new(EncryptedKeyStore::new(dir.clone()));
     let app = App::new(dir, secrets, clipboard.clone(), AppConfig { listen_for_changes: false, poll_interval: Duration::from_secs(3600), background_sync: false, ..AppConfig::default() });
     let mut last: Vec<ItemView> = Vec::new();
     let stdin = std::io::stdin();
@@ -44,6 +44,9 @@ async fn main() {
         let (cmd, rest) = line.split_once(' ').unwrap_or((line.as_str(), ""));
         let nth = |s: &str| -> Option<String> { s.split_whitespace().next().and_then(|n| n.parse::<usize>().ok()).and_then(|n| last.get(n.wrapping_sub(1))).map(|i| i.item_id.clone()) };
         let out = match cmd {
+            "prepare" => app.prepare_local_passphrase(rest).map(|_| "ok\n".to_string()).unwrap_or_else(err),
+            "unlock" => app.unlock_local(rest).await.map(|_| "ok\n".to_string()).unwrap_or_else(err),
+            "access" => app.key_state().map(|value|format!("{}\n",serde_json::to_string(&value).unwrap())).unwrap_or_else(err),
             "join" => {
                 let mut p = rest.splitn(3, ' ');
                 let (code, pass, name) = (p.next().unwrap_or(""), p.next().unwrap_or(""), p.next().unwrap_or("harness"));

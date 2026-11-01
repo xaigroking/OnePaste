@@ -1,4 +1,4 @@
-//! Plain HTTPS requests to public servers (the update check): the system's trusted roots, no cookies, no identifiers.
+//! Plain HTTPS requests to public servers (the update check): the bundled public trust roots, no cookies, no identifiers.
 //! A test can pin one certificate instead, to talk to a local server.
 
 use crate::error::ClientError;
@@ -14,10 +14,7 @@ pub fn public_client(pinned_fingerprint: Option<&str>) -> Result<reqwest::Client
         return Ok(pinned_client(fp));
     }
     let mut roots = rustls::RootCertStore::empty();
-    let loaded = rustls_native_certs::load_native_certs();
-    for cert in loaded.certs {
-        let _ = roots.add(cert);
-    }
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     if roots.is_empty() {
         return Err(ClientError::Other("no trusted root certificates are available".into()));
     }

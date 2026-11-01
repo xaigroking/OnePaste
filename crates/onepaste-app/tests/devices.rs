@@ -23,7 +23,7 @@ fn quiet() -> AppConfig {
 }
 
 fn desktop(name: &str) -> App {
-    App::new(temp_dir(name), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), quiet())
+    App::new(temp_dir(name), Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), quiet())
 }
 
 async fn server_and_first() -> (Server, App) {

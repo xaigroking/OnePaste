@@ -9,10 +9,6 @@ pub enum PlatformError {
     ClipboardBusy,
     #[error("clipboard content has an unsupported format")]
     BadFormat,
-    #[error("secure store entry not found")]
-    NotFound,
-    #[error("secure store value has an unexpected length")]
-    BadLength,
     #[error("platform call failed (code {0})")]
     Os(i64),
 }
@@ -24,8 +20,6 @@ impl PlatformError {
             PlatformError::Unsupported => "unsupported".into(),
             PlatformError::ClipboardBusy => "clipboard_busy".into(),
             PlatformError::BadFormat => "bad_format".into(),
-            PlatformError::NotFound => "not_found".into(),
-            PlatformError::BadLength => "bad_length".into(),
             PlatformError::Os(c) => format!("os_{c}"),
         }
     }

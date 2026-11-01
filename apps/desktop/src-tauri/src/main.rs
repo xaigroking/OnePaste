@@ -56,8 +56,8 @@ fn main() {
     // The databases live next to the language setting: no new place on disk
     let data_dir = settings_dir.clone().unwrap_or_else(|| std::env::temp_dir().join("dev.onepaste.spike"));
     let core = App::new(
-        data_dir,
-        Arc::new(adapters::PlatformSecretStore::new(adapters::MASTER_KEY_ACCOUNT)),
+        data_dir.clone(),
+        Arc::new(onepaste_app::EncryptedKeyStore::new(data_dir)),
         Arc::new(adapters::PlatformClipboard),
         AppConfig {
             update_checks: true,
@@ -71,6 +71,10 @@ fn main() {
         .manage(AppState::new(preference, lang::system_locale(), settings_dir))
         .manage(core.clone())
         .invoke_handler(tauri::generate_handler![
+            commands::app_key_state,
+            commands::app_prepare_local_passphrase,
+            commands::app_unlock_local,
+            commands::app_recover_local,
             commands::app_join,
             commands::app_first_run_state,
             commands::app_choose_local_only,
@@ -159,7 +163,7 @@ fn main() {
             });
             let updater = core.clone();
             tauri::async_runtime::spawn(async move { updater.start_update_checks() });
-            // Open the vault with the key from the secure store (no passphrase) and start syncing
+            // Open the vault with the key from the application key storage (no passphrase) and start syncing
             let starter = core.clone();
             let for_log = handle.clone();
             tauri::async_runtime::spawn(async move {

@@ -60,6 +60,7 @@ function Dialog({ pendingInitially, onPending, onClose }: { pendingInitially: bo
       <p role="status">{t("changePassphrase.done")}</p>
       <Button onClick={onClose}>{t("changePassphrase.close")}</Button>
     </> : <>
+      <p className="muted">{t("localAccess.vaultChangeHint")}</p>
       <p className="muted">{t("changePassphrase.devices")}</p>
       <p className="muted">{t("changePassphrase.recovery")}</p>
       {pending ? <p className="notice notice-warn">{t("changePassphrase.pending")}</p> : <>

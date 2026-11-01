@@ -145,7 +145,13 @@ export interface TrayTexts {
   devicesCount: string;
 }
 
+export type KeyState = "new" | "prepared" | "locked" | "unlocked" | "recovery";
+
 export const api = {
+  keyState: () => invoke<KeyState>("app_key_state"),
+  prepareLocalPassphrase: (passphrase: string) => invoke<void>("app_prepare_local_passphrase", { passphrase }),
+  unlockLocal: (passphrase: string) => invoke<void>("app_unlock_local", { passphrase }),
+  recoverLocal: (credential: string, isKit: boolean, newPassphrase: string) => invoke<void>("app_recover_local", { credential, isKit, newPassphrase }),
   join: (code: string, passphrase: string, deviceName: string) => invoke<void>("app_join", { code, passphrase, deviceName }),
   firstRunState: () => invoke<Mode>("app_first_run_state"),
   chooseLocalOnly: () => invoke<void>("app_choose_local_only"),

@@ -95,7 +95,7 @@ pub fn set_texts(app: AppHandle, texts: TrayTexts) {
     tray::refresh(&app);
 }
 
-/// Joins an existing vault. The passphrase is used once; the master key goes into the system secure store.
+/// Joins an existing vault. The passphrase is used once; the master key goes into the application key storage.
 #[tauri::command]
 pub async fn app_join(core: State<'_, App>, code: String, passphrase: String, device_name: String) -> Result<(), String> {
     core.join(&code, &passphrase, &device_name).await.map_err(|e| e.code())
@@ -301,7 +301,7 @@ pub fn app_copy_secret(text: String) -> ActionResult {
     ActionResult::from(clipboard::write(&Content::Text(text)))
 }
 
-/// The recovery kit of the joined vault, computed from the key in the secure store.
+/// The recovery kit of the joined vault, computed from the key in the application key storage.
 #[tauri::command]
 pub fn app_show_kit(core: State<App>) -> Result<String, String> {
     core.show_kit().map_err(|e| e.code())
@@ -416,4 +416,39 @@ pub async fn get_autostart() -> Result<crate::autostart::Info, String> {
 #[tauri::command]
 pub async fn set_autostart(enabled: bool) -> Result<crate::autostart::Info, String> {
     tauri::async_runtime::spawn_blocking(move || crate::autostart::set(enabled)).await.map_err(|_| "startup_write".to_string())?
+}
+
+#[tauri::command]
+pub fn app_key_state(core: State<App>) -> Result<onepaste_app::KeyState, String> { core.key_state().map_err(|e| e.code()) }
+
+#[tauri::command]
+pub async fn app_prepare_local_passphrase(core: State<'_, App>, passphrase: String) -> Result<(), String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let passphrase = zeroize::Zeroizing::new(passphrase);
+        core.prepare_local_passphrase(&passphrase).map_err(|e| e.code())
+    }).await.map_err(|_| "key_storage_file".to_string())?
+}
+
+#[tauri::command]
+pub async fn app_unlock_local(app: AppHandle, core: State<'_, App>, passphrase: String) -> Result<(), String> {
+    let core = core.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let passphrase = zeroize::Zeroizing::new(passphrase);
+        tauri::async_runtime::block_on(core.unlock_local(&passphrase)).map_err(|e| e.code())
+    }).await.map_err(|_| "key_storage_file".to_string())?;
+    if result.is_ok() { tray::notify_changed(&app); }
+    result
+}
+
+#[tauri::command]
+pub async fn app_recover_local(app: AppHandle, core: State<'_, App>, credential: String, is_kit: bool, new_passphrase: String) -> Result<(), String> {
+    let core = core.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let credential = zeroize::Zeroizing::new(credential);
+        let passphrase = zeroize::Zeroizing::new(new_passphrase);
+        tauri::async_runtime::block_on(core.recover_local(&credential, is_kit, &passphrase)).map_err(|e| e.code())
+    }).await.map_err(|_| "key_storage_file".to_string())?;
+    if result.is_ok() { tray::notify_changed(&app); }
+    result
 }

@@ -55,6 +55,7 @@ SERVER_PID=$!
 for _ in $(seq 1 100); do grep -q '"message":"started"' "$ROOT/server.out" 2> /dev/null && break; sleep 0.1; done
 a join "$(grep -m1 '^onepaste1:' "$ROOT/server.out")" --name cli > /dev/null 2>&1
 coproc H { "$HARNESS" "$ROOT/H" 2> "$ROOT/harness.err"; }
+h_ok prepare "$PASS"
 h_ok join "$(a invite)" "$PASS" harness
 h_ok sync
 ok "the desktop application joined the existing vault and finished its first sync"

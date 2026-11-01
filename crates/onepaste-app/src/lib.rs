@@ -1,9 +1,8 @@
 //! OnePaste desktop application logic.
 //!
 //! Everything that is not drawing a window lives here, so it can be tested on any machine: joining a vault with a
-//! connection code, keeping the master key in the system secure store, capturing the clipboard, writing items that
-//! arrive from other devices, driving the sync, searching the encrypted history. The platform (secure store,
-//! clipboard) is injected through the traits in [`ports`].
+//! connection code, keeping the master key in the application key storage, capturing the clipboard, writing items that
+//! arrive from other devices, driving the sync, searching the encrypted history. Application-owned key access and the platform clipboard are injected through the traits in [`ports`].
 
 mod app;
 mod error;
@@ -19,7 +18,7 @@ pub use app::{App, AppConfig, ImageData, UpdateSetup, DeviceList, DeviceView, It
 pub use error::AppError;
 pub use deletions::{DeletionClock, DeletionStatus, PendingDeletion, DELETE_GRACE};
 pub use onepaste_history::Filter;
-pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemorySecretStore, MonitorGuard, SecretStore};
+pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemoryKeyStore, MonitorGuard, KeyStore};
 pub use settings::{hotkeys, Settings};
 pub use update::{Channel, UpdateInfo};
 
@@ -32,3 +31,7 @@ pub fn parse_filter(name: &str) -> Filter {
         _ => Filter::All,
     }
 }
+
+mod key_storage;
+mod unlock;
+pub use key_storage::{EncryptedKeyStore, KeyState, KEY_FILE};

@@ -12,7 +12,7 @@ async fn app_with_items() -> (App, Arc<FakeClipboard>, Vec<u8>, String) {
     let dir = std::env::temp_dir().join(format!("onepaste-detail-{}-{}", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
     let _ = std::fs::remove_dir_all(&dir);
     let clip = Arc::new(FakeClipboard::new());
-    let app = App::new(dir, Arc::new(MemorySecretStore::new()), clip.clone(), AppConfig::default());
+    let app = App::new(dir, Arc::new(MemoryKeyStore::new()), clip.clone(), AppConfig::default());
     app.choose_local_only().await.unwrap();
     let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
     png.extend(MARKER.as_bytes());

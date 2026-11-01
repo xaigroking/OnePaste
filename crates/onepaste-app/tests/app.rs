@@ -67,7 +67,7 @@ impl World {
 
     async fn app(&mut self, name: &str, cfg: AppConfig) -> Desktop {
         let dir = self.dir.join(name);
-        let secrets = Arc::new(MemorySecretStore::new());
+        let secrets = Arc::new(MemoryKeyStore::new());
         let clipboard = Arc::new(FakeClipboard::new());
         let app = App::new(dir.clone(), secrets.clone(), clipboard.clone(), cfg);
         let code = self.invite().await;
@@ -99,7 +99,7 @@ impl World {
 
 struct Desktop {
     app: App,
-    secrets: Arc<MemorySecretStore>,
+    secrets: Arc<MemoryKeyStore>,
     clipboard: Arc<FakeClipboard>,
     dir: PathBuf,
 }
@@ -251,15 +251,15 @@ async fn wait_for<F: std::future::Future<Output = bool>>(what: &str, mut f: impl
 async fn joining_stores_the_key_and_a_restart_needs_no_passphrase() {
     let mut w = World::new().await;
     let d = w.app("desktop", quiet()).await;
-    assert!(d.secrets.load().unwrap().is_some(), "the master key is in the secure store");
+    assert!(d.secrets.load().unwrap().is_some(), "the master key is in the application key storage");
     assert!(d.app.is_joined());
     d.app.shutdown();
-    // A new application object with the same data directory and secure store opens the vault with no passphrase
+    // A new application object with the same data directory and application key storage opens the vault with no passphrase
     let again = App::new(d.dir.clone(), d.secrets.clone(), d.clipboard.clone(), quiet());
     assert!(again.start().await.unwrap());
     assert!(again.status().await.joined);
-    // Without a key in the secure store nothing opens
-    let empty = App::new(d.dir.clone(), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), quiet());
+    // Without a key in the application key storage nothing opens
+    let empty = App::new(d.dir.clone(), Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), quiet());
     assert!(!empty.start().await.unwrap());
 }
 
@@ -267,7 +267,7 @@ async fn joining_stores_the_key_and_a_restart_needs_no_passphrase() {
 async fn a_wrong_passphrase_registers_nothing_and_stores_no_key() {
     let w = World::new().await;
     let devices_before = w.cli.call(Method::Get, "/v1/devices", None).await.unwrap().as_array().unwrap().len();
-    let secrets = Arc::new(MemorySecretStore::new());
+    let secrets = Arc::new(MemoryKeyStore::new());
     let app = App::new(w.dir.join("wrong"), secrets.clone(), Arc::new(FakeClipboard::new()), quiet());
     let code = w.invite().await;
     let err = app.join(&code, "not the passphrase", "desktop").await.unwrap_err();
@@ -285,7 +285,7 @@ async fn joining_never_creates_a_vault() {
     let dir = temp_dir("empty");
     let port = free_port();
     let server = Server::start(server_config(&dir, port)).await.unwrap();
-    let secrets = Arc::new(MemorySecretStore::new());
+    let secrets = Arc::new(MemoryKeyStore::new());
     let app = App::new(dir.join("desktop"), secrets.clone(), Arc::new(FakeClipboard::new()), quiet());
     let err = app.join(server.first_connect_code.as_deref().unwrap(), PASS, "desktop").await.unwrap_err();
     assert_eq!(err.code(), "vault_empty");
@@ -710,7 +710,7 @@ fn the_futures_of_the_commands_can_run_on_any_thread() {
     fn send<T: Send>(_: &T) {}
     fn shared<T: Send + Sync + Clone + 'static>() {}
     shared::<App>();
-    let app = App::new(temp_dir("send"), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), quiet());
+    let app = App::new(temp_dir("send"), Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), quiet());
     send(&app.start());
     send(&app.join("", "", ""));
     send(&app.status());

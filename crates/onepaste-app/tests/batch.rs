@@ -33,10 +33,10 @@ fn temp(label: &str) -> PathBuf {
 fn config(clock: Arc<Clock>) -> AppConfig {
     AppConfig { listen_for_changes: true, background_sync: false, deletion_clock: clock, ..AppConfig::default() }
 }
-struct Desktop { app: App, dir: PathBuf, secrets: Arc<MemorySecretStore>, clipboard: Arc<FakeClipboard>, clock: Arc<Clock> }
+struct Desktop { app: App, dir: PathBuf, secrets: Arc<MemoryKeyStore>, clipboard: Arc<FakeClipboard>, clock: Arc<Clock> }
 impl Desktop {
     fn new(label: &str) -> Self {
-        let dir=temp(label); let secrets=Arc::new(MemorySecretStore::new()); let clipboard=Arc::new(FakeClipboard::new()); let clock=Arc::new(Clock::new());
+        let dir=temp(label); let secrets=Arc::new(MemoryKeyStore::new()); let clipboard=Arc::new(FakeClipboard::new()); let clock=Arc::new(Clock::new());
         let app=App::new(dir.clone(),secrets.clone(),clipboard.clone(),config(clock.clone()));
         Self { app,dir,secrets,clipboard,clock }
     }
@@ -114,7 +114,7 @@ fn pending_delete_child() {
     let mut input=String::new(); std::io::stdin().read_to_string(&mut input).unwrap();
     let (dir,bytes,ids):(PathBuf,[u8;32],Vec<String>)=serde_json::from_str(&input).unwrap();
     let runtime=tokio::runtime::Runtime::new().unwrap(); runtime.block_on(async {
-        let secrets=Arc::new(MemorySecretStore::new()); secrets.save(&Key::from_bytes(bytes)).unwrap();
+        let secrets=Arc::new(MemoryKeyStore::new()); secrets.save(&Key::from_bytes(bytes)).unwrap();
         let app=App::new(dir,secrets,Arc::new(FakeClipboard::new()),config(Arc::new(Clock::new()))); app.start().await.unwrap(); app.stage_deletion(&ids).await.unwrap();
         println!("READY"); std::io::stdout().flush().unwrap(); std::future::pending::<()>().await;
     });
