@@ -72,6 +72,8 @@ fn main() {
         .manage(core.clone())
         .invoke_handler(tauri::generate_handler![
             commands::app_key_state,
+            commands::app_lock_session,
+            commands::app_user_activity,
             commands::app_prepare_local_passphrase,
             commands::app_unlock_local,
             commands::app_recover_local,
@@ -147,6 +149,9 @@ fn main() {
             // The tray shows what the sync is really doing
             let for_tray = handle.clone();
             core.on_status_change(move |st| {
+                if st.locked {
+                    let _ = for_tray.emit("onepaste://locked", ());
+                }
                 let tray_state = match st.tray {
                     onepaste_app::TrayState::Synced => TrayState::Synced,
                     onepaste_app::TrayState::Syncing => TrayState::Syncing,

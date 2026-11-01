@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode, FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { api, onChanged } from "../api";
+import { api, onChanged, onLocked } from "../api";
+import { clearImageCache } from "../imageCache";
 import type { KeyState } from "../api";
 import { passphraseStrength } from "../onboarding";
 import { Button } from "./ui";
@@ -18,15 +19,28 @@ export function LocalAccessGate({ children }: { children: ReactNode }) {
       const value = await api.keyState();
       if (request !== sequence.current) return;
       if (!["new", "prepared", "locked", "unlocked", "recovery"].includes(value)) throw Error("invalid access state");
+      if (value === "locked" || value === "recovery") clearImageCache();
       setState(value as KeyState); setFailed(false);
     } catch { if (request === sequence.current) setFailed(true); }
   }, []);
   useEffect(() => {
-    let live = true; let stop: (() => void) | undefined;
+    let live = true;
+    let stopLock: (() => void) | undefined;
+    void onLocked(() => { sequence.current++; clearImageCache(); setState("locked"); setFailed(false); }).then((off) => { if (live) stopLock = off; else off(); });
+    let stop: (() => void) | undefined;
     void refresh();
     void onChanged(() => void refresh()).then((off) => { if (live) stop = off; else off(); });
-    return () => { live = false; sequence.current++; stop?.(); };
+    return () => { live = false; sequence.current++; stop?.(); stopLock?.(); };
   }, [refresh]);
+  useEffect(() => {
+    let last = 0;
+    const activity = (event: Event) => {
+      if (!event.isTrusted || Date.now() - last < 1000) return;
+      last = Date.now(); void api.userActivity().catch(() => undefined);
+    };
+    for (const name of ["keydown", "pointerdown", "pointermove", "wheel"]) window.addEventListener(name, activity, { capture: true, passive: true });
+    return () => { for (const name of ["keydown", "pointerdown", "pointermove", "wheel"]) window.removeEventListener(name, activity, true); };
+  }, []);
   if (failed) return <div className="join-wrap local-access"><section className="card join-card"><p role="alert">{t("localAccess.readFailed")}</p><Button onClick={() => void refresh()}>{t("localAccess.retry")}</Button></section></div>;
   if (state === null) return <p role="status">{t("localAccess.loading")}</p>;
   if (state === "prepared" || state === "unlocked") return <>{children}</>;
@@ -55,12 +69,13 @@ function LocalAccessForm({ state, onDone }: { state: KeyState; onDone: () => Pro
       else if (recovering) await api.recoverLocal(recoveryCredential, isKit, pass);
       else await api.unlockLocal(pass);
       setPass(""); setAgain(""); setCredential(""); await onDone();
-    } catch (e) { setError(String(e) === "wrong_passphrase" ? "wrong" : String(e) === "wrong_recovery_kit" ? "wrongKit" : "failed"); }
+    } catch (e) { setPass(""); setAgain(""); setError(String(e) === "wrong_passphrase" ? "wrong" : String(e) === "wrong_recovery_kit" ? "wrongKit" : "failed"); }
     finally { setBusy(false); }
   };
   return <div className="join-wrap local-access"><section className="card join-card" aria-labelledby="local-access-title">
     <h1 id="local-access-title">{t(fresh ? "localAccess.setupTitle" : recovering || state === "recovery" ? "localAccess.recoveryTitle" : "localAccess.unlockTitle")}</h1>
     <p>{t("localAccess.scope")}</p>
+    {state === "locked" && <p role="status">{t("autoLock.paused")}</p>}
     {state === "recovery" && <p className="notice notice-warn">{t("localAccess.legacy")}</p>}
     {(recovering || state === "recovery") && <p className="muted">{t("localAccess.limit")}</p>}
     {(fresh || recovering || state === "locked") && <form onSubmit={(event) => void submit(event)}>

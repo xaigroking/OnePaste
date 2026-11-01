@@ -9,6 +9,9 @@ pub const FILE_NAME: &str = "app-settings.json";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
+    /// Minutes without interaction inside OnePaste; zero disables automatic locking.
+    #[serde(deserialize_with = "auto_lock_minutes")]
+    pub auto_lock_minutes: u8,
     /// Write the newest item that arrives from another device into this computer's clipboard.
     pub auto_apply_remote: bool,
     /// Record what is copied on this computer.
@@ -34,7 +37,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { auto_apply_remote: true, record_clipboard: true, max_item_mib: 8, quick_hotkey: None, skip_suspected_secrets: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
+        Settings { auto_lock_minutes: 0, auto_apply_remote: true, record_clipboard: true, max_item_mib: 8, quick_hotkey: None, skip_suspected_secrets: true, check_updates: true, update_channel: None, skipped_update: None, tray_notice_dismissed: false, text_preview_height: None }
     }
 }
 
@@ -46,6 +49,7 @@ impl Settings {
     }
 
     pub fn save(&self, dir: &Path) -> Result<(), AppError> {
+        if !matches!(self.auto_lock_minutes, 0 | 1 | 5 | 15 | 30) { return Err(AppError::Other("invalid auto lock interval".into())); }
         if !valid_item_limit(self.max_item_mib) { return Err(AppError::Other("invalid item size limit".into())); }
         write_private(dir, FILE_NAME, serde_json::to_string(self).unwrap_or_default().as_bytes())
     }
@@ -367,4 +371,9 @@ pub mod hotkeys {
             state.configure(None, &mut io).unwrap(); assert_eq!(io.calls, vec!["save:default"]);
         }
     }
+}
+
+fn auto_lock_minutes<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u8, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(match value.as_u64() { Some(n @ (0 | 1 | 5 | 15 | 30)) => n as u8, _ => 0 })
 }

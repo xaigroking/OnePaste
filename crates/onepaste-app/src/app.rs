@@ -1,4 +1,6 @@
 //! The application object: one place that owns the vault session, the history and the background work.
+#[path = "session_lock.rs"]
+mod session_lock;
 
 use crate::error::AppError;
 use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, KeyStore};
@@ -59,6 +61,7 @@ pub enum ServerVault {
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub joined: bool,
+    pub locked: bool,
     pub mode: Mode,
     pub tray: TrayState,
     /// `revoked` or `server_rollback` when syncing is stopped.
@@ -136,6 +139,7 @@ pub struct AppConfig {
     /// Listen for change notifications from the server (turned off in some tests).
     pub listen_for_changes: bool,
     pub deletion_clock: Arc<dyn crate::DeletionClock>,
+    pub auto_lock_clock: Arc<dyn crate::AutoLockClock>,
     /// How often to look for changes when nothing else triggers a sync.
     pub poll_interval: Duration,
     /// Run the sync loop in the background (turned off in tests that drive each round by hand with `sync_now`).
@@ -162,7 +166,7 @@ pub struct UpdateSetup {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        AppConfig { deletion_clock: Arc::new(crate::deletions::MonotonicClock::default()), listen_for_changes: true, poll_interval: Duration::from_secs(30), background_sync: true, update_checks: false, update_version: "0.0.0".into(), built_at: 0, update_source: None }
+        AppConfig { auto_lock_clock: Arc::new(crate::session_clock::WallClock), deletion_clock: Arc::new(crate::deletions::MonotonicClock::default()), listen_for_changes: true, poll_interval: Duration::from_secs(30), background_sync: true, update_checks: false, update_version: "0.0.0".into(), built_at: 0, update_source: None }
     }
 }
 
@@ -193,6 +197,11 @@ pub(crate) struct Inner {
     cfg: AppConfig,
     session: Mutex<Option<Session>>,
     pub(crate) connection: RwLock<()>,
+    pub(crate) locked: std::sync::atomic::AtomicBool,
+    generation: std::sync::atomic::AtomicU64,
+    idle: StdMutex<Duration>,
+    lock_timer: StdMutex<Option<JoinHandle<()>>>,
+    update_task: StdMutex<Option<JoinHandle<()>>>,
     sync_task: StdMutex<Option<JoinHandle<()>>>,
     /// The engine of a local-only setup: it keeps items but has no device, no token and no queue.
     local: Mutex<Option<SyncEngine<SqliteStore>>>,
@@ -212,7 +221,7 @@ pub(crate) struct Inner {
 #[derive(Clone)]
 pub struct App(pub(crate) Arc<Inner>);
 
-struct EventListener(Option<JoinHandle<()>>);
+struct EventListener(Option<tokio::task::AbortHandle>);
 
 impl Drop for EventListener {
     fn drop(&mut self) {
@@ -260,6 +269,11 @@ impl App {
             cfg,
             session: Mutex::new(None),
             connection: RwLock::new(()),
+            locked: std::sync::atomic::AtomicBool::new(false),
+            generation: std::sync::atomic::AtomicU64::new(0),
+            idle: StdMutex::new(Duration::ZERO),
+            lock_timer: StdMutex::new(None),
+            update_task: StdMutex::new(None),
             sync_task: StdMutex::new(None),
             local: Mutex::new(None),
             pending: StdMutex::new(None),
@@ -325,6 +339,7 @@ impl App {
     fn quick_status(&self, g: &Shared) -> Status {
         Status {
             joined: g.joined,
+            locked: self.0.locked.load(std::sync::atomic::Ordering::Acquire) || (g.joined && g.settings.auto_lock_minutes != 0 && self.0.cfg.auto_lock_clock.now().saturating_sub(*lock(&self.0.idle)) >= Duration::from_secs(u64::from(g.settings.auto_lock_minutes) * 60)),
             mode: g.mode,
             tray: g.tray,
             paused: g.paused.map(|p| paused_code(p).to_string()),
@@ -384,7 +399,7 @@ impl App {
 
     /// Refuses to start over on existing files. Missing access to a key never authorizes deleting user data.
     async fn require_unset(&self) -> Result<(), AppError> {
-        if self.start().await? {
+        if self.start_session().await? {
             return Err(AppError::AlreadySetUp);
         }
         if crate::key_storage::has_existing_data(&self.0.dir)? && !crate::key_storage::empty_setup(&self.0.dir) {
@@ -420,7 +435,7 @@ impl App {
 
     /// Reconnects an existing synced setup without discarding its history.
     pub async fn change_server(&self, code: &str, passphrase: Option<&str>, kit: Option<&str>) -> Result<(), AppError> {
-        let _connection = self.0.connection.write().await;
+        let _connection = self.session_write_access().await?;
         if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
         let mut session = self.0.session.lock().await;
         let current = session.as_mut().ok_or(AppError::NotJoined)?;
@@ -447,12 +462,13 @@ impl App {
     }
 
     pub async fn passphrase_change_pending(&self) -> Result<bool, AppError> {
+        let _connection = self.session_access().await?;
         if self.mode() != Mode::Synced { return Ok(false); }
         self.0.session.lock().await.as_mut().ok_or(AppError::NotJoined)?.passphrase_change_pending().map_err(AppError::from)
     }
 
     pub async fn change_passphrase(&self, old: &str, new: &str) -> Result<(), AppError> {
-        let _connection = self.0.connection.write().await;
+        let _connection = self.session_write_access().await?;
         if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
         let result = self.0.session.lock().await.as_mut().ok_or(AppError::NotJoined)?.change_passphrase(old, new).await.map_err(AppError::from);
         self.log(if result.is_ok() { "passphrase_changed" } else { "passphrase_change_failed" }, result.as_ref().err().map(|e| e.code()));
@@ -460,7 +476,7 @@ impl App {
     }
 
     pub async fn resume_passphrase_change(&self) -> Result<(), AppError> {
-        let _connection = self.0.connection.write().await;
+        let _connection = self.session_write_access().await?;
         if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
         let result = self.0.session.lock().await.as_mut().ok_or(AppError::NotJoined)?.resume_passphrase_change().await.map_err(AppError::from);
         self.log(if result.is_ok() { "passphrase_changed" } else { "passphrase_change_failed" }, result.as_ref().err().map(|e| e.code()));
@@ -470,6 +486,7 @@ impl App {
     /// Joins an existing vault with the connection code and the passphrase. The passphrase is used once and dropped;
     /// the master key goes into the application key storage. A wrong passphrase registers nothing.
     pub async fn join(&self, code: &str, passphrase: &str, device_name: &str) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
         self.require_unset().await?;
         let result = join(
             &self.0.dir,
@@ -486,13 +503,14 @@ impl App {
         .map_err(AppError::from)?;
         self.0.secrets.save(&result.master_key)?;
         self.log("joined", None);
-        self.start().await?;
+        self.start_session().await?;
         Ok(())
     }
 
     /// Joins an existing vault with the recovery kit instead of the passphrase. A kit that is malformed or belongs to
     /// another vault registers nothing and stores no key.
     pub async fn join_with_kit(&self, code: &str, kit: &str, device_name: &str) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
         self.require_unset().await?;
         let result = join(
             &self.0.dir,
@@ -509,13 +527,14 @@ impl App {
         .map_err(AppError::from)?;
         self.0.secrets.save(&result.master_key)?;
         self.log("joined_with_recovery_kit", None);
-        self.start().await?;
+        self.start_session().await?;
         Ok(())
     }
 
     /// Makes a new vault for an empty server and returns its recovery kit for the screen. Nothing is registered and
     /// nothing is written: the vault exists only in memory until [`App::confirm_kit_saved`]. Leaving now changes nothing.
     pub async fn create_vault(&self, code: &str, passphrase: &str, device_name: &str) -> Result<String, AppError> {
+        let _connection = self.0.connection.write().await;
         self.require_unset().await?;
         let vault = prepare_new_vault(code, passphrase, device_name).await?;
         let kit = vault.recovery_kit().to_string();
@@ -525,6 +544,7 @@ impl App {
 
     /// The user has saved the recovery kit: only now is the vault registered on the server.
     pub async fn confirm_kit_saved(&self) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
         self.require_unset().await?;
         let result = {
             let vault = lock(&self.0.pending).take().ok_or(AppError::NoPendingSetup)?;
@@ -537,7 +557,7 @@ impl App {
         };
         self.0.secrets.save(&result.master_key)?;
         self.log("vault_created", None);
-        self.start().await?;
+        self.start_session().await?;
         Ok(())
     }
 
@@ -549,19 +569,22 @@ impl App {
     /// Keeps the history on this computer only: a random key goes into the application key storage, no device is created and the
     /// network is never used.
     pub async fn choose_local_only(&self) -> Result<(), AppError> {
+        let _connection = self.0.connection.write().await;
         self.require_unset().await?;
         let key = Key::random().map_err(|e| AppError::Other(e.code().to_string()))?;
         self.0.secrets.save(&key)?;
         StateFile { local_only: true, ..Default::default() }.save(&self.0.dir)?;
         self.log("local_only_chosen", None);
-        self.start().await?;
+        self.start_session().await?;
         Ok(())
     }
 
     /// The recovery kit of the joined vault, computed from the key in the application key storage in either mode.
     pub fn show_kit(&self) -> Result<String, AppError> {
-        if !self.is_joined() { return Err(AppError::NotJoined); }
-        let key = self.0.secrets.load()?.ok_or(AppError::NotJoined)?;
+        self.require_access()?;
+        let shared = lock(&self.0.shared);
+        if !shared.joined || self.0.locked.load(std::sync::atomic::Ordering::Acquire) { return Err(AppError::Locked); }
+        let key = self.0.secrets.load()?.ok_or(AppError::Locked)?;
         Ok(recovery::encode(&key))
     }
 
@@ -569,6 +592,7 @@ impl App {
     /// application key storage. The server is not touched. Afterwards the program is as on the first run.
     pub async fn wipe_local_data(&self) -> Result<(), AppError> {
         let _connection = self.0.connection.write().await;
+        if matches!(self.key_state()?, crate::KeyState::Locked | crate::KeyState::Recovery) { return Err(AppError::Locked); }
         self.shutdown();
         *self.0.session.lock().await = None;
         *self.0.local.lock().await = None;
@@ -596,6 +620,12 @@ impl App {
     /// Opens the vault with an already unlocked, process-local key and starts the background work. Does nothing
     /// while application key storage is locked. Calling it again is harmless. Returns whether the program is set up.
     pub async fn start(&self) -> Result<bool, AppError> {
+        let _connection = self.0.connection.write().await;
+        self.start_session().await
+    }
+
+    pub(crate) async fn start_session(&self) -> Result<bool, AppError> {
+        if self.0.locked.load(std::sync::atomic::Ordering::Acquire) { return Ok(false); }
         {
             let g = lock(&self.0.shared);
             if g.started {
@@ -619,6 +649,7 @@ impl App {
                 g.mode = Mode::LocalOnly;
                 g.tray = TrayState::Local;
             }
+            self.session_opened();
             self.start_monitor();
             self.notify_status();
             return Ok(true);
@@ -642,6 +673,7 @@ impl App {
             g.device_id = device_id;
             g.initial_sync_done = initial_sync_done;
         }
+        self.session_opened();
         self.start_monitor();
         self.start_sync();
         self.notify_status();
@@ -660,9 +692,11 @@ impl App {
     /// Runs `f` on the engine of whichever mode is active.
     async fn with_engine<R>(&self, f: impl FnOnce(&mut SyncEngine<SqliteStore>) -> R) -> Result<R, AppError> {
         if let Some(s) = self.0.session.lock().await.as_mut() {
+            self.require_access()?;
             return Ok(f(&mut s.engine));
         }
         if let Some(e) = self.0.local.lock().await.as_mut() {
+            self.require_access()?;
             return Ok(f(e));
         }
         Err(AppError::NotJoined)
@@ -685,7 +719,11 @@ impl App {
         let handle = tokio::runtime::Handle::current();
         let started = self.0.clipboard.start_monitor(Box::new(move |ev| {
             let app = app.clone();
-            handle.spawn(async move { app.on_clip_event(ev).await });
+            let mut tasks = lock(&app.0.tasks);
+            if !app.is_joined() { return; }
+            tasks.retain(|task| !task.is_finished());
+            let captured = app.clone();
+            tasks.push(handle.spawn(async move { captured.on_clip_event(ev).await }));
         }));
         match started {
             Ok(guard) => *lock(&self.0.monitor) = Some(guard),
@@ -714,7 +752,7 @@ impl App {
 
     async fn capture(&self, content: Content) -> Result<(), AppError> {
         let settings = self.settings();
-        let _connection = self.0.connection.read().await;
+        let _connection = self.session_access().await?;
         if settings.skip_suspected_secrets {
             if let Content::Text(text) = &content {
                 if let Some(reason) = crate::secrets::detect(text) {
@@ -761,6 +799,7 @@ impl App {
 
     pub fn notify_wake(&self) {
         self.log("woke_from_sleep", None);
+        self.notify_status();
         self.trigger_sync();
     }
 
@@ -774,6 +813,7 @@ impl App {
     /// Runs one sync round now and returns when it is over. The vault session is locked only while the engine is
     /// consulted, never while a request is in flight, so capturing and searching stay responsive.
     pub async fn sync_now(&self) -> Result<(), AppError> {
+        self.require_access()?;
         if self.mode() == Mode::LocalOnly {
             return Ok(());
         }
@@ -789,7 +829,7 @@ impl App {
     }
 
     async fn sync_round(&self) -> RoundEnd {
-        let _connection = self.0.connection.read().await;
+        let Ok(_connection) = self.session_access().await else { return RoundEnd::Idle; };
         let before = {
             let mut g = self.0.session.lock().await;
             let Some(s) = g.as_mut() else { return RoundEnd::Idle };
@@ -817,6 +857,7 @@ impl App {
                 }
                 Ok(Action::Send(req)) => {
                     let answer = transport.send(&req).await;
+                    if self.expired() { return RoundEnd::Idle; }
                     let mut g = self.0.session.lock().await;
                     let Some(s) = g.as_mut() else { return RoundEnd::Idle };
                     match answer {
@@ -851,6 +892,7 @@ impl App {
                 }
             }
         }
+        if self.expired() { return RoundEnd::Idle; }
         if !matches!(end, RoundEnd::Paused) && !first_sync {
             self.apply_remote(before).await;
         }
@@ -910,11 +952,13 @@ impl App {
     /// The background loop: sync when asked, when the server announces a change, and from time to time.
     async fn drive(self) {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let listener = EventListener(if self.0.cfg.listen_for_changes {
+        let subscription = if self.0.cfg.listen_for_changes {
             self.0.session.lock().await.as_ref().map(|s| s.listen_for_changes(tx.clone()))
         } else {
             None
-        });
+        };
+        let listener = EventListener(subscription.as_ref().map(JoinHandle::abort_handle));
+        if let Some(task) = subscription { lock(&self.0.tasks).push(task); }
         let _keep_open = tx;
         let mut wait = Duration::ZERO;
         let mut backoff = 1u64;
@@ -924,6 +968,7 @@ impl App {
                 msg = rx.recv() => {
                     if let Some(Some(seq)) = msg {
                         let _connection = self.0.connection.read().await;
+                        if self.require_access().is_err() { continue; }
                         if let Some(s) = self.0.session.lock().await.as_mut() {
                             let _ = s.engine.note_event_seq(seq);
                         }
@@ -1038,6 +1083,7 @@ impl App {
     /// Searches the local history; an empty query lists the most recent items. Brings the history up to date first, so
     /// something copied a moment ago is found at once.
     pub async fn search(&self, query: &str, filter: Filter, limit: usize, offset: usize) -> Result<Vec<ItemView>, AppError> {
+        let _connection = self.session_access().await?;
         self.refresh_history().await?;
         let hits = {
             let h = lock(&self.0.history);
@@ -1070,6 +1116,11 @@ impl App {
     /// The picture of an image item. It is read from the history store and passed on: it is never logged, never put in the
     /// diagnostics and never written anywhere. A text item is `NotAnImage`.
     pub async fn item_image(&self, item_id: &str) -> Result<ImageData, AppError> {
+        let _connection = self.session_access().await?;
+        self.image_unlocked(item_id).await
+    }
+
+    async fn image_unlocked(&self, item_id: &str) -> Result<ImageData, AppError> {
         let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
         if payload.kind != "image" {
             return Err(AppError::NotAnImage);
@@ -1082,6 +1133,7 @@ impl App {
 
     /// The whole text of a text item (the list shows only its first line). Never logged. An image is `NotText`.
     pub async fn item_text(&self, item_id: &str) -> Result<String, AppError> {
+        let _connection = self.session_access().await?;
         let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
         if payload.kind == "image" {
             return Err(AppError::NotText);
@@ -1091,12 +1143,14 @@ impl App {
 
     /// Puts an item back on the clipboard. The write carries the origin marker, so it does not become a new item.
     pub async fn copy(&self, item_id: &str) -> Result<(), AppError> {
+        let _connection = self.session_access().await?;
         let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
         let content = content_of(&payload).ok_or(AppError::NotFound)?;
         self.0.clipboard.write(&content, true)
     }
 
     pub async fn set_flags(&self, item_id: &str, favorite: Option<bool>, pinned: Option<bool>, note: Option<String>) -> Result<(), AppError> {
+        let _connection = self.session_access().await?;
         self.with_engine(|e| -> Result<(), onepaste_sync::Error> {
             if let Some(v) = favorite {
                 e.enqueue_edit(now_ms(), item_id, Edit::Favorite(v))?;
@@ -1116,13 +1170,14 @@ impl App {
     }
 
     pub async fn delete(&self, item_id: &str) -> Result<(), AppError> {
+        let _connection = self.session_access().await?;
         self.with_engine(|e| e.enqueue_delete(now_ms(), item_id)).await?.map_err(AppError::from)?;
         self.0.wake.notify_one();
         Ok(())
     }
 
     pub async fn copy_items(&self, ids: &[String]) -> Result<usize, AppError> {
-        let _connection = self.0.connection.read().await;
+        let _connection = self.session_access().await?;
         let ids = crate::deletions::unique_ids(ids)?;
         let texts = self.with_engine(|engine| -> Result<Vec<String>, AppError> {
             let mut texts = Vec::new();
@@ -1138,7 +1193,7 @@ impl App {
     }
 
     pub async fn favorite_items(&self, ids: &[String], favorite: bool) -> Result<(), AppError> {
-        let _connection = self.0.connection.read().await;
+        let _connection = self.session_access().await?;
         let ids = crate::deletions::unique_ids(ids)?;
         self.with_engine(|engine| -> Result<(), AppError> {
             for id in &ids { engine.get_item(id).map_err(|_| AppError::NotFound)?; }
@@ -1151,7 +1206,7 @@ impl App {
     pub fn pending_deletions(&self) -> crate::DeletionStatus { lock(&self.0.deletions).status(self.0.cfg.deletion_clock.now()) }
 
     pub async fn stage_deletion(&self, ids: &[String]) -> Result<crate::PendingDeletion, AppError> {
-        let _connection = self.0.connection.read().await;
+        let _connection = self.session_access().await?;
         let ids = crate::deletions::unique_ids(ids)?;
         self.with_engine(|engine| -> Result<(), AppError> {
             for id in &ids { engine.get_item(id).map_err(|_| AppError::NotFound)?; } Ok(())
@@ -1176,7 +1231,7 @@ impl App {
     }
 
     async fn commit_deletion(&self, token: &str) {
-        let _connection = self.0.connection.read().await;
+        let Ok(_connection) = self.session_access().await else { return; };
         let ids = { lock(&self.0.deletions).mark_committing(token, self.0.cfg.deletion_clock.now()) };
         let Some(ids) = ids else { return; };
         let result = self.with_engine(|engine| -> Result<(), AppError> {
@@ -1220,6 +1275,7 @@ impl App {
 
     /// The devices of the vault, with their names opened. Needs the server.
     pub async fn devices(&self) -> Result<DeviceList, AppError> {
+        let _connection = self.session_access().await?;
         use base64::engine::general_purpose::STANDARD as B64;
         use onepaste_core::crypto::{self, aad};
         let (api, mk, me) = self.api().await?;
@@ -1247,6 +1303,7 @@ impl App {
 
     /// Removes another device from the vault: it can no longer sync. This device cannot revoke itself here.
     pub async fn revoke_device(&self, device_id: &str) -> Result<(), AppError> {
+        let _connection = self.session_access().await?;
         let (api, _, me) = self.api().await?;
         if device_id == me {
             return Err(AppError::CannotRevokeThisDevice);
@@ -1258,6 +1315,7 @@ impl App {
 
     /// A new connection code for adding another device. It replaces the unused ones.
     pub async fn new_connection_code(&self) -> Result<String, AppError> {
+        let _connection = self.session_access().await?;
         let (api, _, _) = self.api().await?;
         let code = api.invite().await.map_err(AppError::from)?;
         self.log("connection_code_made", None);
@@ -1331,8 +1389,10 @@ impl App {
         if !self.0.cfg.update_checks {
             return;
         }
+        let mut task = lock(&self.0.update_task);
+        if task.as_ref().is_some_and(|task| !task.is_finished()) { return; }
         let app = self.clone();
-        lock(&self.0.tasks).push(tokio::spawn(async move {
+        *task = Some(tokio::spawn(async move {
             loop {
                 if app.settings().check_updates {
                     let _ = app.check_for_update(false).await;
@@ -1345,6 +1405,8 @@ impl App {
     /// Stops the background work.
     pub fn shutdown(&self) {
         self.0.secrets.clear_session();
+        if let Some(timer) = lock(&self.0.lock_timer).take() { timer.abort(); }
+        if let Some(task) = lock(&self.0.update_task).take() { task.abort(); }
         lock(&self.0.deletions).stop();
         if let Some(task) = lock(&self.0.sync_task).take() { task.abort(); }
         for t in lock(&self.0.tasks).drain(..) {

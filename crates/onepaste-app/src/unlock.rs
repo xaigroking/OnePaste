@@ -9,6 +9,8 @@ use onepaste_core::{
 
 impl App {
     pub fn key_state(&self) -> Result<KeyState, AppError> {
+        if self.0.locked.load(std::sync::atomic::Ordering::Acquire) { return Ok(KeyState::Locked); }
+        if self.is_joined() && self.expired() { return Ok(KeyState::Locked); }
         let state = self.0.secrets.state()?;
         if state == KeyState::New && crate::key_storage::has_existing_data(&self.0.dir)? {
             return Ok(KeyState::Recovery);
@@ -30,9 +32,11 @@ impl App {
             return Err(AppError::AlreadySetUp);
         }
         self.0.secrets.unlock(pass)?;
-        match self.start().await {
+        self.0.locked.store(false, std::sync::atomic::Ordering::Release);
+        match self.start_session().await {
             Ok(true) => Ok(()),
             result => {
+                self.0.locked.store(true, std::sync::atomic::Ordering::Release);
                 self.0.secrets.clear_session();
                 Err(result.err().unwrap_or(AppError::RecoveryRequired))
             }
@@ -80,9 +84,11 @@ impl App {
             }
         })?;
         self.0.secrets.restore(&key, new_pass)?;
-        match self.start().await {
+        self.0.locked.store(false, std::sync::atomic::Ordering::Release);
+        match self.start_session().await {
             Ok(true) => Ok(()),
             result => {
+                self.0.locked.store(true, std::sync::atomic::Ordering::Release);
                 self.0.secrets.clear_session();
                 Err(result.err().unwrap_or(AppError::RecoveryRequired))
             }

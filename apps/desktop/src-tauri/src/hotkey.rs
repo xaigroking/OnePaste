@@ -34,7 +34,11 @@ impl Port for Native<'_> {
         self.0.global_shortcut().on_shortcut(shortcut(binding)?, |app, pressed, event| {
             if event.state != ShortcutState::Pressed { return; }
             let current = app.state::<AppState>().0.lock().unwrap().hotkey_binding.clone();
-            if current.as_deref().and_then(|s| shortcut(s).ok()).is_some_and(|s| s.id() == pressed.id()) { quick::toggle(app); }
+            if current.as_deref().and_then(|s| shortcut(s).ok()).is_some_and(|s| s.id() == pressed.id()) {
+                let core = app.state::<App>().inner().clone();
+                tauri::async_runtime::spawn(async move { let _ = core.user_activity().await; });
+                quick::toggle(app);
+            }
         }).map_err(|_| Error::Busy)
     }
 

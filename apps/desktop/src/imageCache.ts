@@ -10,6 +10,8 @@ const LIMIT_BYTES = 64 * 1024 * 1024;
 
 const cache = new Map<string, string>();
 let total = 0;
+let generation = 0;
+export function clearImageCache() { generation++; cache.clear(); pending.clear(); total = 0; }
 const pending = new Map<string, Promise<string>>();
 
 function remember(id: string, url: string) {
@@ -37,6 +39,7 @@ export function thumbnail(itemId: string): Promise<string> {
   if (known) return Promise.resolve(known);
   const running = pending.get(itemId);
   if (running) return running;
+  const started = generation;
   const work = (async () => {
     const image = await api.itemImage(itemId);
     // Decoded off the main thread, so a large picture does not freeze the window
@@ -50,9 +53,10 @@ export function thumbnail(itemId: string): Promise<string> {
     ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, SIZE, SIZE);
     bitmap.close();
     const url = canvas.toDataURL("image/jpeg", 0.8);
+    if (started !== generation) throw new Error("locked");
     remember(itemId, url);
     return url;
-  })().finally(() => pending.delete(itemId));
+  })().finally(() => { if (started === generation) pending.delete(itemId); });
   pending.set(itemId, work);
   return work;
 }

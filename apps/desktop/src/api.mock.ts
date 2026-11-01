@@ -55,14 +55,14 @@ const ITEMS: ItemView[] = [
 let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.get("hotkey") === "custom" && STATE !== "error" ? "Control+Shift+KeyK" : "Control+Alt+KeyV";
 let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
 const hotkeyInfo = (): HotkeyInfo => ({ state: hotkeyWarning ? "busy" : "registered", current: activeHotkey, warning: hotkeyWarning });
-const settings: AppSettings = { autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, quickHotkey: q.get("hotkey") === "custom" || hotkeyWarning ? "Control+Shift+KeyK" : null, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+const settings: AppSettings = { autoLockMinutes: 0, autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, quickHotkey: q.get("hotkey") === "custom" || hotkeyWarning ? "Control+Shift+KeyK" : null, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
 let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
   const joined = SCREEN !== "ob1" && SCREEN !== "ob2";
   const mode: Mode = joined ? q.get("mode") === "local" ? "local_only" : "synced" : "unset";
   const paused = SCREEN === "state" ? "revoked" : null;
-  return { joined, mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
+  return { joined, locked: localKeyState === "locked", mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
 };
 
 const devices = (): DeviceList => ({
@@ -130,10 +130,13 @@ const startupInfo = () => ({ enabled: startupEnabled, canEnable: q.get("autostar
 
 // Existing visual fixtures represent an explicitly unlocked process; access-state cases select their state separately.
 let localKeyState = new URLSearchParams(location.search).get("keyState") ?? "unlocked";
+(window as any).__lockFixture = () => { localKeyState = "locked"; window.dispatchEvent(new Event("onepaste-mock-locked")); };
 export const api = {
+  lockSession: async () => { localKeyState = "locked"; window.dispatchEvent(new Event("onepaste-mock-locked")); },
+  userActivity: async () => undefined,
   keyState: async () => { if (q.get("keyRead") === "error") throw "storage"; return localKeyState; },
   prepareLocalPassphrase: async (_pass: string) => { called("prepareLocalPassphrase"); localKeyState = "prepared"; },
-  unlockLocal: async (_pass: string) => { called("unlockLocal"); if (q.get("localError")) throw q.get("localError"); localKeyState = "unlocked"; },
+  unlockLocal: async (_pass: string) => { called("unlockLocal"); if (q.get("localError")) throw q.get("localError"); if (q.get("autoLockTest") && _pass !== "correct-local-passphrase") throw "wrong_passphrase"; localKeyState = "unlocked"; },
   recoverLocal: async (credential: string, isKit: boolean, _pass: string) => { called("recoverLocal"); if (q.get("credentialFixture") === "spaces" && (isKit || credential !== "  fixture vault passphrase  ")) throw "wrong_passphrase"; if (q.get("localError")) throw q.get("localError"); localKeyState = "unlocked"; },
   closeToTray: async (_dontShowAgain: boolean) => {
     called("closeToTray");
@@ -168,6 +171,7 @@ export const api = {
   firstRunState: async (): Promise<Mode> => status().mode,
   status: async () => status(),
   search: (query: string, filter: Filter, _limit: number, _offset: number): Promise<ItemView[]> => {
+    if (q.get("autoLockTest") && query === "late fixture") return new Promise((resolve) => { (window as any).__releaseLockSearch = () => resolve(ITEMS); });
     if (STATE === "loading") return never();
     if (STATE === "error") return Promise.reject("storage");
     if (STATE === "empty") return Promise.resolve([]);
@@ -226,6 +230,7 @@ export const api = {
   setSettings: async (next: AppSettings) => {
     const w = window as unknown as { __settingsCalls?: AppSettings[] };
     w.__settingsCalls = [...(w.__settingsCalls ?? []), { ...next }];
+    if (q.get("autoLockSave") === "pending") await new Promise<void>((resolve) => { (window as any).__finishAutoLockSave = resolve; });
     if (q.get("settingsSave") === "error") throw "storage";
     Object.assign(settings, next);
   },
@@ -314,3 +319,5 @@ export async function onCloseNotice(handler: () => void): Promise<() => void> {
   if (SCREEN === "closenote") window.setTimeout(handler, 0);
   return () => undefined;
 }
+
+export async function onLocked(handler: () => void): Promise<() => void> { window.addEventListener("onepaste-mock-locked", handler); return () => window.removeEventListener("onepaste-mock-locked", handler); }
