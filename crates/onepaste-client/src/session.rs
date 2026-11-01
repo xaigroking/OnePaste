@@ -207,6 +207,12 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
+    pub(crate) async fn keyparams(&self, method: Method, body: Option<Value>, key: Option<&str>) -> Result<onepaste_sync::HttpResponse, ClientError> {
+        let mut headers = vec![("OnePaste-Proto".into(), "1".into()), ("Authorization".into(), format!("Bearer {}", self.token)), ("Content-Type".into(), "application/json".into())];
+        if let Some(key) = key { headers.push(("Idempotency-Key".into(), key.into())); }
+        self.transport.send(&HttpRequest { method, path_and_query: "/v1/vault/keyparams".into(), headers, body: body.map(|b| b.to_string().into_bytes()).unwrap_or_default() }).await
+    }
+
     pub async fn call(&self, method: Method, path: &str, body: Option<Value>) -> Result<Value, ClientError> {
         let mut headers = vec![
             ("OnePaste-Proto".to_string(), "1".to_string()),

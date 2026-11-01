@@ -6,7 +6,7 @@ import { Button } from "./ui";
 import { ConnectionCodeField } from "./ConnectionCodeField";
 
 type Step = "intro" | "code" | "review" | "confirm" | "done";
-const ERRORS = ["invalid_connection_code", "registration_invalid", "rate_limited", "unsupported_version", "wrong_passphrase", "wrong_recovery_kit", "wrong_key", "passphrase_required", "unreachable", "storage", "not_joined", "server_change_failed"] as const;
+const ERRORS = ["passphrase_pending","invalid_connection_code", "registration_invalid", "rate_limited", "unsupported_version", "wrong_passphrase", "wrong_recovery_kit", "wrong_key", "passphrase_required", "unreachable", "storage", "not_joined", "server_change_failed"] as const;
 
 export function ChangeServerButton({ onChanged }: { onChanged?: () => void }) {
   const { t } = useTranslation();

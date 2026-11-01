@@ -3,6 +3,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ClientError {
+    #[error("a passphrase update has not been confirmed; retry the pending request")]
+    PassphrasePending,
+    #[error("the passphrase was changed concurrently; check the current passphrase and retry")]
+    PassphraseStale,
     #[error("wrong passphrase")]
     WrongPassphrase,
     #[error("a passphrase is required to join an existing vault")]
