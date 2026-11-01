@@ -65,11 +65,13 @@ test("failed registration without an active shortcut explains recovery without p
   await expect(page.getByRole("alert")).not.toContainText("previous shortcut still works");
 });
 
-test("the standard paste shortcut is reserved before a registration request", async ({ page }) => {
+test("paste command shortcuts are reserved before a registration request", async ({ page }) => {
   await page.goto("/?screen=set&lang=en");
   await page.getByRole("button", { name: "Change shortcut", exact: true }).click();
   await page.getByRole("textbox", { name: "New shortcut", exact: true }).press("Control+V");
-  await expect(page.getByRole("alert")).toContainText("standard paste shortcut is reserved");
+  await expect(page.getByRole("alert")).toContainText("reserved for paste commands");
+  await page.getByRole("textbox", { name: "New shortcut", exact: true }).press("Control+Enter");
+  await expect(page.getByRole("alert")).toContainText("reserved for paste commands");
   await expect(page.getByRole("button", { name: "Save shortcut", exact: true })).toBeDisabled();
   expect(await page.evaluate(() => window.__hotkeyCalls ?? [])).toEqual([]);
 });

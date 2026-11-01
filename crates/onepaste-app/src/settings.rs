@@ -187,7 +187,7 @@ pub mod hotkeys {
             format!("Digit{code}")
         } else { code.to_string() };
         let paste_modifiers = if cfg!(target_os = "macos") { [false, false, false, true] } else { [true, false, false, false] };
-        if code.eq_ignore_ascii_case("KeyV") && modifiers == paste_modifiers { return Err(Error::Reserved); }
+        if ["keyv", "enter", "return", "numpadenter"].contains(&code.to_ascii_lowercase().as_str()) && modifiers == paste_modifiers { return Err(Error::Reserved); }
         let names = ["Control", "Alt", "Shift", "Super"];
         let mut output: Vec<_> = names.iter().enumerate().filter(|(i, _)| modifiers[*i]).map(|(_, name)| (*name).to_string()).collect();
         output.push(code);
@@ -296,9 +296,9 @@ pub mod hotkeys {
 
         #[test]
         fn the_platform_paste_shortcut_is_reserved_without_touching_registration_or_preferences() {
-            let paste = if cfg!(target_os = "macos") { "Command+V" } else { "Ctrl+V" };
+            let modifier = if cfg!(target_os = "macos") { "Command" } else { "Ctrl" };
             let mut io = Fake::default(); let mut state = Controller::start(None, &mut io); io.calls.clear();
-            assert_eq!(state.configure(Some(paste), &mut io), Err(Error::Reserved));
+            for key in ["V", "Enter", "Return", "NumpadEnter"] { assert_eq!(state.configure(Some(&format!("{modifier}+{key}")), &mut io), Err(Error::Reserved)); }
             assert!(io.calls.is_empty()); assert_eq!(state.active(), Some(DEFAULT_BINDING));
             assert_eq!(normalize(DEFAULT_BINDING).unwrap(), DEFAULT_BINDING);
         }
