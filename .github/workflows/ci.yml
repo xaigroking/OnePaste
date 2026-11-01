@@ -131,6 +131,8 @@ jobs:
         run: bash tests/e2e/desktop_cli.sh target/debug
       - name: First run end-to-end test
         run: bash tests/e2e/first_run.sh target/debug
+      - name: Soak script self-test (offline queue recovery, loss and duplicates)
+        run: bash tests/soak/soak.sh --self-test
       - name: History search end-to-end test
         run: bash tests/e2e/history_search.sh target/debug
       - name: Leak probe
