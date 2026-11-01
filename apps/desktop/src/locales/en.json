@@ -37,8 +37,6 @@
   "log": {
     "title": "Event log",
     "empty": "No events yet.",
-    "passphrase_changed": "Passphrase changed",
-    "passphrase_change_failed": "Passphrase change could not be confirmed",
     "started": "App started",
     "wake": "System woke from sleep",
     "network_online": "Network connected",
@@ -77,7 +75,11 @@
     "vault_created": "Created a new vault",
     "local_only_chosen": "Chose to keep the history on this computer only",
     "local_data_wiped": "Cleared the data on this computer",
-    "startup_repair_failed": "Login startup registration could not be updated"
+    "items_deleted": "Items deleted",
+    "delete_failed": "Deletion could not be completed",
+    "startup_repair_failed": "Login startup registration could not be updated",
+    "passphrase_changed": "Passphrase changed",
+    "passphrase_change_failed": "Passphrase change could not be confirmed"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -475,7 +477,6 @@
     "reading": "Reading the saved address...",
     "addressUnavailable": "Saved address unavailable",
     "errors": {
-      "passphrase_pending": "Confirm the pending passphrase change in Settings before changing servers.",
       "unreachable": "The new server could not be reached. Your local history and current connection are unchanged. Check the new code and network, then try again.",
       "invalid_connection_code": "The connection code is not valid. Your local history and current connection are unchanged. Paste the complete new code and try again.",
       "registration_invalid": "The connection code has expired or was already used. Your local history and current connection are unchanged. Get a fresh code and try again.",
@@ -488,8 +489,47 @@
       "storage": "The new connection could not be saved locally. Your local history and current connection are unchanged. Check available disk space and permissions, then retry with a fresh code.",
       "not_joined": "This computer is no longer connected to a server. Your history was not changed by this attempt. Close this dialog and check its setup.",
       "other": "The server change could not be confirmed. Your local history is kept. Close this dialog and reopen Settings to check the saved server address before retrying.",
-      "server_change_failed": "The server could not be changed. Your local history and current connection are unchanged. Check the new code and try again."
+      "server_change_failed": "The server could not be changed. Your local history and current connection are unchanged. Check the new code and try again.",
+      "passphrase_pending": "Confirm the pending passphrase change in Settings before changing servers."
     }
+  },
+  "batch": {
+    "hint": "Ctrl+click toggles selection; Shift+click selects a range. Space toggles; Esc clears.",
+    "hintMac": "Cmd+click toggles selection; Shift+click selects a range. Space toggles; Esc clears.",
+    "actions": "Selected history actions",
+    "selected_one": "{{count}} item selected",
+    "selected_other": "{{count}} items selected",
+    "copy": "Copy text",
+    "favorite": "Favorite selected",
+    "unfavorite": "Unfavorite selected",
+    "delete": "Delete selected (syncs to all devices)",
+    "deleteLocal": "Delete selected (this computer)",
+    "singleDeleteLocal": "Delete (this computer)",
+    "clear": "Clear selection",
+    "copyPolicy": "Copies text in list order, separated by blank lines. Images are skipped.",
+    "pending_one": "{{count}} item scheduled for deletion.",
+    "pending_other": "{{count}} items scheduled for deletion.",
+    "remaining": "Undo available for {{seconds}}s.",
+    "committing": "Deleting…",
+    "undo": "Undo deletion",
+    "pendingRow": "Pending deletion",
+    "copied_one": "Copied {{count}} text item.",
+    "copied_other": "Copied {{count}} text items.",
+    "actionFailed": "Could not complete this action. Refresh the list and try again.",
+    "deleteFailed": "Could not complete a deletion. Items that remain are still available. Select them and try again.",
+    "statusFailed": "Could not read pending deletions. Reopen History to check their status.",
+    "undoExpired": "The undo period ended. Refresh the list to check the result.",
+    "deleteTitle": "Delete selected items?",
+    "deleteBody": "Deletion syncs to all devices. Items stay visible and marked for at least 10 seconds. Undo during this period cancels deletion before it is submitted.",
+    "deleteBodyLocal": "Deletion affects this computer. Items stay visible and marked for at least 10 seconds. Undo during this period cancels deletion before it is submitted.",
+    "exitPolicy": "Quitting OnePaste before deletion cancels it. Closing to the tray lets the timer continue.",
+    "cancel": "Cancel"
+  },
+  "startup": {
+    "reading": "Reading login startup registration…",
+    "hint": "Starts hidden in the tray or menu bar when you sign in. Moving the portable folder updates the registration the next time you open OnePaste.",
+    "unstable": "Move OnePaste to a permanent folder with a shorter path and reopen it before enabling login startup. Temporary download locations or very long paths cannot be registered.",
+    "failed": "Could not update login startup or read its system registration. Try again after reopening OnePaste."
   },
   "changePassphrase": {
     "show": "Show new passphrase",
@@ -522,11 +562,5 @@
       "not_joined": "This computer is not connected to a self-hosted server.",
       "other": "Could not confirm the change. Reopen this dialog to check for a pending request before retrying."
     }
-  },
-  "startup": {
-    "reading": "Reading login startup registration…",
-    "hint": "Starts hidden in the tray or menu bar when you sign in. Moving the portable folder updates the registration the next time you open OnePaste.",
-    "unstable": "Move OnePaste to a permanent folder with a shorter path and reopen it before enabling login startup. Temporary download locations or very long paths cannot be registered.",
-    "failed": "Could not update login startup or read its system registration. Try again after reopening OnePaste."
   }
 }

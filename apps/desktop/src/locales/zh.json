@@ -37,8 +37,6 @@
   "log": {
     "title": "事件日志",
     "empty": "还没有事件。",
-    "passphrase_changed": "口令已修改",
-    "passphrase_change_failed": "无法确认口令更改",
     "started": "应用已启动",
     "wake": "系统从睡眠中唤醒",
     "network_online": "网络已连接",
@@ -77,7 +75,11 @@
     "vault_created": "已新建库",
     "local_only_chosen": "已选择只在本机保存历史",
     "local_data_wiped": "已清空本机数据",
-    "startup_repair_failed": "无法更新登录自启登记"
+    "items_deleted": "记录已删除",
+    "delete_failed": "删除未能完成",
+    "startup_repair_failed": "无法更新登录自启登记",
+    "passphrase_changed": "口令已修改",
+    "passphrase_change_failed": "无法确认口令更改"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -475,7 +477,6 @@
     "reading": "正在读取已保存的地址……",
     "addressUnavailable": "暂时无法读取已保存的地址",
     "errors": {
-      "passphrase_pending": "请先在设置中确认尚未完成的口令更改，再更换服务器。",
       "unreachable": "无法连接新服务器。本机历史和当前连接未改变。请检查新连接码及网络后重试。",
       "invalid_connection_code": "连接码格式无效。本机历史和当前连接未改变。请粘贴完整的新连接码后重试。",
       "registration_invalid": "连接码已过期或已使用。本机历史和当前连接未改变。请取得新连接码后重试。",
@@ -488,8 +489,47 @@
       "storage": "新连接未能保存到本机。本机历史和当前连接未改变。请检查可用磁盘空间及权限，再使用新连接码重试。",
       "not_joined": "这台电脑当前已不再连接服务器。本次操作没有改变历史。请关闭此窗口并检查使用方式。",
       "other": "未能确认更改结果。本机历史仍然保留。请关闭窗口并重新打开设置，核对已保存的服务器地址后再重试。",
-      "server_change_failed": "未能更改服务器。本机历史和当前连接未改变。请检查新连接码后重试。"
+      "server_change_failed": "未能更改服务器。本机历史和当前连接未改变。请检查新连接码后重试。",
+      "passphrase_pending": "请先在设置中确认尚未完成的口令更改，再更换服务器。"
     }
+  },
+  "batch": {
+    "hint": "Ctrl+单击切换选中；Shift+单击选择范围。空格切换，Esc 清除选择。",
+    "hintMac": "Cmd+单击切换选中；Shift+单击选择范围。空格切换，Esc 清除选择。",
+    "actions": "选中记录操作",
+    "selected_one": "已选 {{count}} 条",
+    "selected_other": "已选 {{count}} 条",
+    "copy": "复制文本",
+    "favorite": "收藏所选",
+    "unfavorite": "取消收藏所选",
+    "delete": "删除所选（同步至所有设备）",
+    "deleteLocal": "删除所选（仅本机）",
+    "singleDeleteLocal": "删除（仅本机）",
+    "clear": "清除选择",
+    "copyPolicy": "按列表顺序复制文本，以空行分隔；跳过图片。",
+    "pending_one": "{{count}} 条记录等待删除。",
+    "pending_other": "{{count}} 条记录等待删除。",
+    "remaining": "{{seconds}} 秒内可撤销。",
+    "committing": "正在删除…",
+    "undo": "撤销删除",
+    "pendingRow": "等待删除",
+    "copied_one": "已复制 {{count}} 条文本。",
+    "copied_other": "已复制 {{count}} 条文本。",
+    "actionFailed": "操作未能完成，请刷新列表后重试。",
+    "deleteFailed": "删除未能全部完成。仍显示的记录可以继续使用，请选中后重试。",
+    "statusFailed": "无法读取等待删除的记录，请重新打开历史记录查看状态。",
+    "undoExpired": "撤销期限已过，请刷新列表查看结果。",
+    "deleteTitle": "删除选中的记录？",
+    "deleteBody": "删除将同步至所有设备。记录会保留显示并标记至少 10 秒，在此期间撤销可在提交前取消删除。",
+    "deleteBodyLocal": "删除仅影响本机。记录会保留显示并标记至少 10 秒，在此期间撤销可在提交前取消删除。",
+    "exitPolicy": "删除前退出 OnePaste 会取消删除；关闭到托盘后，倒计时会继续。",
+    "cancel": "取消"
+  },
+  "startup": {
+    "reading": "正在读取系统自启登记…",
+    "hint": "登录后在托盘或菜单栏中静默启动。移动便携文件夹后，再次打开 OnePaste 会更新已启用的登记路径。",
+    "unstable": "请先将 OnePaste 移到路径较短的固定文件夹并重新打开，再启用登录自启。无法登记临时下载位置或过长路径。",
+    "failed": "无法更新登录自启或读取系统登记。请重新打开 OnePaste 后重试。"
   },
   "changePassphrase": {
     "show": "显示新口令",
@@ -522,11 +562,5 @@
       "not_joined": "此电脑未连接自建服务器。",
       "other": "无法确认更改。请重新打开此对话框，检查是否有未确认请求后再重试。"
     }
-  },
-  "startup": {
-    "reading": "正在读取系统自启登记…",
-    "hint": "登录后在托盘或菜单栏中静默启动。移动便携文件夹后，再次打开 OnePaste 会更新已启用的登记路径。",
-    "unstable": "请先将 OnePaste 移到路径较短的固定文件夹并重新打开，再启用登录自启。无法登记临时下载位置或过长路径。",
-    "failed": "无法更新登录自启或读取系统登记。请重新打开 OnePaste 后重试。"
   }
 }
