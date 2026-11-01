@@ -24,7 +24,7 @@ async fn a_server_with_another_protocol_version_is_reported_when_connecting() {
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
     let code = ConnectionCode { u: format!("https://127.0.0.1:{port}"), fp: material.fingerprint.clone(), t: "A".repeat(43) }.encode();
-    let desktop = App::new(dir.join("app"), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), AppConfig::default());
+    let desktop = App::new(dir.join("app"), Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), AppConfig::default());
     let err = desktop.probe_server(&code).await.unwrap_err();
     assert_eq!(err.code(), "unsupported_version", "the screens get a code they can explain: {err:?}");
     let err = desktop.join(&code, "a passphrase", "x").await.unwrap_err();

@@ -87,6 +87,17 @@ impl SqliteStore {
         Ok(())
     }
 
+    /// True only for an initialized schema with no connection, items, secrets or pending operations.
+    pub fn is_empty_setup(&self) -> Result<bool, ClientError> {
+        Ok(self.conn.query_row("SELECT (SELECT count(*) FROM meta) + (SELECT count(*) FROM items) + (SELECT count(*) FROM outbox) + (SELECT count(*) FROM secrets)", [], |r| r.get::<_, i64>(0))? == 0)
+    }
+
+    /// Opens an existing application database without creating files, changing permissions or running migrations.
+    pub fn open_read_only(path: &Path) -> Result<SqliteStore, ClientError> {
+        let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        Ok(SqliteStore { conn, path: path.to_path_buf() })
+    }
+
     pub fn open(path: &Path) -> Result<SqliteStore, ClientError> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;

@@ -26,6 +26,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 
 /// Shows the panel and tells the page, so it clears its search and focuses the search box.
 pub fn show(app: &AppHandle) {
+    if !app.state::<onepaste_app::App>().is_joined() { crate::tray::show_main_window(app); return; }
     if let Some(w) = app.get_webview_window(LABEL) {
         if !w.is_visible().unwrap_or(false) { *app.state::<QuickState>().target.lock().unwrap() = paste::foreground(); }
         let _ = w.center();

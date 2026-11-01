@@ -34,7 +34,7 @@ pub struct JoinResult {
     pub generated_passphrase: Option<String>,
     /// Only for a new vault with no output file.
     pub recovery_kit: Option<String>,
-    /// The master key, for programs that keep it in the system secure store. Never print or log it.
+    /// The master key, for programs that keep it in the application key storage. Never print or log it.
     pub master_key: onepaste_core::crypto::Key,
 }
 

@@ -16,10 +16,10 @@ fn dir(label: &str) -> PathBuf {
     std::fs::create_dir_all(&path).unwrap(); path
 }
 fn quiet() -> AppConfig { AppConfig { background_sync: false, listen_for_changes: false, poll_interval: Duration::from_secs(3600), ..AppConfig::default() } }
-struct Desktop { app: App, dir: PathBuf, secrets: Arc<MemorySecretStore> }
+struct Desktop { app: App, dir: PathBuf, secrets: Arc<MemoryKeyStore> }
 impl Desktop {
     fn new(label: &str) -> Self {
-        let dir = dir(label); let secrets = Arc::new(MemorySecretStore::new());
+        let dir = dir(label); let secrets = Arc::new(MemoryKeyStore::new());
         Self { app: App::new(dir.clone(), secrets.clone(), Arc::new(FakeClipboard::new()), quiet()), dir, secrets }
     }
     fn store(&self) -> SqliteStore { SqliteStore::open(&self.dir.join("onepaste.db")).unwrap() }

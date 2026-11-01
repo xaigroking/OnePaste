@@ -128,7 +128,13 @@ let startupEnabled = q.get("autostart") === "on";
 window.addEventListener("onepaste-test-remove-autostart", () => { startupEnabled = false; });
 const startupInfo = () => ({ enabled: startupEnabled, canEnable: q.get("autostart") !== "unstable", reason: q.get("autostart") === "unstable" ? "startup_unstable_path" : null });
 
+// Existing visual fixtures represent an explicitly unlocked process; access-state cases select their state separately.
+let localKeyState = new URLSearchParams(location.search).get("keyState") ?? "unlocked";
 export const api = {
+  keyState: async () => { if (q.get("keyRead") === "error") throw "storage"; return localKeyState; },
+  prepareLocalPassphrase: async (_pass: string) => { called("prepareLocalPassphrase"); localKeyState = "prepared"; },
+  unlockLocal: async (_pass: string) => { called("unlockLocal"); if (q.get("localError")) throw q.get("localError"); localKeyState = "unlocked"; },
+  recoverLocal: async (credential: string, isKit: boolean, _pass: string) => { called("recoverLocal"); if (q.get("credentialFixture") === "spaces" && (isKit || credential !== "  fixture vault passphrase  ")) throw "wrong_passphrase"; if (q.get("localError")) throw q.get("localError"); localKeyState = "unlocked"; },
   closeToTray: async (_dontShowAgain: boolean) => {
     called("closeToTray");
   },

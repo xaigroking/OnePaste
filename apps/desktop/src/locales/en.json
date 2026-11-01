@@ -564,5 +564,32 @@
       "not_joined": "This computer is not connected to a self-hosted server.",
       "other": "Could not confirm the change. Reopen this dialog to check for a pending request before retrying."
     }
+  },
+  "localAccess": {
+    "loading": "Checking OnePaste access…",
+    "readFailed": "Could not read OnePaste access information. Your existing files have been kept.",
+    "retry": "Retry",
+    "setupTitle": "Set a OnePaste passphrase",
+    "unlockTitle": "Unlock OnePaste",
+    "recoveryTitle": "Recover existing OnePaste data",
+    "scope": "Use a separate OnePaste passphrase for this computer. It stays on this device and is independent of the vault passphrase. OnePaste does not ask for your system login or credential-store password.",
+    "legacy": "Existing encrypted data was found without a local unlock record. The files have been kept.",
+    "limit": "Use a recovery kit or the vault passphrase for this computer’s saved vault record. Old local-only data cannot be unlocked if its only key was in system storage and no independent copy is available. OnePaste will not read that storage.",
+    "credentialType": "Recover using",
+    "kit": "Recovery kit",
+    "vaultPass": "Saved vault passphrase",
+    "newPass": "New OnePaste passphrase",
+    "pass": "OnePaste passphrase",
+    "confirm": "Confirm OnePaste passphrase",
+    "minimum": "Use at least 8 characters. Save a recovery kit after setup.",
+    "working": "Working…",
+    "continue": "Continue",
+    "recover": "Recover existing data",
+    "unlock": "Unlock",
+    "cancel": "Cancel",
+    "wrong": "This passphrase could not unlock OnePaste. Check it or use recovery. Your files are unchanged.",
+    "wrongKit": "This recovery kit does not open these files. Your files are unchanged.",
+    "failed": "Could not open the existing data. Your files have been kept. Check your independent recovery credentials and try again.",
+    "vaultChangeHint": "This changes the vault passphrase used when adding a computer. Your OnePaste unlock passphrase on this computer is independent."
   }
 }

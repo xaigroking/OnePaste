@@ -1,5 +1,5 @@
 //! The first-run flow against a real server (in this process): choosing how to use the program, creating a new vault,
-//! the recovery kit and joining with it. The secure store is in memory and the clipboard is a fake.
+//! the recovery kit and joining with it. The application key storage is in memory and the clipboard is a fake.
 
 use onepaste_app::*;
 use onepaste_client::{join, now_ms, JoinOptions, Session};
@@ -73,14 +73,14 @@ impl EmptyServer {
 
 struct Desktop {
     app: App,
-    secrets: Arc<MemorySecretStore>,
+    secrets: Arc<MemoryKeyStore>,
     clipboard: Arc<FakeClipboard>,
     dir: PathBuf,
 }
 
 fn desktop(name: &str) -> Desktop {
     let dir = temp_dir(name);
-    let secrets = Arc::new(MemorySecretStore::new());
+    let secrets = Arc::new(MemoryKeyStore::new());
     let clipboard = Arc::new(FakeClipboard::new());
     Desktop { app: App::new(dir.clone(), secrets.clone(), clipboard.clone(), quiet()), secrets, clipboard, dir }
 }
@@ -131,9 +131,9 @@ async fn a_new_vault_is_registered_only_after_the_kit_is_confirmed() {
     d.app.confirm_kit_saved().await.unwrap();
     assert_eq!(s.devices(), 1, "the device exists after the confirmation");
     assert_eq!(d.app.mode(), Mode::Synced);
-    let stored: Key = d.secrets.load().unwrap().expect("the key is in the secure store");
+    let stored: Key = d.secrets.load().unwrap().expect("the key is in the application key storage");
     let from_kit = recovery::decode(&kit).unwrap();
-    assert_eq!(stored.as_bytes(), from_kit.as_bytes(), "the kit holds the key that the secure store holds");
+    assert_eq!(stored.as_bytes(), from_kit.as_bytes(), "the kit holds the key that the application key storage holds");
     d.app.shutdown();
 }
 
@@ -142,7 +142,7 @@ async fn leaving_before_the_confirmation_leaves_nothing_behind() {
     let s = EmptyServer::new().await;
     let d = desktop("leave");
     d.app.create_vault(&s.code(), NEW_PASS, "first").await.unwrap();
-    // The window is closed: a new application object over the same directory and secure store
+    // The window is closed: a new application object over the same directory and application key storage
     let again = App::new(d.dir.clone(), d.secrets.clone(), d.clipboard.clone(), quiet());
     assert_eq!(again.first_run_state().await.unwrap(), Mode::Unset);
     assert_eq!(s.devices(), 0, "the server still has no vault");
@@ -244,7 +244,7 @@ async fn show_kit_gives_the_text_that_was_shown_at_creation() {
     let d = desktop("show");
     let kit = create_and_confirm(&d, &s).await;
     assert_eq!(d.app.show_kit().unwrap(), kit);
-    // After a restart as well: it is computed from the key in the secure store, not kept anywhere
+    // After a restart as well: it is computed from the key in the application key storage, not kept anywhere
     let again = App::new(d.dir.clone(), d.secrets.clone(), d.clipboard.clone(), quiet());
     assert!(again.start().await.unwrap());
     assert_eq!(again.show_kit().unwrap(), kit);
@@ -269,7 +269,7 @@ async fn wiping_local_data_returns_to_the_first_run_and_leaves_the_server_alone(
     for name in ["onepaste.db", "history.db", "app-settings.json", "app-state.json"] {
         assert!(!d.dir.join(name).exists(), "{name} is gone");
     }
-    assert!(d.secrets.load().unwrap().is_none(), "the key is gone from the secure store");
+    assert!(d.secrets.load().unwrap().is_none(), "the key is gone from the application key storage");
     assert_eq!(d.app.mode(), Mode::Unset);
     assert_eq!(s.devices(), 1, "the server's record of the device is untouched");
     // Starting again leads to the first run

@@ -94,7 +94,6 @@ jobs:
       include_tools: true
       # Nothing compiled by an earlier run may end up in a package; downloaded sources are still reused
       cache_targets: false
-    secrets: inherit
 
   publish:
     name: publish pre-release

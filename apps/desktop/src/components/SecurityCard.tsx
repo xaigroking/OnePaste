@@ -32,8 +32,7 @@ export function SecurityCard({ localOnly, onWiped, children }: { localOnly: bool
   return (
     <Card title={t("security.title")}>
       {children}
-      {!localOnly &&
-        (kit === null ? (
+      {kit === null ? (
           !asking ? (
             <div className="setting">
               <span>{t("security.showKit")}</span>
@@ -63,7 +62,7 @@ export function SecurityCard({ localOnly, onWiped, children }: { localOnly: bool
               </Button>
             </div>
           </>
-        ))}
+        )}
       {!wiping ? (
         <div className="setting">
           <span>{t("security.wipe")}</span>

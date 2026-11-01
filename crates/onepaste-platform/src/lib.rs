@@ -9,7 +9,6 @@ pub mod clipboard;
 pub mod network;
 pub mod power;
 pub mod paste;
-pub mod secure_store;
 pub mod system;
 
 mod error;

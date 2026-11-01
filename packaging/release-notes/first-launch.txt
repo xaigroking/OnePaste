@@ -10,3 +10,7 @@ Windows and macOS each ask you to allow OnePaste the first time you open it, bec
 4. If the message says the app "is damaged and can't be opened", run `xattr -cr <path>/OnePaste.app` in Terminal (replace `<path>` with the folder that contains the app) and try again.
 
 We suggest dragging `OnePaste.app` into the `Applications` folder before you open it, because macOS may otherwise run a temporary copy of an app that was started from the Downloads folder. Closing the window does not quit OnePaste: it keeps running in the menu bar. Click its icon to open the window again, and choose `Quit` there (or press Command-Q while the window is open) to close it.
+
+After opening, set an independent OnePaste passphrase for this computer before choosing a mode. Enter it again after each restart. It is separate from your vault passphrase and system login. Save a recovery kit offline from Settings → Security and privacy, including in local-only mode.
+
+For existing profiles, use the explicit recovery entry with a recovery kit or the vault passphrase for this computer’s saved vault record. Files are kept. Older local-only data cannot be unlocked if its only key was in system storage and no independent copy is available; OnePaste does not read that storage.

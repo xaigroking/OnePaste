@@ -1,5 +1,4 @@
-//! What the application needs from the platform. The desktop shell implements these on top of `onepaste-platform`;
-//! tests use the in-memory versions below.
+//! Application-owned key access and the clipboard port. Only clipboard access belongs to the platform.
 
 use crate::error::AppError;
 use onepaste_core::crypto::Key;
@@ -32,11 +31,20 @@ pub enum ClipEvent {
     SkippedSelf,
 }
 
-/// Holds the 32-byte master key in the system secure store. The key is never written anywhere else.
-pub trait SecretStore: Send + Sync {
+/// Application-owned key access. Production storage encrypts its file under an application passphrase.
+/// Implementations must never access operating-system credential or key stores.
+pub trait KeyStore: Send + Sync {
     fn save(&self, key: &Key) -> Result<(), AppError>;
     fn load(&self) -> Result<Option<Key>, AppError>;
     fn delete(&self) -> Result<(), AppError>;
+    fn state(&self) -> Result<crate::KeyState, AppError> {
+        Ok(if self.load()?.is_some() { crate::KeyState::Unlocked } else { crate::KeyState::New })
+    }
+    fn ready_for_setup(&self) -> bool { true }
+    fn prepare(&self, _passphrase: &str) -> Result<(), AppError> { Ok(()) }
+    fn unlock(&self, _passphrase: &str) -> Result<(), AppError> { Err(AppError::Locked) }
+    fn restore(&self, _key: &Key, _passphrase: &str) -> Result<(), AppError> { Err(AppError::Locked) }
+    fn clear_session(&self) {}
 }
 
 /// Keeps a clipboard monitor running for as long as it lives.
@@ -56,26 +64,26 @@ pub trait ClipboardPort: Send + Sync {
     fn start_monitor(&self, on_event: Box<dyn Fn(ClipEvent) + Send + Sync>) -> Result<MonitorGuard, AppError>;
 }
 
-/// A secret store that keeps the key in memory only.
+/// An explicitly supplied in-memory fixture; it performs no persistence or platform access.
 #[derive(Default)]
-pub struct MemorySecretStore {
-    key: Mutex<Option<[u8; 32]>>,
+pub struct MemoryKeyStore {
+    key: Mutex<Option<Key>>,
 }
 
-impl MemorySecretStore {
-    pub fn new() -> MemorySecretStore {
-        MemorySecretStore::default()
+impl MemoryKeyStore {
+    pub fn new() -> MemoryKeyStore {
+        MemoryKeyStore::default()
     }
 }
 
-impl SecretStore for MemorySecretStore {
+impl KeyStore for MemoryKeyStore {
     fn save(&self, key: &Key) -> Result<(), AppError> {
-        *self.key.lock().unwrap_or_else(|e| e.into_inner()) = Some(*key.as_bytes());
+        *self.key.lock().unwrap_or_else(|e| e.into_inner()) = Some(key.clone());
         Ok(())
     }
 
     fn load(&self) -> Result<Option<Key>, AppError> {
-        Ok(self.key.lock().unwrap_or_else(|e| e.into_inner()).map(Key::from_bytes))
+        Ok(self.key.lock().unwrap_or_else(|e| e.into_inner()).clone())
     }
 
     fn delete(&self) -> Result<(), AppError> {

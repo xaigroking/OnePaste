@@ -1,6 +1,6 @@
 [package]
 name = "onepaste-platform"
-description = "Platform adapters: clipboard monitoring and access, system secure storage, wake-from-sleep and network change events"
+description = "Platform adapters: clipboard monitoring and access, wake-from-sleep and network change events"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -26,11 +26,9 @@ windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
 ] }
 png = "0.18"
-keyring = { version = "3", default-features = false, features = ["windows-native"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 block2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
-keyring = { version = "3", default-features = false, features = ["apple-native"] }

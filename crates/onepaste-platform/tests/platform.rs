@@ -4,7 +4,7 @@
 use onepaste_platform::clipboard::{self, Content, Event, Image, Monitor, WriteOptions};
 use onepaste_platform::network::{NetworkState, NetworkWatcher};
 use onepaste_platform::power::WakeWatcher;
-use onepaste_platform::{secure_store, system, PlatformError};
+use onepaste_platform::{system, PlatformError};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -113,19 +113,6 @@ fn sensitive_content_is_skipped_and_never_read() {
     assert_eq!(snap.content, None, "flagged content must not be read");
 }
 
-#[test]
-fn secure_store_write_read_overwrite_delete() {
-    let account = format!("onepaste-test-{}", std::process::id());
-    let first = [7u8; 32];
-    let second = [9u8; 32];
-    secure_store::write(&account, &first).unwrap();
-    assert_eq!(secure_store::read(&account).unwrap(), first);
-    secure_store::write(&account, &second).unwrap();
-    assert_eq!(secure_store::read(&account).unwrap(), second);
-    secure_store::delete(&account).unwrap();
-    assert_eq!(secure_store::read(&account).unwrap_err(), PlatformError::NotFound);
-    assert_eq!(secure_store::delete(&account).unwrap_err(), PlatformError::NotFound);
-}
 
 #[test]
 fn network_watcher_reports_current_state_on_start() {

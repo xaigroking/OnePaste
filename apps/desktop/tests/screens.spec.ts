@@ -37,6 +37,22 @@ for (const mode of ["mac-ready", "mac-permission"] as const) {
   }
 }
 
+for (const mode of ["new", "locked", "recovery", "recover-form", "read-error"] as const) {
+  for (const theme of THEMES) for (const lang of LANGS) {
+    test(`local-access ${mode} ${theme} ${lang}`, async ({ page }) => {
+      const l = locale(lang);
+      await page.setViewportSize(WINDOW);
+      await page.addInitScript((value) => localStorage.setItem("onepaste.theme", value), theme);
+      await page.goto(`/?screen=main&lang=${lang}&${mode === "read-error" ? "keyRead=error" : `keyState=${mode === "recover-form" ? "recovery" : mode}`}`);
+      if (mode === "recover-form") await page.getByRole("button", { name: l.localAccess.recover, exact: true }).click();
+      if (mode === "read-error") await page.getByRole("alert").waitFor();
+      else await page.getByRole("heading", { level: 1 }).waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      await expect(page).toHaveScreenshot(`local-access-${mode}-${theme}-${lang}.png`);
+    });
+  }
+}
+
 for (const mode of ["input", "pending", "error"] as const) {
   for (const theme of THEMES) for (const lang of LANGS) {
     test(`passphrase ${mode} ${theme} ${lang}`, async ({ page }) => {
@@ -87,6 +103,13 @@ async function toCodeStep(page: Page, lang: string) {
 }
 
 const SCREENS: Screen[] = [
+  { name: "local-recovery-kit", screen: "set", size: { width: 1040, height: 900 }, query: "mode=local", states: [],
+    drive: async (page, lang) => {
+      const l = locale(lang);
+      await page.getByRole("button", { name: l.security.showKit, exact: true }).click();
+      await page.getByRole("button", { name: l.security.showKitConfirm, exact: true }).click();
+      await page.locator("pre.kit").scrollIntoViewIfNeeded();
+    } },
   { name: "system-markers", screen: "set", size: { width: 1040, height: 900 }, states: [],
     drive: async (page, lang) => {
       await page.getByRole("region", { name: locale(lang).settingsMore.respectMarker, exact: true }).scrollIntoViewIfNeeded();

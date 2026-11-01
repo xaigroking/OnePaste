@@ -17,8 +17,6 @@ pub enum AppError {
     AlreadySetUp,
     #[error("there is no setup waiting to be confirmed")]
     NoPendingSetup,
-    #[error("this mode has no recovery kit")]
-    NoRecoveryKit,
     #[error("this device cannot remove itself from the vault here")]
     CannotRevokeThisDevice,
     #[error("the connection code is not valid")]
@@ -31,8 +29,14 @@ pub enum AppError {
     Revoked,
     #[error("the server reports an older state than this device has seen")]
     ServerRollback,
-    #[error("the system secure store failed ({0})")]
-    SecretStore(String),
+    #[error("the application key storage failed ({0})")]
+    KeyStore(String),
+    #[error("OnePaste is locked")]
+    Locked,
+    #[error("existing data requires explicit recovery")]
+    RecoveryRequired,
+    #[error("the application passphrase must have at least eight characters")]
+    PassphraseRequired,
     #[error("the stored key does not open this vault")]
     WrongKey,
     #[error("item not found")]
@@ -65,14 +69,16 @@ impl AppError {
             AppError::WrongRecoveryKit => "wrong_recovery_kit".into(),
             AppError::AlreadySetUp => "already_set_up".into(),
             AppError::NoPendingSetup => "no_pending_setup".into(),
-            AppError::NoRecoveryKit => "no_recovery_kit".into(),
             AppError::CannotRevokeThisDevice => "cannot_revoke_this_device".into(),
             AppError::InvalidConnectionCode => "invalid_connection_code".into(),
             AppError::Unreachable => "unreachable".into(),
             AppError::Server(c) => c.clone(),
             AppError::Revoked => "revoked".into(),
             AppError::ServerRollback => "server_rollback".into(),
-            AppError::SecretStore(c) => format!("secret_store_{c}"),
+            AppError::Locked => "locked".into(),
+            AppError::RecoveryRequired => "recovery_required".into(),
+            AppError::PassphraseRequired => "local_passphrase_required".into(),
+            AppError::KeyStore(c) => format!("key_storage_{c}"),
             AppError::WrongKey => "wrong_key".into(),
             AppError::NotFound => "not_found".into(),
             AppError::NotAnImage => "not_an_image".into(),

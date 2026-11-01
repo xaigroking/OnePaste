@@ -209,3 +209,6 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 .batch-toolbar p { margin-bottom: 0; }
 .row-check { width: 16px; height: 16px; flex: none; border: 1px solid var(--muted); border-radius: 3px; display: grid; place-items: center; color: var(--accent); }
 .undo-deletion { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+
+.local-access { height: 100vh; overflow: auto; align-items: flex-start; }
+.local-access .join-card { margin: auto; }

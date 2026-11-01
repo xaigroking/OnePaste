@@ -564,5 +564,32 @@
       "not_joined": "此电脑未连接自建服务器。",
       "other": "无法确认更改。请重新打开此对话框，检查是否有未确认请求后再重试。"
     }
+  },
+  "localAccess": {
+    "loading": "正在检查 OnePaste 解锁状态…",
+    "readFailed": "无法读取 OnePaste 解锁信息，原有文件已保留。",
+    "retry": "重试",
+    "setupTitle": "设置 OnePaste 本机口令",
+    "unlockTitle": "解锁 OnePaste",
+    "recoveryTitle": "恢复已有 OnePaste 资料",
+    "scope": "请为这台电脑设置独立的 OnePaste 口令。它仅在本机使用，与保险库同步口令分开。OnePaste 不索取系统登录密码或系统凭据库密码。",
+    "legacy": "发现已有加密资料，但没有本机解锁记录。原有文件已保留。",
+    "limit": "可使用恢复套件，或这台电脑已缓存记录对应的保险库口令。旧的仅本地资料若唯一密钥在系统存储中且没有独立副本，将无法解锁；OnePaste 不会读取该系统存储。",
+    "credentialType": "恢复方式",
+    "kit": "恢复套件",
+    "vaultPass": "已缓存保险库的口令",
+    "newPass": "新的 OnePaste 本机口令",
+    "pass": "OnePaste 本机口令",
+    "confirm": "确认 OnePaste 本机口令",
+    "minimum": "至少 8 个字符。完成设置后请离线保存恢复套件。",
+    "working": "正在处理…",
+    "continue": "继续",
+    "recover": "恢复已有资料",
+    "unlock": "解锁",
+    "cancel": "取消",
+    "wrong": "该口令无法解锁 OnePaste，请核对口令或使用恢复入口。原有文件未改变。",
+    "wrongKit": "该恢复套件无法解锁这些资料，原有文件未改变。",
+    "failed": "无法打开已有资料，原有文件已保留。请核对独立恢复凭据后重试。",
+    "vaultChangeHint": "此处修改添加电脑时使用的保险库口令；这台电脑的 OnePaste 本机解锁口令是独立的。"
   }
 }

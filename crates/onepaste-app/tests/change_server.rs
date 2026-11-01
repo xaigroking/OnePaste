@@ -19,14 +19,14 @@ fn quiet() -> AppConfig {
 struct Desktop {
     app: App,
     dir: PathBuf,
-    secrets: Arc<MemorySecretStore>,
+    secrets: Arc<MemoryKeyStore>,
     clipboard: Arc<FakeClipboard>,
 }
 
 impl Desktop {
     fn new(label: &str) -> Self {
         let dir = dir(label);
-        let secrets = Arc::new(MemorySecretStore::new());
+        let secrets = Arc::new(MemoryKeyStore::new());
         let clipboard = Arc::new(FakeClipboard::new());
         Self { app: App::new(dir.clone(), secrets.clone(), clipboard.clone(), quiet()), dir, secrets, clipboard }
     }

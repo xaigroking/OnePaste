@@ -23,14 +23,14 @@ fn quiet() -> AppConfig {
 
 struct Desktop {
     app: App,
-    secrets: Arc<MemorySecretStore>,
+    secrets: Arc<MemoryKeyStore>,
     clipboard: Arc<FakeClipboard>,
     dir: PathBuf,
 }
 
 fn desktop(name: &str) -> Desktop {
     let dir = temp_dir(name);
-    let secrets = Arc::new(MemorySecretStore::new());
+    let secrets = Arc::new(MemoryKeyStore::new());
     let clipboard = Arc::new(FakeClipboard::new());
     Desktop { app: App::new(dir.clone(), secrets.clone(), clipboard.clone(), quiet()), secrets, clipboard, dir }
 }
@@ -153,7 +153,7 @@ async fn suspected_secrets_switch_is_immediate_persistent_and_does_not_override_
 fn suspected_secrets_old_settings_default_on_and_failed_save_preserves_the_previous_choice() {
     let dir = temp_dir("old-settings");
     std::fs::write(dir.join("app-settings.json"), r#"{"recordClipboard":false,"autoApplyRemote":false,"textPreviewHeight":310}"#).unwrap();
-    let app = App::new(dir.clone(), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), quiet());
+    let app = App::new(dir.clone(), Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), quiet());
     let old = app.settings();
     assert!(old.skip_suspected_secrets && Settings::default().skip_suspected_secrets);
     assert!(!old.record_clipboard && !old.auto_apply_remote);
@@ -236,17 +236,18 @@ async fn local_only_survives_a_restart_with_the_same_key() {
     assert_eq!(again.first_run_state().await.unwrap(), Mode::LocalOnly);
     assert_eq!(again.search("across restarts", Filter::All, 5, 0).await.unwrap().len(), 1);
     assert_eq!(d.secrets.load().unwrap().unwrap().as_bytes(), key.as_bytes(), "the same key");
-    // Without the key nothing opens, and the screens start over
-    let lost = App::new(d.dir.clone(), Arc::new(MemorySecretStore::new()), d.clipboard.clone(), quiet());
+    // Without an unlocked key, the mode is unset and existing files require recovery.
+    let lost = App::new(d.dir.clone(), Arc::new(MemoryKeyStore::new()), d.clipboard.clone(), quiet());
     assert_eq!(lost.first_run_state().await.unwrap(), Mode::Unset);
+    assert_eq!(lost.key_state().unwrap(), KeyState::Recovery);
     again.shutdown();
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn local_only_has_no_recovery_kit_and_is_not_set_up_twice() {
-    let d = desktop("nokit");
+async fn local_only_has_a_recovery_kit_and_is_not_set_up_twice() {
+    let d = desktop("local-kit");
     d.app.choose_local_only().await.unwrap();
-    assert!(matches!(d.app.show_kit(), Err(AppError::NoRecoveryKit)));
+    assert_eq!(onepaste_core::recovery::decode(&d.app.show_kit().unwrap()).unwrap(), d.secrets.load().unwrap().unwrap());
     assert!(matches!(d.app.choose_local_only().await, Err(AppError::AlreadySetUp)));
     assert!(matches!(d.app.join("x", "y", "z").await, Err(AppError::AlreadySetUp)));
     d.app.shutdown();

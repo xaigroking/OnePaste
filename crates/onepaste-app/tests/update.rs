@@ -221,7 +221,7 @@ fn app_with_dir(fake: Arc<Fake>, k: &Keys, dir: PathBuf) -> App {
         update_source: Some(UpdateSetup { source: fake, releases_url: LIST.into(), public_key: k.public.clone() }),
         ..AppConfig::default()
     };
-    App::new(dir, Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), cfg)
+    App::new(dir, Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), cfg)
 }
 
 #[tokio::test]
@@ -262,7 +262,7 @@ async fn skipping_a_version_hides_it_but_a_newer_one_is_still_offered() {
     assert_eq!(app.check_for_update(false).await.unwrap().unwrap().version, "0.0.1-main.6", "a newer version is offered");
     assert_eq!(*told.lock().unwrap(), vec!["0.0.1-main.5".to_string(), "0.0.1-main.6".to_string()]);
     // The choice survives a restart
-    let again = App::new(dir.clone(), Arc::new(MemorySecretStore::new()), Arc::new(FakeClipboard::new()), AppConfig::default());
+    let again = App::new(dir.clone(), Arc::new(MemoryKeyStore::new()), Arc::new(FakeClipboard::new()), AppConfig::default());
     assert_eq!(again.settings().skipped_update.as_deref(), Some("0.0.1-main.5"));
 }
 

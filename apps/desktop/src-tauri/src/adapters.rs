@@ -1,48 +1,7 @@
-//! The platform side of the application logic: the system secure store holds the master key, the system clipboard is
-//! read and written. These implement the traits of `onepaste-app` on top of `onepaste-platform`.
+//! The platform clipboard adapter. Key management is owned by the application, independently of platform services. These implement the traits of `onepaste-app` on top of `onepaste-platform`.
 
-use onepaste_app::{AppError, ClipEvent, ClipboardPort, Content, MonitorGuard, SecretStore};
-use onepaste_core::crypto::Key;
+use onepaste_app::{AppError, ClipEvent, ClipboardPort, Content, MonitorGuard};
 use onepaste_platform::clipboard::{self, Content as PlatformContent, Event as PlatformEvent, Image, WriteOptions};
-use onepaste_platform::{secure_store, PlatformError};
-
-/// The account name of the master key in the system secure store.
-pub const MASTER_KEY_ACCOUNT: &str = "master-key";
-
-pub struct PlatformSecretStore {
-    account: String,
-}
-
-impl PlatformSecretStore {
-    pub fn new(account: &str) -> PlatformSecretStore {
-        PlatformSecretStore { account: account.to_string() }
-    }
-}
-
-fn secret_error(e: PlatformError) -> AppError {
-    AppError::SecretStore(e.code())
-}
-
-impl SecretStore for PlatformSecretStore {
-    fn save(&self, key: &Key) -> Result<(), AppError> {
-        secure_store::write(&self.account, key.as_bytes()).map_err(secret_error)
-    }
-
-    fn load(&self) -> Result<Option<Key>, AppError> {
-        match secure_store::read(&self.account) {
-            Ok(bytes) => Ok(Some(Key::from_bytes(bytes))),
-            Err(PlatformError::NotFound) => Ok(None),
-            Err(e) => Err(secret_error(e)),
-        }
-    }
-
-    fn delete(&self) -> Result<(), AppError> {
-        match secure_store::delete(&self.account) {
-            Ok(()) | Err(PlatformError::NotFound) => Ok(()),
-            Err(e) => Err(secret_error(e)),
-        }
-    }
-}
 
 pub struct PlatformClipboard;
 
@@ -102,7 +61,7 @@ impl ClipboardPort for PlatformClipboard {
     }
 }
 
-/// Tests against the real system: only meaningful on Windows and macOS, where CI has the secure store and a clipboard.
+/// Tests against the real system: only meaningful on Windows and macOS, where CI has a native clipboard.
 #[cfg(all(test, any(windows, target_os = "macos")))]
 mod tests {
     use super::*;
@@ -113,7 +72,7 @@ mod tests {
     /// The clipboard is global, so tests that use it run one at a time.
     static CLIPBOARD: Mutex<()> = Mutex::new(());
 
-    fn exclusive() -> MutexGuard<'static, ()> {
+    pub(super) fn exclusive() -> MutexGuard<'static, ()> {
         CLIPBOARD.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -127,18 +86,6 @@ mod tests {
             }
         }
         None
-    }
-
-    #[test]
-    fn the_master_key_survives_a_round_trip_through_the_real_secure_store() {
-        let store = PlatformSecretStore::new(&format!("onepaste-adapter-test-{}", std::process::id()));
-        assert!(store.load().unwrap().is_none(), "nothing is stored under a fresh account");
-        let key = Key::from_bytes([0x5a; 32]);
-        store.save(&key).unwrap();
-        assert_eq!(store.load().unwrap().unwrap().as_bytes(), key.as_bytes());
-        store.delete().unwrap();
-        assert!(store.load().unwrap().is_none(), "deleted for good");
-        store.delete().unwrap();
     }
 
     #[test]
@@ -162,35 +109,46 @@ mod tests {
         assert_eq!(got, Some(ClipEvent::SkippedSelf));
     }
 
+}
+
+/// Uses the same key provider as the packaged entrypoint, plus the real OS clipboard on supported desktop runners.
+#[cfg(all(test, any(windows, target_os = "macos")))]
+mod key_access_tests {
+    use super::*;
+    use onepaste_app::{App, AppConfig, EncryptedKeyStore, KeyState, KeyStore, Filter, KEY_FILE};
+    use std::{sync::Arc,time::Duration};
     #[test]
-    fn local_only_mode_keeps_its_random_key_in_the_real_secure_store_and_reopens_after_a_restart() {
-        use onepaste_app::{App, AppConfig, FakeClipboard, Filter, Mode};
-        use std::sync::Arc;
-        let id = std::process::id();
-        let dir = std::env::temp_dir().join(format!("onepaste-adapter-local-{id}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        let account = format!("onepaste-local-test-{id}");
+    fn native_local_profile_is_locked_after_restart_and_uses_only_its_own_encrypted_key_file() {
+        let _clipboard = super::tests::exclusive();
         tauri::async_runtime::block_on(async {
-            let clip = Arc::new(FakeClipboard::new());
-            let app = App::new(dir.clone(), Arc::new(PlatformSecretStore::new(&account)), clip.clone(), AppConfig::default());
-            assert_eq!(app.first_run_state().await.unwrap(), Mode::Unset);
-            app.choose_local_only().await.unwrap();
-            let key = PlatformSecretStore::new(&account).load().unwrap().expect("the random key is in the real secure store");
-            clip.user_copies(Content::Text("kept across a restart".into()));
-            std::thread::sleep(Duration::from_millis(600));
-            assert_eq!(app.search("across a restart", Filter::All, 5, 0).await.unwrap().len(), 1);
-            app.shutdown();
-            drop(app);
-            // The program starts again: the same directory, the key read back from the real secure store
-            let again = App::new(dir.clone(), Arc::new(PlatformSecretStore::new(&account)), clip, AppConfig::default());
-            assert_eq!(again.first_run_state().await.unwrap(), Mode::LocalOnly);
-            assert_eq!(again.search("across a restart", Filter::All, 5, 0).await.unwrap().len(), 1, "the history opens after the restart");
-            assert_eq!(PlatformSecretStore::new(&account).load().unwrap().unwrap().as_bytes(), key.as_bytes());
+            let dir=std::env::temp_dir().join(format!("onepaste-native-key-{}",onepaste_core::id::new_id().unwrap()));
+            let store=Arc::new(EncryptedKeyStore::new(dir.clone()));
+            let core=App::new(dir.clone(),store.clone(),Arc::new(PlatformClipboard),AppConfig { background_sync:false,listen_for_changes:false,..AppConfig::default() });
+            assert_eq!(core.key_state().unwrap(),KeyState::New); assert!(!core.start().await.unwrap());
+            core.prepare_local_passphrase("native independent application passphrase").unwrap(); core.choose_local_only().await.unwrap();
+            PlatformClipboard.write(&Content::Text("native encrypted history fixture".into()),false).unwrap();
+            wait_for_history(&core,"native encrypted").await;
+            let kit=core.show_kit().unwrap(); let key=store.load().unwrap().unwrap();
+            let raw=std::fs::read(dir.join(KEY_FILE)).unwrap(); assert!(!raw.windows(32).any(|part|part==key.as_bytes()));
+            core.shutdown(); drop(core);
+            for _ in 0..200 { if Arc::strong_count(&store)==1 { break; } std::thread::sleep(Duration::from_millis(50)); }
+            assert_eq!(Arc::strong_count(&store),1); assert!(store.load().unwrap().is_none()); drop(store);
+            let again_store=Arc::new(EncryptedKeyStore::new(dir.clone()));
+            let again=App::new(dir.clone(),again_store.clone(),Arc::new(PlatformClipboard),AppConfig { background_sync:false,listen_for_changes:false,..AppConfig::default() });
+            assert_eq!(again.key_state().unwrap(),KeyState::Locked); assert!(!again.start().await.unwrap());
+            assert!(again.unlock_local("wrong independent password").await.is_err());
+            again.unlock_local("native independent application passphrase").await.unwrap();
+            assert_eq!(again.search("native encrypted",Filter::All,10,0).await.unwrap().len(),1); assert_eq!(again.show_kit().unwrap(),kit);
+            again.wipe_local_data().await.unwrap(); assert!(!dir.join(KEY_FILE).exists()); assert_eq!(again.key_state().unwrap(),KeyState::New);
             again.shutdown();
-            // Wiping removes the key from the real secure store too
-            again.wipe_local_data().await.unwrap();
-            assert!(PlatformSecretStore::new(&account).load().unwrap().is_none());
         });
-        let _ = std::fs::remove_dir_all(&dir);
+    }
+    async fn wait_for_history(core:&App,query:&str) {
+        for _ in 0..200 {
+            if !core.search(query,Filter::All,10,0).await.unwrap().is_empty() { return; }
+            // This helper is used in the blocking native test thread; the async runtime continues on its workers.
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!("the native clipboard item did not reach encrypted history");
     }
 }

@@ -172,6 +172,7 @@ hd0() {
   done
   die "the harness did not answer: $name"
 }
+hd0 harness0_prepare prepare "$M_PASS"
 hd0 harness0_probe probe "$CODE"
 test "$(cat "$OUT/harness0_probe.out")" = "empty" || die "the server should have no vault yet"
 hd0 harness0_create create "$CODE" "$M_PASS" desktop0
@@ -250,6 +251,7 @@ hd() {
   done
   die "the harness did not answer: $name"
 }
+hd harness_prepare prepare "$M_PASS"
 hd harness_join join "$INVITE_H" "$M_PASS" desktop
 test "$(cat "$OUT/harness_join.out")" = "ok" || die "the desktop join answered: $(cat "$OUT/harness_join.out")"
 hd harness_sync1 sync
@@ -280,6 +282,7 @@ hl() {
   done
   die "the harness did not answer: $name"
 }
+hl harnessl_prepare prepare "$M_PASS"
 hl harnessl_local local
 hl harnessl_copy copy "local only copy $M_TEXT"
 hl harnessl_search search "$M_TEXT"
