@@ -236,6 +236,8 @@ expect_jobs() {  # expect_jobs "<jobs that must run, sorted, space separated>" <
 }
 expect_jobs "" "only documents" README.md docs/notes.txt
 expect_jobs "docker" "only the Dockerfile" Dockerfile
+expect_jobs "docker" "only Compose configuration" docker/compose.yaml
+expect_jobs "docker" "only Compose regression" tests/e2e/docker_compose.sh
 expect_jobs "docker" "only a docker workflow" .github/workflows/docker-image.yml
 expect_jobs "desktop_windows macos ui_screens windows_test" "only the desktop front end" apps/desktop/src/App.tsx
 expect_jobs "desktop_windows macos windows_test" "only the platform crate" crates/onepaste-platform/src/lib.rs
