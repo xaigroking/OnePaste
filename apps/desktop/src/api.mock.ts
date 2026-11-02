@@ -4,6 +4,7 @@
 import type {
   ActionResult,
   AppSettings,
+  CaptureHealth,
   AppStatus,
   DeviceList,
   DeletionStatus,
@@ -56,13 +57,14 @@ let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.g
 let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
 const hotkeyInfo = (): HotkeyInfo => ({ state: hotkeyWarning ? "busy" : "registered", current: activeHotkey, warning: hotkeyWarning });
 const settings: AppSettings = { autoLockMinutes: 0, autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, quickHotkey: q.get("hotkey") === "custom" || hotkeyWarning ? "Control+Shift+KeyK" : null, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+let captureState = (q.get("capture") ?? "listening") as CaptureHealth["state"];
 let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
   const joined = restartedMode !== null ? restartedMode !== "unset" : SCREEN !== "ob1" && SCREEN !== "ob2";
   const mode: Mode = restartedMode ?? (joined ? q.get("mode") === "local" ? "local_only" : "synced" : "unset");
   const paused = SCREEN === "state" ? "revoked" : null;
-  return { joined, locked: localKeyState === "locked", mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
+  return { capture: { state: captureState, error: captureState === "read_error" ? "clipboard_busy" : null, events: 0, readFailures: 0, recorded: 0, filtered: 0, retries: 0 }, joined, locked: localKeyState === "locked", mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
 };
 
 const devices = (): DeviceList => ({
@@ -134,6 +136,7 @@ let accessReadFailed = q.get("keyRead") === "error";
 let localKeyState = new URLSearchParams(location.search).get("keyState") ?? "unlocked";
 (window as any).__lockFixture = () => { localKeyState = "locked"; window.dispatchEvent(new Event("onepaste-mock-locked")); };
 export const api = {
+  retryClipboardMonitor: async () => { called("retryClipboardMonitor"); if (q.get("captureRetry") === "error") throw "clipboard_unavailable"; captureState = "listening"; changed(); },
   lockSession: async () => { localKeyState = "locked"; window.dispatchEvent(new Event("onepaste-mock-locked")); },
   userActivity: async () => undefined,
   keyState: async () => { if (accessReadFailed) throw "storage"; return localKeyState; },

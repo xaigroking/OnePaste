@@ -3,6 +3,9 @@
 mod session_lock;
 #[path = "restart.rs"]
 mod restart;
+#[path = "capture_health.rs"]
+mod capture_health;
+pub use capture_health::{CaptureHealth, CaptureState};
 
 use crate::error::AppError;
 use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, KeyStore};
@@ -62,6 +65,7 @@ pub enum ServerVault {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
+    pub capture: CaptureHealth,
     pub joined: bool,
     pub locked: bool,
     pub mode: Mode,
@@ -175,6 +179,7 @@ impl Default for AppConfig {
 type Listener = Arc<dyn Fn(&Status) + Send + Sync>;
 
 struct Shared {
+    capture: CaptureHealth,
     settings: Settings,
     tray: TrayState,
     paused: Option<PauseReason>,
@@ -218,6 +223,9 @@ pub(crate) struct Inner {
     update_listener: StdMutex<Option<Arc<dyn Fn(&UpdateInfo) + Send + Sync>>>,
     tasks: StdMutex<Vec<JoinHandle<()>>>,
     monitor: StdMutex<Option<MonitorGuard>>,
+    monitor_epoch: std::sync::atomic::AtomicU64,
+    capture_active: std::sync::atomic::AtomicBool,
+    capture_retry: StdMutex<Option<JoinHandle<()>>>,
 }
 
 #[derive(Clone)]
@@ -282,6 +290,7 @@ impl App {
             history: StdMutex::new(None),
             deletions: StdMutex::new(crate::deletions::Queue::default()),
             shared: StdMutex::new(Shared {
+                capture: CaptureHealth::default(),
                 settings,
                 tray: TrayState::Synced,
                 paused: None,
@@ -300,6 +309,9 @@ impl App {
             update_listener: StdMutex::new(None),
             tasks: StdMutex::new(Vec::new()),
             monitor: StdMutex::new(None),
+            monitor_epoch: std::sync::atomic::AtomicU64::new(0),
+            capture_active: std::sync::atomic::AtomicBool::new(false),
+            capture_retry: StdMutex::new(None),
         }))
     }
 
@@ -340,6 +352,7 @@ impl App {
 
     fn quick_status(&self, g: &Shared) -> Status {
         Status {
+            capture: g.capture.clone(),
             joined: g.joined,
             locked: self.0.locked.load(std::sync::atomic::Ordering::Acquire) || (g.joined && g.settings.auto_lock_minutes != 0 && self.0.cfg.auto_lock_clock.now().saturating_sub(*lock(&self.0.idle)) >= Duration::from_secs(u64::from(g.settings.auto_lock_minutes) * 60)),
             mode: g.mode,
@@ -714,34 +727,20 @@ impl App {
         }
     }
 
-    /// The monitor always runs; whether a copy is recorded is decided per event, so switching listening back on needs
-    /// no restart.
-    fn start_monitor(&self) {
-        let app = self.clone();
-        let handle = tokio::runtime::Handle::current();
-        let started = self.0.clipboard.start_monitor(Box::new(move |ev| {
-            let app = app.clone();
-            let mut tasks = lock(&app.0.tasks);
-            if !app.is_joined() { return; }
-            tasks.retain(|task| !task.is_finished());
-            let captured = app.clone();
-            tasks.push(handle.spawn(async move { captured.on_clip_event(ev).await }));
-        }));
-        match started {
-            Ok(guard) => *lock(&self.0.monitor) = Some(guard),
-            Err(e) => self.log("clipboard_monitor_failed", Some(e.code())),
-        }
-    }
-
     // ---- capturing -------------------------------------------------------------------------------------------------
 
     /// Handles one clipboard event.
     pub async fn on_clip_event(&self, ev: ClipEvent) {
+        self.record_capture_event(&ev);
         match ev {
+            ClipEvent::ReadFailed(code) => self.log("clipboard_read_failed", Some(capture_health::safe_code(&code))),
+            ClipEvent::MonitorStopped => { self.log("clipboard_monitor_stopped", None); self.schedule_capture_retry(); },
+            ClipEvent::SkippedUnsupported => self.log("clipboard_unsupported", None),
             ClipEvent::SkippedSensitive => self.log("skipped_sensitive", None),
             ClipEvent::SkippedSelf => self.log("skipped_self", None),
             ClipEvent::Captured(content) => {
                 if !self.settings().record_clipboard {
+                    lock(&self.0.shared).capture.filtered += 1;
                     return;
                 }
                 if let Err(e) = self.capture(content).await {
@@ -750,6 +749,7 @@ impl App {
                 }
             }
         }
+        self.notify_status();
     }
 
     async fn capture(&self, content: Content) -> Result<(), AppError> {
@@ -758,6 +758,7 @@ impl App {
         if settings.skip_suspected_secrets {
             if let Content::Text(text) = &content {
                 if let Some(reason) = crate::secrets::detect(text) {
+                    lock(&self.0.shared).capture.filtered += 1;
                     self.log("skipped_suspected_secret", Some(reason.code().into()));
                     return Ok(());
                 }
@@ -765,6 +766,7 @@ impl App {
         }
         let fp = fingerprint(&content);
         if lock(&self.0.shared).last_fp == Some(fp) {
+            lock(&self.0.shared).capture.filtered += 1;
             self.log("skipped_duplicate", None);
             return Ok(());
         }
@@ -782,11 +784,13 @@ impl App {
             }
         };
         if !crate::settings::item_within_limit(payload.content.as_deref().unwrap_or_default(), settings.max_item_mib) {
+            lock(&self.0.shared).capture.filtered += 1;
             self.log(if kind == "image" { "image_too_large" } else { "item_too_large" }, Some(format!("{size} bytes")));
             return Err(AppError::ItemTooLarge);
         }
         self.with_engine(|e| e.enqueue_create(now_ms(), &payload)).await?.map_err(AppError::from)?;
         lock(&self.0.shared).last_fp = Some(fp);
+        lock(&self.0.shared).capture.recorded += 1;
         self.log("captured", Some(format!("{kind}, {size} bytes")));
         self.0.wake.notify_one();
         Ok(())
@@ -1261,6 +1265,9 @@ impl App {
         out.push_str(&format!("items in the history: {}\n", st.items));
         let settings = self.settings();
         out.push_str(&format!("auto apply remote: {}, record clipboard: {}\n", settings.auto_apply_remote, settings.record_clipboard));
+        out.push_str(&format!("clipboard capture: {}\n", st.capture.state.as_str()));
+        out.push_str(&format!("clipboard events: {}, read failures: {}, recorded: {}, filtered: {}, retries: {}\n", st.capture.events, st.capture.read_failures, st.capture.recorded, st.capture.filtered, st.capture.retries));
+        if let Some(code) = &st.capture.error { out.push_str(&format!("clipboard error: {code}\n")); }
         out.push_str("recent events:\n");
         for e in log.iter().rev().take(20).rev() {
             out.push_str(&format!("  {} {}{}\n", e.ts_ms, e.kind, e.detail.as_ref().map(|d| format!(" ({d})")).unwrap_or_default()));
@@ -1414,7 +1421,7 @@ impl App {
         for t in lock(&self.0.tasks).drain(..) {
             t.abort();
         }
-        *lock(&self.0.monitor) = None;
+        self.stop_capture_monitor();
     }
 }
 

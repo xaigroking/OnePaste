@@ -21,6 +21,9 @@ fn from_platform(c: PlatformContent) -> Content {
 
 fn map_event(e: PlatformEvent) -> ClipEvent {
     match e {
+        PlatformEvent::ReadFailed(code) => ClipEvent::ReadFailed(code),
+        PlatformEvent::MonitorStopped => ClipEvent::MonitorStopped,
+        PlatformEvent::SkippedUnsupported => ClipEvent::SkippedUnsupported,
         PlatformEvent::Captured(c) => ClipEvent::Captured(from_platform(c)),
         PlatformEvent::SkippedSensitive => ClipEvent::SkippedSensitive,
         PlatformEvent::SkippedSelf => ClipEvent::SkippedSelf,
@@ -194,5 +197,32 @@ mod key_access_tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         panic!("the native clipboard item did not reach encrypted history");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn an_external_windows_program_copy_reaches_history_and_history_writes_back() {
+        let _clipboard = super::tests::exclusive();
+        tauri::async_runtime::block_on(async {
+            let dir=std::env::temp_dir().join(format!("onepaste-external-copy-{}",onepaste_core::id::new_id().unwrap()));
+            let core=App::new(dir.clone(),Arc::new(EncryptedKeyStore::new(dir)),Arc::new(PlatformClipboard),AppConfig { background_sync:false,listen_for_changes:false,..AppConfig::default() });
+            core.prepare_local_passphrase("external copy independent passphrase").unwrap();
+            core.choose_local_only().await.unwrap();
+            assert_eq!(core.status().await.capture.state,onepaste_app::CaptureState::Listening);
+            let status=std::process::Command::new("powershell.exe").args(["-NoProfile","-NonInteractive","-STA","-Command","Set-Clipboard -Value 'OnePaste external ordinary copy fixture'"]).status().unwrap();
+            assert!(status.success());
+            wait_for_history(&core,"external ordinary copy").await;
+            let rows=core.search("external ordinary copy",Filter::All,10,0).await.unwrap();
+            core.copy(&rows[0].item_id).await.unwrap();
+            let snapshot=clipboard::read().unwrap();
+            assert_eq!(snapshot.content,Some(PlatformContent::Text("OnePaste external ordinary copy fixture".into())));
+            assert!(snapshot.from_self);
+            assert!(core.status().await.capture.recorded>=1);
+            let diagnostics=core.diagnostics().await;
+            assert!(!diagnostics.contains("OnePaste external ordinary copy fixture"));
+            core.lock_session().await.unwrap();
+            assert_eq!(core.status().await.capture.state,onepaste_app::CaptureState::Stopped);
+            core.shutdown();
+        });
     }
 }

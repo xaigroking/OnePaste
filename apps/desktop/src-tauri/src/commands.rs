@@ -466,3 +466,8 @@ pub async fn app_lock_session(core: State<'_, App>) -> Result<(), String> {
 pub async fn app_user_activity(core: State<'_, App>) -> Result<(), String> {
     core.user_activity().await.map_err(|e| e.code())
 }
+
+#[tauri::command]
+pub async fn app_retry_clipboard_monitor(core: State<'_, App>) -> Result<(), String> {
+    core.retry_clipboard_monitor().await.map_err(|error| error.code())
+}

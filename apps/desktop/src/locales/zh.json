@@ -80,7 +80,10 @@
     "startup_repair_failed": "无法更新登录自启登记",
     "passphrase_changed": "口令已修改",
     "passphrase_change_failed": "无法确认口令更改",
-    "local_setup_restarted": "已重新开始本机设置"
+    "local_setup_restarted": "已重新开始本机设置",
+    "clipboard_read_failed": "无法读取剪贴板",
+    "clipboard_monitor_stopped": "剪贴板监听意外停止",
+    "clipboard_unsupported": "已跳过暂不支持的剪贴板格式"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -609,5 +612,14 @@
     "failed": "保存或锁定失败，请重试。",
     "paused": "OnePaste 已锁定。解锁前暂停剪贴板采集与同步。",
     "minutes_one": "{{count}} 分钟"
+  },
+  "capture": {
+    "stopped": "剪贴板监听已停止",
+    "starting": "正在启动剪贴板监听…",
+    "start_failed": "剪贴板监听不可用",
+    "read_error": "无法读取剪贴板",
+    "retry": "重试监听",
+    "retrying": "正在重新启动剪贴板监听…",
+    "retryFailed": "无法重新启动监听，历史记录已保留。可复制诊断信息或重试。"
   }
 }

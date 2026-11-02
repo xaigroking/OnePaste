@@ -80,7 +80,10 @@
     "startup_repair_failed": "Login startup registration could not be updated",
     "passphrase_changed": "Passphrase changed",
     "passphrase_change_failed": "Passphrase change could not be confirmed",
-    "local_setup_restarted": "Local setup restarted"
+    "local_setup_restarted": "Local setup restarted",
+    "clipboard_read_failed": "Could not read the clipboard",
+    "clipboard_monitor_stopped": "Clipboard listener stopped unexpectedly",
+    "clipboard_unsupported": "Skipped an unsupported clipboard format"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -609,5 +612,14 @@
     "working": "Locking...",
     "failed": "Could not save or lock. Please try again.",
     "paused": "OnePaste is locked. Clipboard recording and synchronization are paused until you unlock."
+  },
+  "capture": {
+    "stopped": "Clipboard listener stopped",
+    "starting": "Starting clipboard listener…",
+    "start_failed": "Clipboard listener unavailable",
+    "read_error": "Could not read the clipboard",
+    "retry": "Retry listening",
+    "retrying": "Restarting the clipboard listener…",
+    "retryFailed": "Could not restart the listener. Your history is kept. Copy diagnostics or try again."
   }
 }

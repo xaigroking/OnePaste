@@ -15,6 +15,7 @@ mod server_change;
 pub mod update;
 
 pub use app::{App, AppConfig, ImageData, UpdateSetup, DeviceList, DeviceView, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
+pub use app::{CaptureHealth, CaptureState};
 pub use error::AppError;
 pub use deletions::{DeletionClock, DeletionStatus, PendingDeletion, DELETE_GRACE};
 pub use onepaste_history::Filter;

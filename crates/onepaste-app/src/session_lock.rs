@@ -111,7 +111,7 @@ impl App {
         // Prevent monitor callbacks from registering more tasks before dropping their guard.
         { let mut shared = lock(&self.0.shared); shared.joined = false; shared.started = false; shared.last_fp = None; }
         self.notify_status();
-        *lock(&self.0.monitor) = None;
+        self.stop_capture_monitor();
         lock(&self.0.deletions).stop();
         let sync = lock(&self.0.sync_task).take();
         if let Some(task) = sync { task.abort(); let _ = task.await; }

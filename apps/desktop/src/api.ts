@@ -18,7 +18,17 @@ export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files"
 export type Page = "history" | "devices" | "settings";
 
 /** What the application reports about the vault and the sync. */
+export interface CaptureHealth {
+  state: "stopped" | "starting" | "listening" | "read_error" | "start_failed";
+  error: string | null;
+  events: number;
+  readFailures: number;
+  recorded: number;
+  filtered: number;
+  retries: number;
+}
 export interface AppStatus {
+  capture?: CaptureHealth;
   joined: boolean;
   locked: boolean;
   mode: Mode;
@@ -150,6 +160,7 @@ export interface TrayTexts {
 export type KeyState = "new" | "prepared" | "locked" | "unlocked" | "recovery";
 
 export const api = {
+  retryClipboardMonitor: () => invoke<void>("app_retry_clipboard_monitor"),
   lockSession: () => invoke<void>("app_lock_session"),
   userActivity: () => invoke<void>("app_user_activity"),
   keyState: () => invoke<KeyState>("app_key_state"),

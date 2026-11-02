@@ -33,6 +33,7 @@ thiserror = "1"
 zeroize = "1"
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 onepaste-server = { path = "../onepaste-server" }
 minisign = "0.7"
 axum = "0.8"

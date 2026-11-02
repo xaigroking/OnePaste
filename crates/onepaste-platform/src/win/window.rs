@@ -55,6 +55,7 @@ pub(crate) struct MessageWindow {
 }
 
 impl MessageWindow {
+    pub(crate) fn hwnd(&self) -> HWND { HWND(self.hwnd as *mut c_void) }
     /// With `message_only` a message-only window is created; otherwise a hidden top-level window (which can receive system broadcasts).
     /// `init` runs after the window is created and before the message loop starts; if it fails, everything fails.
     pub(crate) fn spawn(
@@ -110,10 +111,12 @@ impl MessageWindow {
             }
             let _ = tx.send(Ok(hwnd.0 as usize));
             let mut msg = MSG::default();
-            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+            while GetMessageW(&mut msg, None, 0, 0).0 > 0 {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
+            // Also release callbacks after an unexpected WM_QUIT or GetMessage error.
+            let _ = DestroyWindow(hwnd);
         });
         match rx.recv() {
             Ok(Ok(hwnd)) => Ok(MessageWindow { hwnd, thread: Some(thread) }),
