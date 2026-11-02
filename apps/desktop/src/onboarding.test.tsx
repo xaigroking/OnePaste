@@ -51,10 +51,11 @@ describe("recovery kit screen", () => {
       <KitScreen kit={kit} saved={saved} onSavedChange={noop} onDone={noop} onCopy={noop} onSave={noop} onPrint={noop} busy={false} error={null} />,
     );
 
-  it("keeps Done disabled until the kit is confirmed as saved", () => {
+  it("allows Done without confirming the kit was saved", () => {
     expect(tagOf(screen(false), "button", 'type="button"')).toBeDefined();
     const doneBefore = (screen(false).match(/<button\b[^>]*>[^<]*Done<\/button>/) ?? [""])[0];
-    expect(doneBefore).toContain("disabled");
+    expect(doneBefore).toContain("Done");
+    expect(doneBefore).not.toContain("disabled");
     const doneAfter = (screen(true).match(/<button\b[^>]*>[^<]*Done<\/button>/) ?? [""])[0];
     expect(doneAfter).toContain("Done");
     expect(doneAfter).not.toContain("disabled");

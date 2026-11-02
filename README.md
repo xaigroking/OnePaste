@@ -12,9 +12,9 @@ OnePaste is not code-signed yet, so Windows and macOS both ask you to allow it t
 3. Click `Open Anyway` next to the message about `OnePaste`, then confirm (it may ask for your password or Touch ID).
 4. If the message says the app "is damaged and can't be opened", run `xattr -cr <path>/OnePaste.app` in Terminal and try again.
 
-After opening, set a separate **OnePaste passphrase for this computer** before choosing a mode. Enter it again after each restart. It is independent of your vault passphrase and system login. Save a recovery kit offline from **Settings → Security and privacy**, including in local-only mode.
+After opening, set a separate **OnePaste passphrase for this computer** before choosing a mode. Enter it again after each restart. It is independent of your vault passphrase and system login. You can optionally save a recovery kit from **Settings → Security and privacy**, including in local-only mode.
 
-When upgrading an existing profile, recover with its kit or the vault passphrase for its saved vault record. Existing files are kept. Older local-only data cannot be unlocked if its only key was in system storage and no independent copy is available; OnePaste does not read that storage.
+When upgrading an existing profile, choose **Start fresh** if you do not need the old history or do not have recovery credentials. No old passphrase or recovery kit is required; previous local files are set aside on this computer, and your server and other devices are unchanged. To keep using the old history, you can instead recover with its kit or the vault passphrase for its saved vault record. Older local-only data cannot be unlocked if its only key was in system storage and no independent copy is available; OnePaste does not read that storage.
 
 ## Run your own server
 
@@ -53,7 +53,7 @@ Use a server with Docker that both computers can reach. Docker runs on that serv
    ```
 
    Each code is single-use. Generating a new code invalidates previous unused codes; keep it private. The first-start code is also available in `docker logs onepaste`.
-3. **First desktop.** Download the Windows or macOS portable zip from the same release as the server image, unzip it, and follow [First launch](#first-launch) to allow the app to open. Set this computer’s independent OnePaste passphrase, then choose **Connect to my own server**, paste the code, optionally name this device, and click **Next**. For an empty server, choose and confirm a passphrase, click **Next**, save the recovery kit offline, check **I have saved it somewhere offline**, and click **Done**. If the server already has a vault, enter its original passphrase and click **Join** instead; use **I forgot my passphrase, I have a recovery kit** if needed.
+3. **First desktop.** Download the Windows or macOS portable zip from the same release as the server image, unzip it, and follow [First launch](#first-launch) to allow the app to open. Set this computer’s independent OnePaste passphrase, then choose **Connect to my own server**, paste the code, optionally name this device, and click **Next**. For an empty server, choose and confirm a passphrase, click **Next**, optionally save the recovery kit, then click **Done**. If the server already has a vault, enter its original passphrase and click **Join** instead; use **I forgot my passphrase, I have a recovery kit** if needed.
 4. **Second desktop.** On the connected first desktop, open **Devices → Add a device → Make a connection code** and copy the new code. On the second desktop, unzip its desktop download, follow **First launch**, set its independent OnePaste passphrase, choose **Connect to my own server**, paste this new code, click **Next**, and enter the same passphrase to **Join**. Both desktops use the same server; do not deploy another server. If the first desktop is unavailable, use the server's `connect-code` command above to get a new code.
 5. **Check both directions.** Copy distinctive text on computer A; confirm it appears in B's history and can be copied there. Then copy different text on B and confirm it arrives in A's history and can be copied. A healthy container or running process only checks server availability; it does not establish that two desktops are syncing. This walkthrough is not a claim of verified public-network stability.
 
@@ -81,6 +81,6 @@ OnePaste 目前没有代码签名，所以第一次打开时，Windows 和 macOS
 
 这一步只需要做一次。
 
-进入应用后，先设置独立的 **OnePaste 本机口令**，再选择使用模式；每次重启应用需重新输入。它与保险库同步口令、系统登录密码分开。请在 **设置 → 安全与隐私** 中查看并离线保存恢复套件，仅本地模式也支持。
+进入应用后，先设置独立的 **OnePaste 本机口令**，再选择使用模式；每次重启应用需重新输入。它与保险库同步口令、系统登录密码分开。可在 **设置 → 安全与隐私** 中查看和保存恢复套件，仅本地模式也支持；不保存也能继续使用。
 
-升级已有资料时，可使用恢复套件或本机已缓存保险库记录对应的保险库口令恢复。原有文件会保留。旧版仅本地资料若唯一密钥存于系统凭据库且没有独立副本，则此版本无法解锁；OnePaste 不读取系统凭据库。
+升级已有资料时，如果没有恢复凭据或不需要旧历史，可选择**重新开始**，无需旧口令或恢复套件。原有文件会移至这台电脑上的独立目录，服务器和其他设备不受影响。如需继续使用旧历史，也可选择使用恢复套件或本机已缓存保险库记录对应的保险库口令恢复。旧版仅本地资料若唯一密钥存于系统凭据库且没有独立副本，则此版本无法解锁；OnePaste 不读取系统凭据库。

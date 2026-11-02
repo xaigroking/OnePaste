@@ -30,8 +30,10 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         first = section[positions[2]:positions[3]]
         for instruction in ["portable zip", "First launch", "Connect to my own server",
-                            "Next", "passphrase", "recovery kit", "I have saved it somewhere offline", "Done", "Join"]:
+                            "Next", "passphrase", "recovery kit", "optionally", "Done", "Join"]:
             self.assertIn(instruction, first)
+        self.assertNotIn("check **I have saved", first)
+        self.assertNotIn("check the saved confirmation", first)
         second = section[positions[3]:positions[4]]
         for instruction in ["Devices", "Add a device", "Make a connection code", "same passphrase", "same server"]:
             self.assertIn(instruction, second)

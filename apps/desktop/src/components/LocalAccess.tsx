@@ -12,6 +12,7 @@ export function LocalAccessGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [state, setState] = useState<KeyState | null>(null);
   const [failed, setFailed] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const sequence = useRef(0);
   const refresh = useCallback(async () => {
     const request = ++sequence.current;
@@ -41,13 +42,14 @@ export function LocalAccessGate({ children }: { children: ReactNode }) {
     for (const name of ["keydown", "pointerdown", "pointermove", "wheel"]) window.addEventListener(name, activity, { capture: true, passive: true });
     return () => { for (const name of ["keydown", "pointerdown", "pointermove", "wheel"]) window.removeEventListener(name, activity, true); };
   }, []);
-  if (failed) return <div className="join-wrap local-access"><section className="card join-card"><p role="alert">{t("localAccess.readFailed")}</p><Button onClick={() => void refresh()}>{t("localAccess.retry")}</Button></section></div>;
+  if (restarting) return <StartFresh onDone={async () => { await refresh(); setRestarting(false); }} onCancel={() => { setRestarting(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>("[data-start-fresh]")?.focus()); }} />;
+  if (failed) return <div className="join-wrap local-access"><section className="card join-card"><p role="alert">{t("localAccess.readFailed")}</p><Button onClick={() => void refresh()}>{t("localAccess.retry")}</Button><Button data-start-fresh onClick={() => setRestarting(true)}>{t("localAccess.startFresh")}</Button></section></div>;
   if (state === null) return <p role="status">{t("localAccess.loading")}</p>;
   if (state === "prepared" || state === "unlocked") return <>{children}</>;
-  return <LocalAccessForm key={state} state={state} onDone={refresh} />;
+  return <LocalAccessForm key={state} state={state} onDone={refresh} onRestart={() => setRestarting(true)} />;
 }
 
-function LocalAccessForm({ state, onDone }: { state: KeyState; onDone: () => Promise<void> }) {
+function LocalAccessForm({ state, onDone, onRestart }: { state: KeyState; onDone: () => Promise<void>; onRestart: () => void }) {
   const { t } = useTranslation();
   const [recovering, setRecovering] = useState(false);
   const [pass, setPass] = useState("");
@@ -92,6 +94,25 @@ function LocalAccessForm({ state, onDone }: { state: KeyState; onDone: () => Pro
       <div className="row"><Button type="submit" disabled={busy || !pass || !goodPass || (recovering && !recoveryCredential)}>{t(busy ? "localAccess.working" : fresh ? "localAccess.continue" : recovering ? "localAccess.recover" : "localAccess.unlock")}</Button><Button disabled={busy} onClick={cancel}>{t("localAccess.cancel")}</Button></div>
     </form>}
     {!fresh && !recovering && <Button onClick={() => { setPass(""); setAgain(""); setRecovering(true); setError(null); }}>{t("localAccess.recover")}</Button>}
+    {!fresh && <Button data-start-fresh disabled={busy} onClick={onRestart}>{t("localAccess.startFresh")}</Button>}
     {error && <p className="notice notice-warn" role="alert">{t(`localAccess.${error}`)}</p>}
+  </section></div>;
+}
+
+function StartFresh({ onDone, onCancel }: { onDone: () => Promise<void>; onCancel: () => void }) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  return <div className="join-wrap local-access"><section className="card join-card" aria-labelledby="start-fresh-title" onKeyDown={(event) => { if (event.key === "Escape" && !busy) onCancel(); }}>
+    <h1 id="start-fresh-title">{t("localAccess.startFreshTitle")}</h1>
+    <p>{t("localAccess.startFreshBody")}</p>
+    <div className="row">
+      <Button autoFocus disabled={busy} onClick={onCancel}>{t("localAccess.cancel")}</Button>
+      <Button variant="primary" disabled={busy} onClick={() => {
+        setBusy(true); setFailed(false);
+        void api.restartLocalSetup().then(onDone).catch(() => setFailed(true)).finally(() => setBusy(false));
+      }}>{t(busy ? "localAccess.working" : "localAccess.startFresh")}</Button>
+    </div>
+    {failed && <p role="alert">{t("localAccess.startFreshFailed")}</p>}
   </section></div>;
 }

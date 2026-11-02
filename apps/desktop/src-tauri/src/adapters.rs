@@ -28,7 +28,20 @@ fn map_event(e: PlatformEvent) -> ClipEvent {
 }
 
 /// Dropping this stops the monitor thread.
-struct StopOnDrop(#[allow(dead_code)] std::sync::mpsc::Sender<()>);
+struct StopOnDrop {
+    stop: Option<std::sync::mpsc::Sender<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for StopOnDrop {
+    fn drop(&mut self) {
+        // Close the channel before joining: the worker drops and joins the native monitor in turn.
+        self.stop.take();
+        if let Some(thread) = self.thread.take() {
+            if thread.join().is_err() { eprintln!("Clipboard monitor worker failed during shutdown"); }
+        }
+    }
+}
 
 impl ClipboardPort for PlatformClipboard {
     fn write(&self, content: &Content, origin_marker: bool) -> Result<(), AppError> {
@@ -45,7 +58,7 @@ impl ClipboardPort for PlatformClipboard {
         // The monitor lives on a thread of its own, so it never has to be moved between threads
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), AppError>>();
         let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
-        std::thread::spawn(move || match clipboard::Monitor::start(move |ev| on_event(map_event(ev))) {
+        let thread = std::thread::spawn(move || match clipboard::Monitor::start(move |ev| on_event(map_event(ev))) {
             Ok(monitor) => {
                 let _ = ready_tx.send(Ok(()));
                 // Returns when the guard is dropped
@@ -56,8 +69,9 @@ impl ClipboardPort for PlatformClipboard {
                 let _ = ready_tx.send(Err(AppError::Clipboard(e.code())));
             }
         });
+        let guard = StopOnDrop { stop: Some(stop_tx), thread: Some(thread) };
         ready_rx.recv().map_err(|_| AppError::Clipboard("monitor_thread".into()))??;
-        Ok(MonitorGuard::new(StopOnDrop(stop_tx)))
+        Ok(MonitorGuard::new(guard))
     }
 }
 
@@ -109,6 +123,22 @@ mod tests {
         assert_eq!(got, Some(ClipEvent::SkippedSelf));
     }
 
+    #[test]
+    fn stopping_the_native_monitor_releases_its_callback_before_returning() {
+        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+        struct Released(Arc<AtomicBool>);
+        impl Drop for Released {
+            fn drop(&mut self) { self.0.store(true, Ordering::SeqCst); }
+        }
+        let _g = exclusive();
+        let released = Arc::new(AtomicBool::new(false));
+        let owned = Released(released.clone());
+        let guard = PlatformClipboard.start_monitor(Box::new(move |_| { let _ = &owned; })).unwrap();
+        assert!(!released.load(Ordering::SeqCst));
+        drop(guard);
+        assert!(released.load(Ordering::SeqCst), "a stopped monitor must not retain a callback into a future session");
+    }
+
 }
 
 /// Uses the same key provider as the packaged entrypoint, plus the real OS clipboard on supported desktop runners.
@@ -140,6 +170,20 @@ mod key_access_tests {
             again.unlock_local("native independent application passphrase").await.unwrap();
             assert_eq!(again.search("native encrypted",Filter::All,10,0).await.unwrap().len(),1); assert_eq!(again.show_kit().unwrap(),kit);
             again.wipe_local_data().await.unwrap(); assert!(!dir.join(KEY_FILE).exists()); assert_eq!(again.key_state().unwrap(),KeyState::New);
+            // Missing old credentials must not block an explicit fresh start on the native clipboard path.
+            again.prepare_local_passphrase("another native application passphrase").unwrap();
+            again.choose_local_only().await.unwrap();
+            PlatformClipboard.write(&Content::Text("previous profile before fresh start".into()),false).unwrap();
+            wait_for_history(&again,"previous profile").await;
+            again.lock_session().await.unwrap();
+            std::fs::write(dir.join(KEY_FILE), "corrupt previous unlock record").unwrap();
+            again.restart_local_setup().await.unwrap();
+            assert_eq!(again.key_state().unwrap(),KeyState::New);
+            again.prepare_local_passphrase("fresh native application passphrase").unwrap();
+            again.choose_local_only().await.unwrap();
+            assert!(again.search("previous profile",Filter::All,10,0).await.unwrap().is_empty());
+            PlatformClipboard.write(&Content::Text("fresh profile remains usable".into()),false).unwrap();
+            wait_for_history(&again,"fresh profile").await;
             again.shutdown();
         });
     }

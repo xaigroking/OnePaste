@@ -153,6 +153,7 @@ export const api = {
   lockSession: () => invoke<void>("app_lock_session"),
   userActivity: () => invoke<void>("app_user_activity"),
   keyState: () => invoke<KeyState>("app_key_state"),
+  restartLocalSetup: () => invoke<void>("app_restart_local_setup"),
   prepareLocalPassphrase: (passphrase: string) => invoke<void>("app_prepare_local_passphrase", { passphrase }),
   unlockLocal: (passphrase: string) => invoke<void>("app_unlock_local", { passphrase }),
   recoverLocal: (credential: string, isKit: boolean, newPassphrase: string) => invoke<void>("app_recover_local", { credential, isKit, newPassphrase }),

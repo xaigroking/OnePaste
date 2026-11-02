@@ -52,7 +52,7 @@ export function ChooseMode({ choice, onChoice, onNext }: { choice: "local" | "se
   );
 }
 
-/** The recovery kit, shown once. "Done" stays unavailable until the user says it is saved somewhere offline. */
+/** Saving the recovery kit is optional; completing setup never requires a backup confirmation. */
 export function KitScreen({
   kit,
   saved,
@@ -78,6 +78,7 @@ export function KitScreen({
   return (
     <div className="kit-screen">
       <h2>{t("onboarding.kit.title")}</h2>
+      <p>{t("onboarding.kit.optional")}</p>
       <p className="notice notice-danger">{t("onboarding.kit.warning")}</p>
       <pre className="kit" data-testid="kit">
         {kit}
@@ -98,7 +99,7 @@ export function KitScreen({
         <span>{t("onboarding.kit.saved")}</span>
       </label>
       <div className="row">
-        <Button disabled={!saved || busy} onClick={onDone}>
+        <Button disabled={busy} onClick={onDone}>
           {busy ? t("onboarding.working") : t("onboarding.kit.done")}
         </Button>
       </div>
@@ -345,6 +346,11 @@ function OnboardingSteps({ onDone, onStep }: { onDone: () => void; onStep: (n: 1
           >
             {busy ? t("onboarding.working") : t("onboarding.next")}
           </Button>
+          <Button disabled={busy || !passphrase || passphrase !== again} onClick={() => void run(async () => {
+            await api.createVault(code.trim(), passphrase, name());
+            await api.confirmKitSaved();
+            setPassphrase(""); setAgain(""); onDone();
+          })}>{t("onboarding.kit.skip")}</Button>
         </div>
         {error && <p className="notice notice-warn">{errorText(t, error)}</p>}
       </div>
