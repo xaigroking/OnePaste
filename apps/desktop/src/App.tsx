@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, onChanged, onCloseNotice, onNavigate, onUpdateAvailable } from "./api";
+import { api, onChanged, onCloseNotice, onNavigate, onOpenItem, onUpdateAvailable } from "./api";
 import type {
   ActionResult,
   AppSettings,
@@ -18,6 +18,7 @@ import type {
 import { applyTheme, loadTheme } from "./format";
 import { applyDocumentLanguage, resolveLanguage } from "./i18n";
 import { DevicesView } from "./components/DevicesView";
+import { FileDialog } from "./components/FileDetail";
 import { HistoryView } from "./components/HistoryView";
 import { Onboarding } from "./onboarding";
 import { SettingsView } from "./components/SettingsView";
@@ -55,6 +56,7 @@ export default function App() {
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [openedFile, setOpenedFile] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   // The newest search wins: an older, slower answer must not overwrite it
   const searchSeq = useRef(0);
@@ -153,6 +155,12 @@ export default function App() {
     return () => unlisten?.();
   }, []);
 
+  useEffect(() => {
+    let stop: (() => void) | undefined; let cancelled = false;
+    void onOpenItem((id) => setOpenedFile(id)).then((unlisten) => { if (cancelled) unlisten(); else stop = unlisten; });
+    return () => { cancelled = true; stop?.(); };
+  }, []);
+
   // The tray menu asks for a page ("Devices...", "Settings...")
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -241,6 +249,7 @@ export default function App() {
   return (
     <div className="app">
       {updateDialog}
+      {openedFile && <FileDialog itemId={openedFile} onClose={() => setOpenedFile(null)} />}
       {closing && (
         <CloseNotice
           onHide={(again) => {

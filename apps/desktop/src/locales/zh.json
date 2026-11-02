@@ -650,5 +650,44 @@
     "loadFailed": "无法加载标签，请重试。",
     "option": "{{tag}}（{{count}}）",
     "shortcut": "Alt+T：标签"
+  },
+  "files": {
+    "import": "导入文件",
+    "importing": "正在导入…",
+    "limit": "每个文件最多 64 MiB",
+    "details": "文件",
+    "loading": "正在加载文件…",
+    "cached": "可离线使用",
+    "needed": "需要下载",
+    "download": "下载",
+    "save": "另存为…",
+    "saved": "文件已保存。",
+    "cancel": "取消传输",
+    "cancelled": "传输已取消，条目已保留。",
+    "retry": "重试上传",
+    "upload": "正在上传 {{percent}}%",
+    "downloadProgress": "正在下载 {{percent}}%",
+    "previewUnavailable": "此文件格式暂不支持内容预览。",
+    "sync": {
+      "local": "仅本机",
+      "pending": "等待同步",
+      "synced": "已同步",
+      "failed": "同步失败"
+    },
+    "errors": {
+      "generic": "无法完成文件操作，请重试。",
+      "attachment_too_large": "此文件超过 64 MiB 限制。",
+      "attachment_read_failed": "无法读取所选文件。",
+      "attachment_write_failed": "无法保存文件，请选择可写入的位置后重试。",
+      "attachment_changed": "文件在导入时发生变化，请关闭文件后重试。",
+      "attachment_integrity": "文件完整性校验失败，请重新下载后再浏览或保存。",
+      "attachment_metadata": "文件元信息无效。",
+      "attachment_unsupported": "此服务器或附件版本不支持文件传输，请更新服务器后重试。",
+      "attachment_storage": "无法访问加密文件缓存。",
+      "attachment_unavailable": "此文件尚未保存在本机，请连接服务器后下载。",
+      "attachment_transfer_failed": "文件传输失败，请检查连接后重试。",
+      "attachment_cancelled": "传输已取消，条目已保留。",
+      "attachment_busy": "此文件已有正在进行的传输。"
+    }
   }
 }

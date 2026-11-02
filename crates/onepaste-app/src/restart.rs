@@ -5,6 +5,7 @@ impl App {
     /// Sets aside this computer's old encrypted files after the user chooses to start fresh.
     /// No old password is required and no server or other device is contacted.
     pub async fn restart_local_setup(&self) -> Result<(), AppError> {
+        self.cancel_attachment_transfers();
         let _connection = self.0.connection.write().await;
         self.close_session().await;
         archive_local_files(&self.0.dir)?;
@@ -42,6 +43,7 @@ fn archive_local_files(dir: &std::path::Path) -> Result<(), AppError> {
             }
         }
     }
+    if std::fs::symlink_metadata(dir.join(super::attachments::DIRECTORY)).is_ok() { names.push(super::attachments::DIRECTORY.to_string()); }
     if names.is_empty() {
         return Ok(());
     }

@@ -45,6 +45,11 @@ export interface AppStatus {
 
 export interface TagOption { label: string; count: number }
 
+export interface AttachmentInfo {
+  fileName: string; mime: string; size: number; cached: boolean; syncState: "local" | "pending" | "synced" | "failed";
+  transfer: { state: string; direction: "upload" | "download"; completed: number; total: number; error: string | null };
+}
+
 export interface ItemView {
   itemId: string;
   kind: "text" | "link" | "code" | "image" | "file";
@@ -206,6 +211,13 @@ export const api = {
   itemImage: (itemId: string) => invoke<ImageData>("app_item_image", { itemId }),
   itemText: (itemId: string) => invoke<string>("app_item_text", { itemId }),
   /** Saves the picture where the user chooses; false if they cancelled the dialog. */
+  importFile: () => invoke<string | null>("app_import_file"),
+  attachmentInfo: (itemId: string) => invoke<AttachmentInfo>("app_attachment_info", { itemId }),
+  prepareAttachment: (itemId: string) => invoke<void>("app_prepare_attachment", { itemId }),
+  retryAttachment: (itemId: string) => invoke<void>("app_retry_attachment", { itemId }),
+  cancelAttachment: (itemId: string) => invoke<void>("app_cancel_attachment", { itemId }),
+  saveAttachment: (itemId: string) => invoke<boolean>("app_save_attachment", { itemId }),
+  openItem: (itemId: string) => invoke<void>("app_open_item", { itemId }),
   saveImage: (itemId: string, fileName: string) => invoke<boolean>("app_save_image", { itemId, fileName }),
   status: () => invoke<AppStatus>("app_status"),
   search: (query: string, filter: Filter, limit: number, offset: number, tag: string | null = null) =>
@@ -265,3 +277,5 @@ export function onCloseNotice(handler: () => void): Promise<() => void> {
 }
 
 export function onLocked(handler: () => void): Promise<() => void> { return listen("onepaste://locked", handler); }
+
+export function onOpenItem(handler: (itemId: string) => void): Promise<() => void> { return listen<string>("onepaste://open-item", (event) => handler(event.payload)); }

@@ -89,7 +89,7 @@ fn read_row(row: &ItemRow, mk: &Key) -> Result<Change, &'static str> {
         seq: row.seq,
         kind: classified.kind,
         language: classified.language,
-        text: if is_image { String::new() } else { payload.content.unwrap_or_default() },
+        text: if is_image { String::new() } else if payload.kind == "file" { onepaste_core::attachment::Attachment::from_payload(&payload).map(|attachment|attachment.file_name).unwrap_or_else(|_|payload.title.clone().unwrap_or_default()) } else { payload.content.unwrap_or_default() },
         mime,
         size,
         favorite: payload.favorite,
@@ -112,7 +112,7 @@ impl HistoryStore {
     pub fn refresh<S: ItemSource + ?Sized>(&mut self, source: &mut S, mk: &Key) -> Result<RefreshReport, HistoryError> {
         let version = self.conn.query_row("SELECT value FROM state WHERE key = 'classification_version'", [], |r| r.get::<_, i64>(0)).unwrap_or(0);
         let tags_version = self.conn.query_row("SELECT value FROM state WHERE key = 'tags_version'", [], |r| r.get::<_, i64>(0)).unwrap_or(0);
-        let indexed = if version < 1 || tags_version < 1 { -1 } else { self.indexed_seq()? };
+        let indexed = if version < 2 || tags_version < 1 { -1 } else { self.indexed_seq()? };
         let items = source.changed_since(indexed)?;
         let mut changes = Vec::new();
         let mut skipped = Vec::new();
@@ -161,7 +161,7 @@ impl HistoryStore {
             "INSERT INTO state (key, value) VALUES ('indexed_seq', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             [top],
         )?;
-        tx.execute("INSERT INTO state (key, value) VALUES ('classification_version', 1) ON CONFLICT(key) DO UPDATE SET value = 1", [])?;
+        tx.execute("INSERT INTO state (key, value) VALUES ('classification_version', 2) ON CONFLICT(key) DO UPDATE SET value = 2", [])?;
         tx.execute("INSERT INTO state (key, value) VALUES ('tags_version', 1) ON CONFLICT(key) DO UPDATE SET value = 1", [])?;
         tx.commit()?;
         Ok(RefreshReport { upserted, removed, skipped, indexed_seq: top })

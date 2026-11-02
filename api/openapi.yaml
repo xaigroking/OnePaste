@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OnePaste sync service API
-  version: "1.1"
+  version: "1.2"
   description: |
     Contract of the self-hosted sync service. The server stores only ciphertext and the metadata it needs; the passphrase and the master key are never sent to the server.
 
@@ -94,6 +94,8 @@ tags:
     description: The encrypted master key record.
   - name: items
     description: Writing items and pulling them by cursor.
+  - name: attachments
+    description: Opaque, authenticated ciphertext chunks and capability discovery.
   - name: events
     description: Change notifications.
 
@@ -318,6 +320,182 @@ paths:
         "500":
           $ref: "#/components/responses/Internal"
 
+  /capabilities:
+    get:
+      tags: [attachments]
+      operationId: getCapabilities
+      summary: Read optional protocol capabilities
+      parameters:
+        - $ref: "#/components/parameters/ProtoHeader"
+      responses:
+        "200":
+          description: Supported additive features. Older servers return 404 for this endpoint.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [features, attachments]
+                properties:
+                  features:
+                    type: array
+                    items:
+                      type: string
+                    examples: [[attachments-v1]]
+                  attachments:
+                    type: object
+                    required: [v, max_file_bytes, chunk_bytes, max_chunks]
+                    properties:
+                      v:
+                        type: integer
+                        const: 1
+                      max_file_bytes:
+                        type: integer
+                        const: 67108864
+                      chunk_bytes:
+                        type: integer
+                        const: 262144
+                      max_chunks:
+                        type: integer
+                        const: 256
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /blobs/{blobId}:
+    get:
+      tags: [attachments]
+      operationId: getAttachmentManifest
+      summary: Read the present ciphertext chunk indices
+      parameters:
+        - $ref: "#/components/parameters/ProtoHeader"
+        - $ref: "#/components/parameters/BlobId"
+      responses:
+        "200":
+          description: Public transfer metadata only; no file name, MIME, plaintext hash or content.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [v, chunks, indices]
+                properties:
+                  v:
+                    type: integer
+                    const: 1
+                  chunks:
+                    type: integer
+                    minimum: 1
+                    maximum: 256
+                  indices:
+                    type: array
+                    maxItems: 256
+                    uniqueItems: true
+                    items:
+                      type: integer
+                      minimum: 0
+                      maximum: 255
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /blobs/{blobId}/{index}:
+    parameters:
+      - $ref: "#/components/parameters/ProtoHeader"
+      - $ref: "#/components/parameters/BlobId"
+      - name: index
+        in: path
+        required: true
+        description: Zero-based chunk index, smaller than the declared chunk count.
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 255
+    put:
+      tags: [attachments]
+      operationId: putAttachmentChunk
+      summary: Store one immutable ciphertext chunk
+      description: |
+        The body is nonce(24) + ciphertext + authentication tag(16). The client uses independent XChaCha20-Poly1305 per 256 KiB plaintext chunk.
+        AAD binds the attachment format version, item id, blob id, index and total chunk count. Names, MIME, exact plaintext length and the plaintext SHA-256 stay inside the encrypted item payload.
+        Every non-final chunk is exactly 262184 bytes; the final chunk is 40 to 262184 bytes. A file may have at most 256 chunks (64 MiB plaintext).
+        The same blob/index/count/bytes may be replayed; replacement bytes return 409 attachment_conflict. Reusing an idempotency key for different metadata or bytes returns 422 idempotency_conflict.
+        Items can reference only complete blobs. Unreferenced uploads are removed after a 24-hour grace period; live item references prevent collection.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: OnePaste-Blob-Version
+          in: header
+          required: true
+          description: Attachment ciphertext format version.
+          schema:
+            type: string
+            enum: ["1"]
+        - name: OnePaste-Blob-Chunks
+          in: header
+          required: true
+          description: Immutable total chunk count for this blob.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 256
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              minLength: 40
+              maxLength: 262184
+      responses:
+        "200":
+          description: The identical immutable chunk is stored, including idempotent replays.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stored, index]
+                properties:
+                  stored:
+                    type: boolean
+                    const: true
+                  index:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Immutable chunk metadata or ciphertext conflict.
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "422":
+          description: An idempotency key was reused with different bytes or metadata.
+    get:
+      tags: [attachments]
+      operationId: getAttachmentChunk
+      summary: Read one ciphertext chunk
+      responses:
+        "200":
+          description: Raw ciphertext, without a plaintext file-name header. The client verifies every chunk, the complete length and private SHA-256 before using the bytes.
+          headers:
+            OnePaste-Blob-Version:
+              description: Attachment ciphertext format version.
+              schema:
+                type: string
+                enum: ["1"]
+            OnePaste-Blob-Chunks:
+              description: Total chunk count for this blob.
+              schema:
+                type: integer
+                minimum: 1
+                maximum: 256
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                maxLength: 262184
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /items/{id}:
     put:
       tags: [items]
@@ -327,7 +505,7 @@ paths:
         The body is one of: `{base_seq, envelope}` to create or update, or `{base_seq, deleted: true}` to delete.
         After a delete the server keeps only `id`, `seq` and `deleted_at`; the ciphertext is removed.
         `size` may not exceed 8 MiB and the request body may not exceed 12 MiB; exceeding either returns 413 `too_large`.
-        An invalid envelope returns 400 `malformed_envelope`.
+        An invalid envelope returns 400 `malformed_envelope`. An item referencing an incomplete blob returns 422 `attachment_incomplete` without changing the item or consuming its idempotency key.
       parameters:
         - $ref: "#/components/parameters/ProtoHeader"
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -488,6 +666,14 @@ components:
         minimum: 1
 
   parameters:
+    BlobId:
+      name: blobId
+      in: path
+      required: true
+      description: Random opaque blob identifier; never a file name or content hash.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{1,64}$'
     ProtoHeader:
       name: OnePaste-Proto
       in: header

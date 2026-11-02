@@ -200,8 +200,8 @@ impl Session {
 /// Plain API calls with the device token: the device list, revoking a device, invitations.
 #[derive(Clone)]
 pub struct ApiClient {
-    transport: Transport,
-    token: String,
+    pub(crate) transport: Transport,
+    pub(crate) token: String,
     url: String,
     fingerprint: String,
 }

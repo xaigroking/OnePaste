@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export type IconName =
   | "clipboard" | "monitor" | "settings" | "search" | "star" | "pin" | "trash" | "copy"
-  | "code" | "image" | "text" | "link" | "lock" | "check" | "alert" | "wifi-off" | "refresh";
+  | "file" | "code" | "image" | "text" | "link" | "lock" | "check" | "alert" | "wifi-off" | "refresh";
 
 const PATHS: Record<IconName, ReactNode> = {
   clipboard: (<><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4h6v3H9z" /></>),
@@ -14,6 +14,7 @@ const PATHS: Record<IconName, ReactNode> = {
   trash: (<><path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13" /></>),
   copy: (<><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>),
   image: (<><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="M21 16l-5-5-8 8" /></>),
+  file: (<><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></>),
   code: (<><path d="M8 6l-6 6 6 6M16 6l6 6-6 6M14 4l-4 16" /></>),
   text: (<path d="M6 6h12M12 6v13M9 19h6" />),
   link: (<><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>),

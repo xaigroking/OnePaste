@@ -59,6 +59,8 @@ impl Store {
                     // Deleting wins: a tombstone is never resurrected
                     return Err(stale(&cur));
                 }
+                let env: onepaste_core::envelope::Envelope = serde_json::from_str(envelope).map_err(|_| ApiError::invalid())?;
+                Self::set_item_blob_tx(tx, id, env.blob_id.as_deref(), now)?;
                 let seq = next_seq(tx)?;
                 tx.execute(
                     "INSERT INTO items (id, seq, deleted, envelope, deleted_at) VALUES (?1, ?2, 0, ?3, NULL)
@@ -73,6 +75,7 @@ impl Store {
                     Some(r) if r.deleted => return Ok(reply(r.seq, false)),
                     Some(_) => {}
                 }
+                Self::set_item_blob_tx(tx, id, None, now)?;
                 let seq = next_seq(tx)?;
                 tx.execute(
                     "UPDATE items SET seq = ?1, deleted = 1, envelope = NULL, deleted_at = ?2 WHERE id = ?3",

@@ -3,6 +3,7 @@
 // &screen=main|dev|set|qp|tray|state|ob1|ob2.
 import type {
   ActionResult,
+  AttachmentInfo,
   AppSettings,
   CaptureHealth,
   AppStatus,
@@ -64,6 +65,10 @@ if (q.get("manyCodes") === "yes") {
   for (let i = 0; i < 62; i++) ITEMS.push({ ...ITEMS[2], itemId: `code-page-${i}`, preview: `const page${i} = ${i};` });
 }
 
+let fileCached = q.get("fileCached") !== "no";
+let fileState = q.get("fileState") ?? "idle";
+const fileItem = (): ItemView => ({ itemId: "file-1", kind: "file", preview: "sample.txt", size: 1024, width: 0, height: 0, favorite: false, pinned: false, note: "", tags: [], syncState: "synced" });
+if (q.get("attachment") === "yes") ITEMS.unshift(fileItem());
 let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.get("hotkey") === "custom" && STATE !== "error" ? "Control+Shift+KeyK" : "Control+Alt+KeyV";
 let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
 const hotkeyInfo = (): HotkeyInfo => ({ state: hotkeyWarning ? "busy" : "registered", current: activeHotkey, warning: hotkeyWarning });
@@ -168,6 +173,23 @@ export const api = {
     if (SCREEN === "longtext" || SCREEN === "textview") return LONG_TEXT;
     return ITEMS.find((i) => i.itemId === itemId)?.preview ?? "";
   },
+  importFile: async (): Promise<string | null> => {
+    called("importFile");
+    if (q.get("fileImport") === "error") throw "attachment_too_large";
+    if (q.get("fileImport") === "cancel") return null;
+    if (q.get("fileImport") === "pending") return never();
+    if (!ITEMS.some((item) => item.itemId === "file-1")) ITEMS.unshift(fileItem());
+    changed(); return "file-1";
+  },
+  attachmentInfo: async (_itemId: string): Promise<AttachmentInfo> => {
+    if (q.get("fileInfo") === "error") throw "attachment_unavailable";
+    return { fileName: "sample.txt", mime: "text/plain", size: 1024, cached: fileCached, syncState: "synced", transfer: { state: fileState, direction: q.get("fileDirection") === "upload" ? "upload" : "download", completed: 2, total: 4, error: fileState === "failed" ? "attachment_transfer_failed" : null } };
+  },
+  prepareAttachment: async (_itemId: string) => { called("prepareAttachment"); if (q.get("fileDownload") === "error") throw "attachment_transfer_failed"; fileCached = true; fileState = "ready"; changed(); },
+  retryAttachment: async (_itemId: string) => { called("retryAttachment"); fileState = "ready"; changed(); },
+  cancelAttachment: async (_itemId: string) => { called("cancelAttachment"); fileState = "cancelled"; changed(); },
+  saveAttachment: async (_itemId: string): Promise<boolean> => { called("saveAttachment"); if (q.get("fileSave") === "error") throw "attachment_write_failed"; return q.get("fileSave") !== "cancel"; },
+  openItem: async (itemId: string) => { called("openItem"); window.dispatchEvent(new CustomEvent("onepaste-mock-open-item", { detail: itemId })); },
   saveImage: async (_itemId: string, _fileName: string): Promise<boolean> => {
     called("saveImage");
     return true;
@@ -371,3 +393,9 @@ export async function onCloseNotice(handler: () => void): Promise<() => void> {
 }
 
 export async function onLocked(handler: () => void): Promise<() => void> { window.addEventListener("onepaste-mock-locked", handler); return () => window.removeEventListener("onepaste-mock-locked", handler); }
+
+export async function onOpenItem(handler: (itemId: string) => void): Promise<() => void> {
+  const listener = (event: Event) => handler((event as CustomEvent<string>).detail);
+  window.addEventListener("onepaste-mock-open-item", listener);
+  return () => window.removeEventListener("onepaste-mock-open-item", listener);
+}

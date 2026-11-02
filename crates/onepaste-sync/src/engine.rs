@@ -72,8 +72,10 @@ pub struct ItemSummary {
 
 const DEFAULT_PAGE_SIZE: u32 = 200;
 
+#[derive(Clone, Copy)]
 pub(crate) enum InFlight {
     Push { op_id: u64 },
+    AttachmentPreparation { op_id: u64 },
     Pull,
 }
 
@@ -195,13 +197,24 @@ impl<S: Store> Engine<S> {
 
     /// Queues a new item and shows it locally at once. Returns its id.
     pub fn enqueue_create(&mut self, now_ms: u64, payload: &ItemPayload) -> Result<String, Error> {
-        let id = new_id_at(now_ms)?;
+        self.enqueue_with_id(now_ms, new_id_at(now_ms)?, payload, None)
+    }
+
+    /// The driver reserves an item id before encrypting chunks, so AAD can bind them to that id.
+    pub fn enqueue_attachment(&mut self, now_ms: u64, id: &str, payload: &ItemPayload) -> Result<String, Error> {
+        onepaste_core::id::validate_id(id)?;
+        let descriptor = onepaste_core::attachment::Attachment::from_payload(payload)?;
+        self.enqueue_with_id(now_ms, id.to_owned(), payload, Some(descriptor.blob_id))
+    }
+
+    fn enqueue_with_id(&mut self, now_ms: u64, id: String, payload: &ItemPayload, blob_id: Option<String>) -> Result<String, Error> {
         let created = secs(now_ms);
-        let env_json = seal_item(&self.mk, &id, created, created, None, payload)?.to_json()?;
+        let env_json = seal_item(&self.mk, &id, created, created, blob_id, payload)?.to_json()?;
         let idem = new_id_at(now_ms)?;
         let local = self.local;
         let mk = &self.mk;
         run_tx(&mut self.store, |tx| {
+            if tx.item(&id)?.is_some() { return Err(Error::Core(onepaste_core::Error::InvalidArgument("item already exists"))); }
             let mut meta = tx.meta()?;
             let op_id = take_op_id(&mut meta);
             let seq = if local {
@@ -485,6 +498,7 @@ impl<S: Store> Engine<S> {
     pub fn on_transport_error(&mut self, now_ms: u64) -> Result<(), Error> {
         match self.inflight.take() {
             Some(InFlight::Push { op_id }) => self.bump_push_attempt(now_ms, op_id, None),
+            Some(preparation @ InFlight::AttachmentPreparation { .. }) => { self.inflight = Some(preparation); Err(Error::MalformedResponse) }
             Some(InFlight::Pull) => {
                 self.pull_attempts += 1;
                 self.pull_retry_at = now_ms + backoff_ms(self.pull_attempts);
@@ -509,6 +523,7 @@ impl<S: Store> Engine<S> {
     pub fn on_response(&mut self, now_ms: u64, resp: HttpResponse) -> Result<Vec<Event>, Error> {
         match self.inflight.take() {
             Some(InFlight::Push { op_id }) => self.on_push_response(now_ms, op_id, resp),
+            Some(preparation @ InFlight::AttachmentPreparation { .. }) => { self.inflight = Some(preparation); Err(Error::MalformedResponse) }
             Some(InFlight::Pull) => self.on_pull_response(now_ms, resp),
             None => Ok(Vec::new()),
         }

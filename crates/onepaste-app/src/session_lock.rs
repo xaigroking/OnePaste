@@ -86,7 +86,7 @@ impl App {
 
     pub async fn check_auto_lock(&self) -> Result<(), AppError> {
         // Hide stale window content even if closing must wait for an already-running command.
-        if self.is_joined() && self.expired() { self.notify_status(); }
+        if self.is_joined() && self.expired() { self.cancel_attachment_transfers(); self.notify_status(); }
         let _connection = self.0.connection.write().await;
         let due = {
             let mut shared = lock(&self.0.shared);
@@ -100,12 +100,15 @@ impl App {
     }
 
     pub async fn lock_session(&self) -> Result<(), AppError> {
+        self.0.locked.store(true, std::sync::atomic::Ordering::Release);
+        self.cancel_attachment_transfers(); self.notify_status();
         let _connection = self.0.connection.write().await;
         self.close_session().await;
         Ok(())
     }
 
     pub(super) async fn close_session(&self) {
+        self.cancel_attachment_transfers();
         self.0.generation.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.0.locked.store(true, std::sync::atomic::Ordering::Release);
         // Prevent monitor callbacks from registering more tasks before dropping their guard.
@@ -119,6 +122,7 @@ impl App {
         let tasks: Vec<_> = lock(&self.0.tasks).drain(..).collect();
         for task in &tasks { task.abort(); }
         for task in tasks { let _ = task.await; }
+        lock(&self.0.attachment_transfers).clear();
         *self.0.session.lock().await = None;
         *self.0.local.lock().await = None;
         *lock(&self.0.history) = None;

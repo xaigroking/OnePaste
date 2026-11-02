@@ -650,5 +650,44 @@
     "loadFailed": "Could not load tags. Try again.",
     "option": "{{tag}} ({{count}})",
     "shortcut": "Alt+T: tags"
+  },
+  "files": {
+    "import": "Import file",
+    "importing": "Importing\u2026",
+    "limit": "Up to 64 MiB per file",
+    "details": "File",
+    "loading": "Loading file\u2026",
+    "cached": "Available offline",
+    "needed": "Download required",
+    "download": "Download",
+    "save": "Save as\u2026",
+    "saved": "File saved.",
+    "cancel": "Cancel transfer",
+    "cancelled": "Transfer cancelled. The item was kept.",
+    "retry": "Retry upload",
+    "upload": "Uploading {{percent}}%",
+    "downloadProgress": "Downloading {{percent}}%",
+    "previewUnavailable": "Content preview is unavailable for this file format.",
+    "sync": {
+      "local": "This device only",
+      "pending": "Waiting to sync",
+      "synced": "Synced",
+      "failed": "Sync failed"
+    },
+    "errors": {
+      "generic": "Could not complete the file operation. Try again.",
+      "attachment_too_large": "This file exceeds the 64 MiB limit.",
+      "attachment_read_failed": "Could not read the selected file.",
+      "attachment_write_failed": "Could not save the file. Choose a writable location and retry.",
+      "attachment_changed": "The file changed during import. Close it and try again.",
+      "attachment_integrity": "The file could not be verified. Download it again before opening or saving.",
+      "attachment_metadata": "This file has invalid metadata.",
+      "attachment_unsupported": "This server or attachment version does not support file transfer. Update the server and retry.",
+      "attachment_storage": "Could not access the encrypted file cache.",
+      "attachment_unavailable": "The file is not available locally. Connect to its server and download it.",
+      "attachment_transfer_failed": "File transfer failed. Check the connection and try again.",
+      "attachment_cancelled": "Transfer cancelled. The item was kept.",
+      "attachment_busy": "A transfer for this file is already running."
+    }
   }
 }

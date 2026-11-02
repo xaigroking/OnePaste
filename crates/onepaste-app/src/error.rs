@@ -51,6 +51,8 @@ pub enum AppError {
     InvalidClassification,
     #[error("the tag collection is not valid")]
     InvalidTags,
+    #[error("attachment operation failed ({0})")]
+    Attachment(&'static str),
     #[error("the image is too large to sync")]
     ImageTooLarge,
     #[error("the item exceeds the configured size limit")]
@@ -92,6 +94,7 @@ impl AppError {
             AppError::InvalidFilter => "invalid_filter".into(),
             AppError::InvalidClassification => "invalid_classification".into(),
             AppError::InvalidTags => "invalid_tags".into(),
+            AppError::Attachment(code) => (*code).into(),
             AppError::ImageTooLarge => "image_too_large".into(),
             AppError::ItemTooLarge => "item_too_large".into(),
             AppError::Clipboard(c) => format!("clipboard_{c}"),

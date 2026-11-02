@@ -13,11 +13,13 @@ import { ImageDetail } from "./ImageDetail";
 import { ImageThumb } from "./ImageThumb";
 import { TagsEditor, TagFilter } from "./Tags";
 import { TextClassification } from "./TextClassification";
+import { FileDetail } from "./FileDetail";
 import { TextDetail } from "./TextDetail";
 
 const FILTERS: Filter[] = ["all", "favorites", "text", "links", "images", "files", "code"];
 
 export function kindIcon(it: ItemView): IconName {
+  if (it.kind === "file") return "file";
   if (it.kind === "image") return "image";
   // A masked item (a secret the clipboard marked as sensitive) shows as a row of dots
   if (/^[\u2022\u25cf*]+$/.test(it.preview)) return "lock";
@@ -51,6 +53,8 @@ interface Props {
 
 export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, filter, onQuery, onFilter, act, loadState, loadError, previewHeight, onPreviewHeight, localOnly = false }: Props) {
   const { t, i18n } = useTranslation();
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>({ ids: [], anchor: null });
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
@@ -156,6 +160,11 @@ export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, fil
   const multiple = selection.ids.length > 1;
   return <div className="history">
     <div className="history-main">
+      <div className="row"><Button disabled={importing} onClick={() => {
+        setImporting(true); setImportError(null);
+        void api.importFile().then(async (id) => { if (id) { onFilter("files"); onQuery(""); onTag?.(null); await act(Promise.resolve()); await api.openItem(id); } }).catch((error) => setImportError(typeof error === "string" ? error : "generic")).finally(() => setImporting(false));
+      }}>{t(importing ? "files.importing" : "files.import")}</Button><span className="muted small">{t("files.limit")}</span></div>
+      {importError && <p className="notice notice-danger" role="alert">{t(`files.errors.${importError}`, { defaultValue: t("files.errors.generic") })}</p>}
       <div className="searchbar"><Icon name="search" /><input ref={searchRef} type="search" placeholder={t("search.placeholder")} value={query} onChange={(event) => onQuery(event.target.value)} aria-label={t("search.placeholder")} onKeyDown={(event) => {
         if (event.key === "ArrowDown" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && selected) { event.preventDefault(); focusRow(selected.itemId); }
       }} /></div>
@@ -185,7 +194,7 @@ export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, fil
           {items.map((item) => {
             const meta = [item.sourceDevice, item.sourceApp, item.createdAtMs ? formatRelative(item.createdAtMs, i18n.language) : undefined].filter(Boolean);
             const checked = selection.ids.includes(item.itemId);
-            return <li key={item.itemId} role="option" aria-selected={checked} tabIndex={selected?.itemId === item.itemId ? 0 : -1} ref={(node) => { if (node) rowRefs.current.set(item.itemId, node); else rowRefs.current.delete(item.itemId); }} className={`row${checked ? " row-selected" : ""}`} onMouseDown={(event) => { if (event.ctrlKey || event.metaKey || event.shiftKey) event.preventDefault(); }} onClick={(event) => { choose(item.itemId, event.ctrlKey || event.metaKey, event.shiftKey); event.currentTarget.focus(); }} onDoubleClick={() => void act(api.copy(item.itemId))}>
+            return <li key={item.itemId} role="option" aria-selected={checked} tabIndex={selected?.itemId === item.itemId ? 0 : -1} ref={(node) => { if (node) rowRefs.current.set(item.itemId, node); else rowRefs.current.delete(item.itemId); }} className={`row${checked ? " row-selected" : ""}`} onMouseDown={(event) => { if (event.ctrlKey || event.metaKey || event.shiftKey) event.preventDefault(); }} onClick={(event) => { choose(item.itemId, event.ctrlKey || event.metaKey, event.shiftKey); event.currentTarget.focus(); }} onDoubleClick={() => { if (item.kind === "file") void api.openItem(item.itemId); else void act(api.copy(item.itemId)); }}>
               <span className="row-check" aria-hidden="true">{checked && <Icon name="check" size={14} />}</span>
               {item.kind === "image" ? <ImageThumb itemId={item.itemId} /> : <span className="row-icon"><Icon name={kindIcon(item)} /></span>}
               <span className="row-body"><span className="row-title">{itemTitle(item, t)}</span>{(meta.length > 0 || item.note) && <span className="row-meta">{meta.join(" · ")}{item.note && <em>{meta.length > 0 ? " · " : ""}{item.note}</em>}</span>}</span>
@@ -194,7 +203,7 @@ export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, fil
                 {item.pinned && <Icon name="pin" size={15} filled />}{item.favorite && <span role="img" aria-label={t("item.favorite")}><Icon name="star" size={15} filled /></span>}
                 {item.syncState === "pending" && <Badge tone="warn">{t("sync.pending")}</Badge>}{item.syncState === "local" && <Badge>{t("sync.localOnly")}</Badge>}{item.syncState === "synced" && <Badge tone="ok">{t("sync.synced")}</Badge>}
               </span>
-              <button type="button" className="row-copy" title={t("item.copy")} aria-label={t("item.copy")} onClick={(event) => { event.stopPropagation(); void act(api.copy(item.itemId)); }}><Icon name="copy" size={16} /></button>
+              {item.kind !== "file" && <button type="button" className="row-copy" title={t("item.copy")} aria-label={t("item.copy")} onClick={(event) => { event.stopPropagation(); void act(api.copy(item.itemId)); }}><Icon name="copy" size={16} /></button>}
             </li>;
           })}
         </ul>}
@@ -203,10 +212,10 @@ export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, fil
     <aside className="detail" aria-label={t("detail.title")}>
       <div className="detail-head"><h2>{t("detail.title")}</h2>{selected?.syncState === "synced" && <Badge tone="ok">{t("sync.synced")}</Badge>}{selected?.syncState === "pending" && <Badge tone="warn">{t("sync.pending")}</Badge>}{selected?.syncState === "local" && <Badge>{t("sync.localOnly")}</Badge>}</div>
       {selected ? <>
-        {selected.kind === "image" ? <ImageDetail item={selected} act={act} /> : <TextDetail item={selected} height={previewHeight} onHeight={onPreviewHeight} act={act} />}
+        {selected.kind === "file" ? <FileDetail itemId={selected.itemId} /> : selected.kind === "image" ? <ImageDetail item={selected} act={act} /> : <TextDetail item={selected} height={previewHeight} onHeight={onPreviewHeight} act={act} />}
         {(selected.sourceDevice || selected.sourceApp || selected.createdAtMs) && <p className="muted small">{t("detail.from", { source: [selected.sourceDevice, selected.sourceApp, selected.createdAtMs ? formatRelative(selected.createdAtMs, i18n.language) : undefined].filter(Boolean).join(" \u00b7 ") })}</p>}
         <div className="detail-actions">
-          {selected.kind !== "image" && <Button variant="primary" className="grow" onClick={() => void act(api.copy(selected.itemId))}>{t("item.copy")}</Button>}
+          {selected.kind !== "image" && selected.kind !== "file" && <Button variant="primary" className="grow" onClick={() => void act(api.copy(selected.itemId))}>{t("item.copy")}</Button>}
           <Button aria-pressed={selected.favorite} onClick={() => void act(api.setFlags(selected.itemId, { favorite: !selected.favorite }))}><Icon name="star" size={15} filled={selected.favorite} />{selected.favorite ? t("item.unfavorite") : t("item.favorite")}</Button>
           <Button aria-pressed={selected.pinned} onClick={() => void act(api.setFlags(selected.itemId, { pinned: !selected.pinned }))}><Icon name="pin" size={15} filled={selected.pinned} />{selected.pinned ? t("item.unpin") : t("item.pin")}</Button>
         </div>

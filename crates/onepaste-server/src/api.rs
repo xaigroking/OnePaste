@@ -1,5 +1,8 @@
 //! HTTP layer: routing, the middleware shared by every request, and the handlers.
 
+#[path = "attachments_api.rs"]
+mod attachments;
+
 use crate::config::Config;
 use crate::error::{ApiError, ErrParts};
 use crate::ratelimit::{Kind, Limiter};
@@ -51,6 +54,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/v1/devices", get(list_devices))
         .route("/v1/devices/{id}", delete(revoke_device))
         .route("/v1/vault/keyparams", get(get_keyparams).put(put_keyparams))
+        .route("/v1/capabilities", get(attachments::capabilities))
+        .route("/v1/blobs/{id}", get(attachments::manifest))
+        .route("/v1/blobs/{id}/{index}", put(attachments::put_chunk).get(attachments::get_chunk).layer(DefaultBodyLimit::max(onepaste_core::attachment::MAX_SEALED_CHUNK)))
         .route("/v1/items/{id}", put(put_item))
         .route("/v1/items", get(list_items))
         .route("/v1/events", get(events))
@@ -66,6 +72,7 @@ async fn common(State(s): St, ConnectInfo(addr): ConnectInfo<SocketAddr>, req: R
     let rid = request_id();
     let method = req.method().clone();
     let path = req.uri().path().to_string();
+    let body_limit = if method == axum::http::Method::PUT && path.starts_with("/v1/blobs/") { onepaste_core::attachment::MAX_SEALED_CHUNK } else { MAX_BODY_BYTES };
     let proto_ok = req.headers().get("onepaste-proto").and_then(|v| v.to_str().ok()) == Some(PROTO);
     // Only metadata is ever logged: never headers, query strings or bodies
     tracing::trace!(method = %method, path = %path, request_id = %rid, "request received");
@@ -74,7 +81,7 @@ async fn common(State(s): St, ConnectInfo(addr): ConnectInfo<SocketAddr>, req: R
         ApiError::new(StatusCode::BAD_REQUEST, "unsupported_version").with("min", json!(1)).with("max", json!(1)).into_response()
     } else if let Err(wait) = s.limiter.check(Kind::AuthFail, addr.ip()) {
         ApiError::rate_limited(wait).into_response()
-    } else if req.body().size_hint().lower() > MAX_BODY_BYTES as u64 {
+    } else if req.body().size_hint().lower() > body_limit as u64 {
         // Let ordinary oversized uploads finish so closing TLS cannot replace 413 with a body-write error.
         // Discard without buffering, with both a byte budget and a deadline for untrusted peers.
         let mut body = req.into_body();
@@ -84,7 +91,7 @@ async fn common(State(s): St, ConnectInfo(addr): ConnectInfo<SocketAddr>, req: R
                 let Ok(frame) = frame else { break; };
                 if let Some(data) = frame.data_ref() {
                     received = received.saturating_add(data.len());
-                    if received > MAX_BODY_BYTES * 2 { break; }
+                    if received > body_limit * 2 { break; }
                 }
             }
         }).await;

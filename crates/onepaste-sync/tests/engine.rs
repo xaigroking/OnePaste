@@ -469,3 +469,22 @@ fn edited_tags_normalize_whitespace_and_duplicates_without_touching_other_fields
     assert_eq!(back.tags,vec!["Work","Project Alpha"]);
     assert_eq!(back.content,p.content); assert!(back.favorite); assert_eq!(back.note,p.note); assert_eq!(back.extra,p.extra);
 }
+
+fn file_payload() -> ItemPayload {
+    onepaste_core::attachment::Attachment { v:1,blob_id:"file-blob".into(),file_name:"file.txt".into(),mime:"text/plain".into(),size:0,sha256:onepaste_core::attachment::digest(&[]),chunk_bytes:onepaste_core::attachment::CHUNK_BYTES as u32,chunks:1 }.payload().unwrap()
+}
+#[test]
+fn deleting_during_attachment_preparation_does_not_dispatch_an_abandoned_create() {
+    let key=Key::random().unwrap();let mut e=engine(&key);e.enqueue_attachment(T0,"file-id",&file_payload()).unwrap();
+    assert!(matches!(e.next_action(T0).unwrap(),Action::Send(_)));e.begin_attachment_preparation().unwrap();
+    e.enqueue_delete(T0,"file-id").unwrap();assert!(!e.finish_attachment_preparation().unwrap());assert!(e.outbox().unwrap().is_empty());assert!(e.attachment_references().unwrap().is_empty());
+}
+#[test]
+fn failed_attachment_preconditions_preserve_retry_bytes_and_do_not_block_regular_text() {
+    let key=Key::random().unwrap();let mut e=engine(&key);e.enqueue_attachment(T0,"file-id",&file_payload()).unwrap();
+    let original=e.outbox().unwrap()[0].clone();let text=e.enqueue_create(T0,&text("ordinary sync continues")).unwrap();
+    assert!(matches!(e.next_action(T0).unwrap(),Action::Send(_)));e.begin_attachment_preparation().unwrap();e.fail_attachment_push("attachment_unsupported").unwrap();
+    let Action::Send(request)=e.next_action(T0).unwrap() else {panic!("text must continue");};assert!(request.path_and_query.ends_with(&text));
+    e.on_response(T0,resp(200,json!({"seq":1}))).unwrap();assert_eq!(e.retry_attachment("file-id").unwrap(),1);
+    let retried=e.outbox().unwrap()[0].clone();assert_eq!(retried.idem_key,original.idem_key);assert_eq!(retried.sealed_intent,original.sealed_intent);
+}

@@ -85,6 +85,7 @@ export function QuickPanel() {
       if (!it || acting.current) return;
       acting.current = true;
       try {
+        if (it.kind === "file") { await api.openItem(it.itemId); await api.hideQuickPanel(); return; }
         if (paste) {
           const result = await api.quickPaste(it.itemId);
           if (result === "copied_no_permission") setPasteAllowed(false);

@@ -485,3 +485,36 @@ pub async fn app_set_tags(core: State<'_, App>, item_id: String, tags: Vec<Strin
 pub async fn app_tag_options(core: State<'_, App>, query: String) -> Result<Vec<onepaste_app::TagOption>, String> {
     core.tag_options(&query).await.map_err(|e| e.code())
 }
+
+#[tauri::command]
+pub async fn app_import_file(core: State<'_, App>) -> Result<Option<String>, String> {
+    let epoch=core.session_epoch();
+    let chosen=rfd::AsyncFileDialog::new().pick_file().await;
+    let Some(file)=chosen else{return Ok(None);};
+    core.import_file_at(file.path(),epoch).await.map(Some).map_err(|error|error.code())
+}
+#[tauri::command]
+pub async fn app_attachment_info(core: State<'_, App>, item_id:String) -> Result<onepaste_app::AttachmentInfo,String> {
+    core.attachment_info(&item_id).await.map_err(|error|error.code())
+}
+#[tauri::command]
+pub async fn app_prepare_attachment(core: State<'_, App>,item_id:String)->Result<(),String>{core.prepare_attachment(&item_id).await.map_err(|error|error.code())}
+#[tauri::command]
+pub async fn app_retry_attachment(core: State<'_, App>,item_id:String)->Result<(),String>{core.retry_attachment(&item_id).await.map_err(|error|error.code())}
+#[tauri::command]
+pub fn app_cancel_attachment(core: State<'_, App>,item_id:String){core.cancel_attachment(&item_id);}
+#[tauri::command]
+pub async fn app_save_attachment(core: State<'_, App>,item_id:String)->Result<bool,String>{
+    let epoch=core.session_epoch();let info=core.attachment_info(&item_id).await.map_err(|error|error.code())?;
+    let name=info.file_name.chars().map(|character|if "<>:\"|?*".contains(character){'_'}else{character}).collect::<String>();
+    let chosen=rfd::AsyncFileDialog::new().set_file_name(&name).save_file().await;
+    let Some(file)=chosen else{return Ok(false);};
+    core.save_attachment_at(&item_id,file.path(),epoch).await.map_err(|error|error.code())?;Ok(true)
+}
+#[tauri::command]
+pub async fn app_open_item(app:AppHandle,core:State<'_,App>,item_id:String)->Result<(),String>{
+    use tauri::Emitter;
+    core.attachment_info(&item_id).await.map_err(|error|error.code())?;
+    crate::quick::hide(&app);tray::show_main_window(&app);
+    app.emit_to("main","onepaste://open-item",item_id).map_err(|_|"open_failed".into())
+}

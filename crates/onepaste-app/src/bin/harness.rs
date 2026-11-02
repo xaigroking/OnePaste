@@ -5,7 +5,7 @@
 //! Commands: prepare <local-passphrase> | unlock <local-passphrase> | access | probe <code> | create <code> <passphrase> <name> (prints the kit) | confirm | cancel | join-kit <code> <kit> <name> |
 //! local | show-kit | wipe | mode | join <code> <passphrase> <name> | copy <text> | copy-image | copy-sensitive <text> | sync |
 //! list | search <query> | click <n> | clipboard | status | flag <n> favorite|pinned true|false | note <n> <text> |
-//! rm <n> | quit
+//! rm <n> | import <path> | file-info <id> | export <id> <path> | retry-file <id> | quit
 
 use onepaste_app::*;
 use std::io::{BufRead, Write};
@@ -99,6 +99,10 @@ async fn main() {
                 tokio::time::sleep(Duration::from_millis(400)).await;
                 "ok\n".to_string()
             }
+            "import" => app.import_file(std::path::Path::new(rest)).await.map(|id|format!("id {id}\n")).unwrap_or_else(err),
+            "file-info" => app.attachment_info(rest).await.map(|info|format!("{}\n",serde_json::to_string(&info).unwrap())).unwrap_or_else(err),
+            "export" => { let (id,path)=rest.split_once(' ').unwrap_or((rest,"")); app.save_attachment_at(id,std::path::Path::new(path),app.session_epoch()).await.map(|_|"ok\n".into()).unwrap_or_else(err) },
+            "retry-file" => app.retry_attachment(rest).await.map(|_|"ok\n".into()).unwrap_or_else(err),
             "sync" => match app.sync_now().await {
                 Ok(()) => {
                     // The own-write report of the clipboard monitor arrives on another task

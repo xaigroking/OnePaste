@@ -4,6 +4,7 @@
 //! it only handles keys, encryption and item envelopes, so the same code compiles for desktop and WASM.
 mod base32;
 pub mod classification;
+pub mod attachment;
 pub mod crypto;
 pub mod envelope;
 pub mod error;

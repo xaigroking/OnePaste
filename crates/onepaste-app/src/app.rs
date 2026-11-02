@@ -3,6 +3,9 @@
 mod session_lock;
 #[path = "restart.rs"]
 mod restart;
+#[path = "attachments.rs"]
+mod attachments;
+pub use attachments::{AttachmentInfo, TransferProgress};
 #[path = "items.rs"]
 mod items;
 #[path = "tags.rs"]
@@ -223,6 +226,9 @@ pub(crate) struct Inner {
     /// A new vault whose recovery kit is on screen. Nothing of it is on the server or on disk until it is confirmed.
     pending: StdMutex<Option<NewVault>>,
     history: StdMutex<Option<HistoryStore>>,
+    attachment_transfers: StdMutex<std::collections::HashMap<String, attachments::TransferEntry>>,
+    attachment_sequence: std::sync::atomic::AtomicU64,
+    attachment_io: Mutex<()>,
     deletions: StdMutex<crate::deletions::Queue>,
     shared: StdMutex<Shared>,
     wake: Notify,
@@ -296,6 +302,9 @@ impl App {
             local: Mutex::new(None),
             pending: StdMutex::new(None),
             history: StdMutex::new(None),
+            attachment_transfers: StdMutex::new(Default::default()),
+            attachment_sequence: std::sync::atomic::AtomicU64::new(0),
+            attachment_io: Mutex::new(()),
             deletions: StdMutex::new(crate::deletions::Queue::default()),
             shared: StdMutex::new(Shared {
                 capture: CaptureHealth::default(),
@@ -436,6 +445,7 @@ impl App {
     }
 
     fn remove_local_files(&self) {
+        let _ = std::fs::remove_dir_all(self.0.dir.join(attachments::DIRECTORY));
         for name in [DB_FILE, "history.db", crate::settings::FILE_NAME, STATE_FILE_NAME] {
             for suffix in ["", "-wal", "-shm", "-journal", ".tmp"] {
                 let _ = std::fs::remove_file(self.0.dir.join(format!("{name}{suffix}")));
@@ -458,10 +468,17 @@ impl App {
 
     /// Reconnects an existing synced setup without discarding its history.
     pub async fn change_server(&self, code: &str, passphrase: Option<&str>, kit: Option<&str>) -> Result<(), AppError> {
+        let epoch=self.cache_attachments_for_server_change().await?;
+        self.cancel_attachment_transfers();
         let _connection = self.session_write_access().await?;
         if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
+        if epoch!=self.session_epoch(){return Err(AppError::Locked);}
         let mut session = self.0.session.lock().await;
         let current = session.as_mut().ok_or(AppError::NotJoined)?;
+        for item in current.engine.list_items().map_err(AppError::from)?.into_iter().filter(|item|!item.deleted && item.kind=="file") {
+            let descriptor=current.engine.attachment(&item.id).map_err(|_|AppError::Attachment("attachment_metadata"))?;
+            if !self.attachment_cached(&descriptor){return Err(AppError::Attachment("attachment_unavailable"));}
+        }
         if let Err(error) = current.change_server(code, passphrase, kit).await {
             let error = crate::server_change::safe_error(error);
             self.log("server_change_failed", Some(error.code()));
@@ -614,8 +631,10 @@ impl App {
     /// Deletes everything this program keeps on this computer: both databases, the two small files and the key in the
     /// application key storage. The server is not touched. Afterwards the program is as on the first run.
     pub async fn wipe_local_data(&self) -> Result<(), AppError> {
+        self.cancel_attachment_transfers();
         let _connection = self.0.connection.write().await;
         if matches!(self.key_state()?, crate::KeyState::Locked | crate::KeyState::Recovery) { return Err(AppError::Locked); }
+        self.close_session().await;
         self.shutdown();
         *self.0.session.lock().await = None;
         *self.0.local.lock().await = None;
@@ -635,6 +654,7 @@ impl App {
             g.tray = TrayState::Synced;
             g.initial_sync_done = false;
         }
+        self.0.locked.store(false,std::sync::atomic::Ordering::Release);
         self.log("local_data_wiped", None);
         self.notify_status();
         Ok(())
@@ -874,6 +894,24 @@ impl App {
                     break;
                 }
                 Ok(Action::Send(req)) => {
+                    let attachment = if req.method == onepaste_sync::Method::Put && req.path_and_query.starts_with("/v1/items/") {
+                        serde_json::from_slice::<serde_json::Value>(&req.body).ok().filter(|body| body["base_seq"].as_i64()==Some(0) && body["envelope"]["blob_id"].is_string()).and_then(|body|body["envelope"]["id"].as_str().map(str::to_owned))
+                    } else { None };
+                    if let Some(id) = attachment {
+                        if self.with_engine(|engine|engine.begin_attachment_preparation()).await.ok().and_then(Result::ok).is_none() { return RoundEnd::Offline; }
+                        let prepared = self.upload_attachment(&id).await;
+                        if self.require_access().is_err() { return RoundEnd::Idle; }
+                        let mut session=self.0.session.lock().await;
+                        let Some(session)=session.as_mut() else {return RoundEnd::Idle;};
+                        match prepared {
+                            Ok(()) => if !session.engine.finish_attachment_preparation().unwrap_or(false) {continue;},
+                            Err(error) => {
+                                let code = match error { AppError::Attachment(code)=>code,_=>"attachment_transfer_failed" };
+                                if let Ok(events)=session.engine.fail_attachment_push(code) { for event in events {self.note_event(&event);} }
+                                continue;
+                            }
+                        }
+                    }
                     let answer = transport.send(&req).await;
                     if self.expired() { return RoundEnd::Idle; }
                     let mut g = self.0.session.lock().await;
@@ -1070,7 +1108,7 @@ impl App {
             })
             .await;
         match r {
-            Ok(r) => Ok(r?),
+            Ok(r) => { r?; self.prune_attachment_cache().await; Ok(()) },
             Err(AppError::NotJoined) => Ok(()),
             Err(e) => Err(e),
         }
@@ -1100,6 +1138,7 @@ impl App {
 
     pub async fn delete(&self, item_id: &str) -> Result<(), AppError> {
         let _connection = self.session_access().await?;
+        self.cancel_attachment(item_id);
         self.with_engine(|e| e.enqueue_delete(now_ms(), item_id)).await?.map_err(AppError::from)?;
         self.0.wake.notify_one();
         Ok(())
@@ -1163,6 +1202,7 @@ impl App {
         let Ok(_connection) = self.session_access().await else { return; };
         let ids = { lock(&self.0.deletions).mark_committing(token, self.0.cfg.deletion_clock.now()) };
         let Some(ids) = ids else { return; };
+        for id in &ids {self.cancel_attachment(id);}
         let result = self.with_engine(|engine| -> Result<(), AppError> {
             let queue = lock(&self.0.deletions);
             if !queue.is_committing(token) { return Ok(()); }
@@ -1336,6 +1376,7 @@ impl App {
 
     /// Stops the background work.
     pub fn shutdown(&self) {
+        self.cancel_attachment_transfers();
         self.0.secrets.clear_session();
         if let Some(timer) = lock(&self.0.lock_timer).take() { timer.abort(); }
         if let Some(task) = lock(&self.0.update_task).take() { task.abort(); }

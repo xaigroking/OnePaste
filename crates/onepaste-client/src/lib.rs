@@ -2,6 +2,7 @@
 //! SQLite storage, the change-notification listener and the retry timers.
 
 mod conn;
+mod attachments;
 mod crash;
 mod error;
 mod harden;
