@@ -209,8 +209,14 @@ mod key_access_tests {
             core.prepare_local_passphrase("external copy independent passphrase").unwrap();
             core.choose_local_only().await.unwrap();
             assert_eq!(core.status().await.capture.state,onepaste_app::CaptureState::Listening);
-            let status=std::process::Command::new("powershell.exe").args(["-NoProfile","-NonInteractive","-STA","-Command","Set-Clipboard -Value 'OnePaste external ordinary copy fixture'"]).status().unwrap();
-            assert!(status.success());
+            // Use the Windows command-line copier as an independent process. It writes actual clipboard
+            // data without sharing this application's clipboard implementation or origin marker.
+            use std::io::Write;
+            let mut copier=std::process::Command::new("clip.exe").stdin(std::process::Stdio::piped()).spawn().unwrap();
+            let mut input=copier.stdin.take().unwrap();
+            input.write_all(b"OnePaste external ordinary copy fixture").unwrap();
+            drop(input);
+            assert!(copier.wait().unwrap().success());
             wait_for_history(&core,"external ordinary copy").await;
             let rows=core.search("external ordinary copy",Filter::All,10,0).await.unwrap();
             core.copy(&rows[0].item_id).await.unwrap();
