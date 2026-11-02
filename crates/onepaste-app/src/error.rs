@@ -49,6 +49,8 @@ pub enum AppError {
     InvalidFilter,
     #[error("the text classification is not valid")]
     InvalidClassification,
+    #[error("the tag collection is not valid")]
+    InvalidTags,
     #[error("the image is too large to sync")]
     ImageTooLarge,
     #[error("the item exceeds the configured size limit")]
@@ -89,6 +91,7 @@ impl AppError {
             AppError::NotText => "not_text".into(),
             AppError::InvalidFilter => "invalid_filter".into(),
             AppError::InvalidClassification => "invalid_classification".into(),
+            AppError::InvalidTags => "invalid_tags".into(),
             AppError::ImageTooLarge => "image_too_large".into(),
             AppError::ItemTooLarge => "item_too_large".into(),
             AppError::Clipboard(c) => format!("clipboard_{c}"),

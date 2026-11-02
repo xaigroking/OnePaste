@@ -319,8 +319,8 @@ pub async fn app_status(core: State<'_, App>) -> Result<Status, String> {
 }
 
 #[tauri::command]
-pub async fn app_search(core: State<'_, App>, query: String, filter: String, limit: usize, offset: usize) -> Result<Vec<ItemView>, String> {
-    core.search(&query, parse_filter(&filter).map_err(|e| e.code())?, limit, offset).await.map_err(|e| e.code())
+pub async fn app_search(core: State<'_, App>, query: String, filter: String, limit: usize, offset: usize, tag: Option<String>) -> Result<Vec<ItemView>, String> {
+    core.search_with_tag(&query, parse_filter(&filter).map_err(|e| e.code())?, tag.as_deref(), limit, offset).await.map_err(|e| e.code())
 }
 
 /// Puts an item back on the clipboard. The write carries the origin marker, so no new item appears.
@@ -475,4 +475,13 @@ pub async fn app_retry_clipboard_monitor(core: State<'_, App>) -> Result<(), Str
 #[tauri::command]
 pub async fn app_set_text_classification(core: State<'_, App>, item_id: String, kind: String, language: Option<String>) -> Result<(), String> {
     core.set_text_classification(&item_id, &kind, language.as_deref()).await.map_err(|e| e.code())
+}
+
+#[tauri::command]
+pub async fn app_set_tags(core: State<'_, App>, item_id: String, tags: Vec<String>) -> Result<Vec<String>, String> {
+    core.set_tags(&item_id, &tags).await.map_err(|e| e.code())
+}
+#[tauri::command]
+pub async fn app_tag_options(core: State<'_, App>, query: String) -> Result<Vec<onepaste_app::TagOption>, String> {
+    core.tag_options(&query).await.map_err(|e| e.code())
 }

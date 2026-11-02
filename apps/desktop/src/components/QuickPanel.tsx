@@ -5,6 +5,7 @@ import type { Filter, ItemView, HotkeyInfo } from "../api";
 import { formatRelative, formatSize } from "../format";
 import { kindIcon } from "./HistoryView";
 import { Icon } from "./Icon";
+import { TagFilter } from "./Tags";
 import { Badge, Button, Chip } from "./ui";
 import { formatHotkey } from "../hotkeys";
 
@@ -16,6 +17,7 @@ export const PANEL_FILTERS: PanelFilter[] = ["all", "text", "links", "images", "
 export function QuickPanel() {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
+  const [tag, setTag] = useState<string | null>(null);
   const [filter, setFilter] = useState<PanelFilter>("all");
   const [items, setItems] = useState<ItemView[]>([]);
   const [selected, setSelected] = useState(0);
@@ -37,7 +39,7 @@ export function QuickPanel() {
     const mine = ++seq.current;
     setState("loading");
     try {
-      const found = await api.search(query, filter as Filter, 50, 0);
+      const found = await api.search(query, filter as Filter, 50, 0, tag);
       if (mine !== seq.current) return;
       setItems(found);
       setSelected(0);
@@ -47,7 +49,7 @@ export function QuickPanel() {
       setError(String(e));
       setState("error");
     }
-  }, [query, filter]);
+  }, [query, filter, tag]);
 
   useEffect(() => {
     void load();
@@ -66,6 +68,7 @@ export function QuickPanel() {
     let unlisten: (() => void) | undefined;
     void onQuickOpened(() => {
       refreshHotkey(); refreshPermission();
+      setTag(null);
       setQuery("");
       setFilter("all");
       inputRef.current?.focus();
@@ -95,6 +98,7 @@ export function QuickPanel() {
 
   useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest(".tag-filter") && e.key !== "Escape") return;
       if (e.key === "F6" && noticeRef.current) {
         e.preventDefault();
         if (noticeRef.current.contains(document.activeElement)) inputRef.current?.focus();
@@ -160,6 +164,7 @@ export function QuickPanel() {
           </Chip>
         ))}
       </div>
+      <TagFilter value={tag} onChange={setTag} />
       {state === "error" ? (
         <p className="notice notice-danger qp-message" role="alert">
           {t("qp.error", { code: error })}

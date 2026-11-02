@@ -18,7 +18,7 @@ pub use app::{App, AppConfig, ImageData, UpdateSetup, DeviceList, DeviceView, It
 pub use app::{CaptureHealth, CaptureState};
 pub use error::AppError;
 pub use deletions::{DeletionClock, DeletionStatus, PendingDeletion, DELETE_GRACE};
-pub use onepaste_history::Filter;
+pub use onepaste_history::{Filter, TagOption};
 pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemoryKeyStore, MonitorGuard, KeyStore};
 pub use settings::{hotkeys, Settings};
 pub use update::{Channel, UpdateInfo};

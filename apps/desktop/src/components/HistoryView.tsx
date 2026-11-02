@@ -11,6 +11,7 @@ import { retainSelection, selectRow } from "../selection";
 import type { Selection } from "../selection";
 import { ImageDetail } from "./ImageDetail";
 import { ImageThumb } from "./ImageThumb";
+import { TagsEditor, TagFilter } from "./Tags";
 import { TextClassification } from "./TextClassification";
 import { TextDetail } from "./TextDetail";
 
@@ -31,6 +32,8 @@ function itemTitle(it: ItemView, t: (k: string, o?: Record<string, unknown>) => 
 
 interface Props {
   localOnly?: boolean;
+  tag?: string | null;
+  onTag?: (value: string | null) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
   items: ItemView[];
@@ -46,7 +49,7 @@ interface Props {
   onPreviewHeight: (px: number) => void;
 }
 
-export function HistoryView({ hasMore, onLoadMore, items, query, filter, onQuery, onFilter, act, loadState, loadError, previewHeight, onPreviewHeight, localOnly = false }: Props) {
+export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, filter, onQuery, onFilter, act, loadState, loadError, previewHeight, onPreviewHeight, localOnly = false }: Props) {
   const { t, i18n } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>({ ids: [], anchor: null });
@@ -159,6 +162,7 @@ export function HistoryView({ hasMore, onLoadMore, items, query, filter, onQuery
       <div className="chips" role="group" aria-label={t("search.filterLabel")}>
         {FILTERS.map((value) => <Chip key={value} active={filter === value} onClick={() => onFilter(value)}>{value === "favorites" && <Icon name="star" size={13} />}{t(`search.filter.${value}`)}</Chip>)}
       </div>
+      {onTag && <TagFilter value={tag ?? null} onChange={onTag} />}
       <p className="muted small history-selection-hint" id="history-selection-hint">{t(navigator.userAgent.includes("Mac") ? "batch.hintMac" : "batch.hint")}</p>
       {multiple && <div className="batch-toolbar" role="toolbar" aria-label={t("batch.actions")}>
         <strong>{t("batch.selected", { count: selection.ids.length })}</strong>
@@ -207,6 +211,7 @@ export function HistoryView({ hasMore, onLoadMore, items, query, filter, onQuery
           <Button aria-pressed={selected.pinned} onClick={() => void act(api.setFlags(selected.itemId, { pinned: !selected.pinned }))}><Icon name="pin" size={15} filled={selected.pinned} />{selected.pinned ? t("item.unpin") : t("item.pin")}</Button>
         </div>
         <label className="field"><span>{t("detail.note")}</span><input key={selected.itemId} defaultValue={selected.note} placeholder={t("detail.notePlaceholder")} onBlur={(event) => { if (event.target.value !== selected.note) void act(api.setFlags(selected.itemId, { note: event.target.value })); }} /></label>
+        <TagsEditor key={selected.itemId} item={selected} act={act} />
         {["text", "link", "code"].includes(selected.kind) && <TextClassification key={`${selected.itemId}:${selected.kind}:${selected.language}`} item={selected} act={act} />}
         <div className="detail-spacer" />
         <Button variant="ghost" className="wide delete" disabled={pendingIds.has(selected.itemId)} onClick={(event) => askDelete([selected.itemId], event.currentTarget)}><Icon name="trash" size={15} />{t(localOnly ? "batch.singleDeleteLocal" : "detail.delete")}</Button>

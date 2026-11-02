@@ -456,3 +456,16 @@ fn private_type_corrections_survive_two_device_sync_and_unrelated_old_client_edi
     assert!(public.get("text_classification").is_none() && public.get("language").is_none() && public.get("kind").is_none());
     assert!(!public.to_string().contains("private-type"));
 }
+
+#[test]
+fn edited_tags_normalize_whitespace_and_duplicates_without_touching_other_fields() {
+    let mk = Key::random().unwrap(); let mut a = engine(&mk); let mut now = T0; let mut server = Fake::default();
+    let mut p = text("tag-private-probe"); p.favorite=true; p.note=Some("kept note".into());
+    p.extra.insert("future_private_field".into(),json!({"kept":true}));
+    let id = a.enqueue_create(now, &p).unwrap();
+    a.enqueue_edit(now, &id, Edit::Tags(vec!["  Work  ".into(),"work".into(),"  Project\t  Alpha  ".into(),"".into()])).unwrap();
+    pump(&mut a,&mut server,&mut now);
+    let back=payload_of(&mut a,&id);
+    assert_eq!(back.tags,vec!["Work","Project Alpha"]);
+    assert_eq!(back.content,p.content); assert!(back.favorite); assert_eq!(back.note,p.note); assert_eq!(back.extra,p.extra);
+}

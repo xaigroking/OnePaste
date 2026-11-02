@@ -12,5 +12,6 @@ pub mod keys;
 pub mod passphrase;
 pub mod pin;
 pub mod recovery;
+pub mod tags;
 
 pub use error::Error;

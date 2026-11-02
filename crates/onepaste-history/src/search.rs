@@ -24,6 +24,7 @@ pub struct Hit {
     pub favorite: bool,
     pub pinned: bool,
     pub note: String,
+    pub tags: Vec<String>,
     pub language: Option<String>,
     /// The type and size in bytes of an image (empty and 0 for text).
     pub mime: String,
@@ -44,6 +45,10 @@ impl HistoryStore {
     /// words are often two characters) falls back to a plain substring match. The query is always plain text: quotes,
     /// `*`, `-`, `:` and parentheses mean nothing special. ASCII case is ignored.
     pub fn search(&self, query: &str, filter: Filter, limit: usize, offset: usize) -> Result<Vec<Hit>, HistoryError> {
+        self.search_with_tag(query, filter, None, limit, offset)
+    }
+
+    pub fn search_with_tag(&self, query: &str, filter: Filter, tag: Option<&str>, limit: usize, offset: usize) -> Result<Vec<Hit>, HistoryError> {
         let mut conds: Vec<String> = Vec::new();
         let mut args: Vec<Value> = Vec::new();
         match filter {
@@ -55,6 +60,11 @@ impl HistoryStore {
             Filter::Files => conds.push("kind = 'file'".into()),
             Filter::Images => conds.push("kind = 'image'".into()),
         }
+        if let Some(tag) = tag.filter(|s| !s.trim().is_empty()) {
+            let key = onepaste_core::tags::key(tag).map_err(|_| HistoryError::InvalidTag)?;
+            args.push(Value::Text(key));
+            conds.push(format!("item_id IN (SELECT item_id FROM history_tags WHERE tag_key = ?{})", args.len()));
+        }
         let terms: Vec<&str> = query.split_whitespace().collect();
         for term in &terms {
             if term.chars().count() >= MIN_INDEXED_CHARS {
@@ -64,8 +74,10 @@ impl HistoryStore {
             } else {
                 args.push(Value::Text((*term).to_string()));
                 let n = args.len();
+                args.push(Value::Text(term.to_lowercase()));
+                let tag_arg = args.len();
                 conds.push(format!(
-                    "(instr(lower(text), lower(?{n})) > 0 OR instr(lower(note), lower(?{n})) > 0 OR instr(lower(tags), lower(?{n})) > 0)"
+                    "(instr(lower(text), lower(?{n})) > 0 OR instr(lower(note), lower(?{n})) > 0 OR instr(lower(tags), lower(?{n})) > 0 OR item_id IN (SELECT item_id FROM history_tags WHERE instr(tag_key,?{tag_arg})>0))"
                 ));
             }
         }
@@ -73,7 +85,7 @@ impl HistoryStore {
         args.push(Value::Integer(limit as i64));
         args.push(Value::Integer(offset as i64));
         let sql = format!(
-            "SELECT item_id, kind, text, favorite, pinned, note, mime, size, language FROM history {where_clause}
+            "SELECT item_id, kind, text, favorite, pinned, note, mime, size, language, tags_json FROM history {where_clause}
              ORDER BY pinned DESC, created_at DESC, item_id LIMIT ?{} OFFSET ?{}",
             args.len() - 1,
             args.len()
@@ -81,11 +93,11 @@ impl HistoryStore {
         let first = terms.first().map(|t| t.to_ascii_lowercase());
         let mut st = self.conn.prepare(&sql)?;
         let rows = st.query_map(params_from_iter(args.iter()), |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, i64>(4)? != 0, r.get::<_, String>(5)?, r.get::<_, String>(6)?, r.get::<_, i64>(7)?, r.get::<_, Option<String>>(8)?))
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, i64>(4)? != 0, r.get::<_, String>(5)?, r.get::<_, String>(6)?, r.get::<_, i64>(7)?, r.get::<_, Option<String>>(8)?, r.get::<_, String>(9)?))
         })?;
         let mut hits = Vec::new();
         for row in rows {
-            let (item_id, kind, text, favorite, pinned, note, mime, size, language) = row?;
+            let (item_id, kind, text, favorite, pinned, note, mime, size, language, tags_json) = row?;
             let (match_start, match_len) = match &first {
                 Some(t) => match text.to_ascii_lowercase().find(t.as_str()) {
                     Some(byte) => (Some(text[..byte].chars().count()), t.chars().count()),
@@ -93,8 +105,24 @@ impl HistoryStore {
                 },
                 None => (None, 0),
             };
-            hits.push(Hit { item_id, kind, text: text.chars().take(PREFIX_CHARS).collect(), favorite, pinned, note, language, mime, size, match_start, match_len });
+            hits.push(Hit { item_id, kind, text: text.chars().take(PREFIX_CHARS).collect(), favorite, pinned, note, tags: serde_json::from_str(&tags_json).unwrap_or_default(), language, mime, size, match_start, match_len });
         }
         Ok(hits)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+pub struct TagOption {
+    pub label: String,
+    pub count: usize,
+}
+
+impl HistoryStore {
+    /// Suggestions are drawn from the complete encrypted index, independently of history pagination.
+    pub fn tag_options(&self, query: &str) -> Result<Vec<TagOption>, HistoryError> {
+        let key = onepaste_core::tags::key(query).map_err(|_| HistoryError::InvalidTag)?;
+        let mut statement = self.conn.prepare("SELECT min(label), count(*) FROM history_tags WHERE instr(tag_key,?1)>0 GROUP BY tag_key ORDER BY tag_key LIMIT 50")?;
+        let rows = statement.query_map([key], |row| Ok(TagOption { label: row.get(0)?, count: row.get::<_, i64>(1)? as usize }))?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 }

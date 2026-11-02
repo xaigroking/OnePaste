@@ -43,6 +43,8 @@ export interface AppStatus {
   deviceId: string;
 }
 
+export interface TagOption { label: string; count: number }
+
 export interface ItemView {
   itemId: string;
   kind: "text" | "link" | "code" | "image" | "file";
@@ -52,6 +54,7 @@ export interface ItemView {
   favorite: boolean;
   pinned: boolean;
   note: string;
+  tags?: string[];
   width: number;
   height: number;
   /** Size in bytes of an image. */
@@ -205,10 +208,12 @@ export const api = {
   /** Saves the picture where the user chooses; false if they cancelled the dialog. */
   saveImage: (itemId: string, fileName: string) => invoke<boolean>("app_save_image", { itemId, fileName }),
   status: () => invoke<AppStatus>("app_status"),
-  search: (query: string, filter: Filter, limit: number, offset: number) =>
-    invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
+  search: (query: string, filter: Filter, limit: number, offset: number, tag: string | null = null) =>
+    invoke<ItemView[]>("app_search", { query, filter, limit, offset, tag }),
   copy: (itemId: string) => invoke<void>("app_copy", { itemId }),
   setTextClassification: (itemId: string, kind: string, language: string | null) => invoke<void>("app_set_text_classification", { itemId, kind, language }),
+  tagOptions: (query: string) => invoke<TagOption[]>("app_tag_options", { query }),
+  setTags: (itemId: string, tags: string[]) => invoke<string[]>("app_set_tags", { itemId, tags }),
   setFlags: (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) =>
     invoke<void>("app_set_flags", { itemId, favorite: flags.favorite ?? null, pinned: flags.pinned ?? null, note: flags.note ?? null }),
   copyItems: (itemIds: string[]) => invoke<number>("app_copy_items", { itemIds }),

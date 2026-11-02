@@ -12,5 +12,5 @@ mod store;
 mod perf_tests;
 
 pub use refresh::{ItemSource, RefreshReport, SourceItems};
-pub use search::{Filter, Hit};
+pub use search::{Filter, Hit, TagOption};
 pub use store::{HistoryError, HistoryStore, FILE_NAME};

@@ -2706,6 +2706,7 @@ dependencies = [
  "onepaste-core",
  "onepaste-sync",
  "rusqlite",
+ "serde",
  "serde_json",
  "thiserror 1.0.69",
  "zeroize",

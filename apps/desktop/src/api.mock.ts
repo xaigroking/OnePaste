@@ -10,6 +10,7 @@ import type {
   DeletionStatus,
   PendingDeletion,
   Filter,
+  TagOption,
   HotkeyInfo,
   ImageData,
   ItemView,
@@ -52,6 +53,12 @@ const ITEMS: ItemView[] = [
   { itemId: "i5", kind: "image", preview: "", favorite: false, pinned: false, note: "", width: 1280, height: 720, size: 86016, sourceDevice: "Office Mac", sourceApp: "Screenshot", createdAtMs: NOW - 60 * MIN, syncState: "synced" },
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
+
+if (q.get("tagFixture") === "yes") {
+  ITEMS[0].tags = ["Work", "Project Alpha"];
+  ITEMS[1].tags = ["Work"];
+  ITEMS[2].tags = ["Engineering"];
+}
 
 if (q.get("manyCodes") === "yes") {
   for (let i = 0; i < 62; i++) ITEMS.push({ ...ITEMS[2], itemId: `code-page-${i}`, preview: `const page${i} = ${i};` });
@@ -185,7 +192,7 @@ export const api = {
   setLanguage: async (preference: LanguagePreference): Promise<LanguageState> => ({ preference, effective: LANG, systemLocale: LANG }),
   firstRunState: async (): Promise<Mode> => status().mode,
   status: async () => status(),
-  search: (query: string, filter: Filter, _limit: number, _offset: number): Promise<ItemView[]> => {
+  search: (query: string, filter: Filter, _limit: number, _offset: number, tag: string | null = null): Promise<ItemView[]> => {
     if (q.get("autoLockTest") && query === "late fixture") return new Promise((resolve) => { (window as any).__releaseLockSearch = () => resolve(ITEMS); });
     if (STATE === "loading") return never();
     if (STATE === "error") return Promise.reject("storage");
@@ -193,7 +200,7 @@ export const api = {
     const text = query.trim().toLowerCase();
     return Promise.resolve(
       ITEMS.filter((i) => (filter === "favorites" ? i.favorite : filter === "text" ? i.kind === "text" : filter === "images" ? i.kind === "image" : filter === "links" ? i.kind === "link" : filter === "code" ? i.kind === "code" : filter === "files" ? i.kind === "file" : filter === "all")).filter(
-        (i) => !text || i.preview.toLowerCase().includes(text),
+        (i) => (!text || [i.preview, i.note, ...(i.tags ?? [])].some((value) => value.toLowerCase().includes(text))) && (!tag || (i.tags ?? []).some((value) => value.toLowerCase() === tag.toLowerCase())),
       ).slice(_offset, _offset + _limit),
     );
   },
@@ -211,6 +218,27 @@ export const api = {
   },
   hideQuickPanel: async () => {
     (window as unknown as { __hidden: boolean }).__hidden = true;
+  },
+  tagOptions: async (query: string): Promise<TagOption[]> => {
+    if (q.get("tagsLoad") === "error") throw "storage";
+    const tags = new Map<string, TagOption>();
+    for (const item of ITEMS) for (const tag of item.tags ?? []) {
+      if (!tag.toLowerCase().includes(query.toLowerCase())) continue;
+      const current = tags.get(tag.toLowerCase());
+      tags.set(tag.toLowerCase(), { label: current?.label ?? tag, count: (current?.count ?? 0) + 1 });
+    }
+    return [...tags.values()].sort((a, b) => a.label.localeCompare(b.label)).slice(0, 50);
+  },
+  setTags: async (itemId: string, values: string[]): Promise<string[]> => {
+    if (q.get("tagsSave") === "error") throw "invalid_tags";
+    const tags: string[] = [];
+    for (const value of values) {
+      const label = value.trim().split(/\s+/u).join(" ");
+      if (label && !tags.some((tag) => tag.toLowerCase() === label.toLowerCase())) tags.push(label);
+    }
+    if (tags.length > 32 || tags.some((tag) => Array.from(tag).length > 64 || /[\x00-\x08\x0e-\x1f]/.test(tag))) throw "invalid_tags";
+    const item = ITEMS.find((value) => value.itemId === itemId); if (item) item.tags = tags;
+    changed(); return tags;
   },
   setTextClassification: async (itemId: string, kind: string, language: string | null) => {
     if (q.get("classificationSave") === "error") throw "invalid_classification";

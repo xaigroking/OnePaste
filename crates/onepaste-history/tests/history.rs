@@ -521,3 +521,20 @@ fn legacy_index_reclassification_is_idempotent_preserves_metadata_and_filters_be
     assert_eq!(h.search("", Filter::Text, 10, 0).unwrap().len(), 1);
     drop(h); let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn old_tag_index_rebuilds_once_preserves_display_and_cleans_up_removed_items() {
+    let dir = temp_dir("tag-upgrade"); let key=Key::random().unwrap(); let mut src=MemStore::new();
+    let mut p=text("tag lookup");p.tags=vec!["École".into(),"Project Alpha".into()];
+    put(&mut src,&key,"tagged",20,1,&p);
+    let mut h=HistoryStore::open(&dir,&key).unwrap(); h.refresh(&mut src,&key).unwrap();drop(h);
+    let c=Connection::open(dir.join("history.db")).unwrap();c.execute_batch(&format!("PRAGMA key = \"x'{}'\";",hex_key(&derive_subkey(&key,PURPOSE_HISTORY_DB)))).unwrap();
+    c.execute_batch("ALTER TABLE history DROP COLUMN tags_json; DROP TABLE history_tags; DELETE FROM state WHERE key='tags_version';").unwrap();drop(c);
+    let mut h=HistoryStore::open(&dir,&key).unwrap();assert_eq!(h.refresh(&mut src,&key).unwrap().upserted,1);
+    assert_eq!(h.search_with_tag("lookup",Filter::Text,Some("école"),10,0).unwrap()[0].tags,p.tags);
+    assert_eq!(h.search("é",Filter::All,10,0).unwrap().len(),1);
+    assert_eq!(h.refresh(&mut src,&key).unwrap().upserted,0);
+    assert_eq!(h.tag_options("alpha").unwrap()[0].count,1);
+    forget(&mut src,"tagged");h.refresh(&mut src,&key).unwrap();assert!(h.tag_options("").unwrap().is_empty());
+    drop(h);let _=std::fs::remove_dir_all(dir);
+}

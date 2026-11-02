@@ -60,10 +60,12 @@ test("quick panel: search, move down, Enter copies the selected item and closes 
   await page.goto("/?screen=qp&lang=en#/quick");
   await expect(page.getByRole("searchbox")).toBeFocused();
   await page.keyboard.type("re");
-  // Two items contain "re": the review note first, the report second
-  await expect(page.getByRole("option")).toHaveCount(2);
+  // Text and notes are searched: the review, the link with a read-later note, then the report.
+  await expect(page.getByRole("option")).toHaveCount(3);
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("option").nth(1)).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option").nth(2)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => window.__copied)).toEqual(["i6"]);
   await expect.poll(() => page.evaluate(() => window.__hidden)).toBe(true);

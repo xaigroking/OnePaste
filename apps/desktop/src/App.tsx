@@ -39,6 +39,7 @@ export default function App() {
   const [itemLimit, setItemLimit] = useState(PAGE_SIZE);
   const [hasMore, setHasMore] = useState(false);
   const [query, setQuery] = useState("");
+  const [tag, setTag] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [view, setView] = useState<View>("history");
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -82,7 +83,7 @@ export default function App() {
     if (st.joined) {
       const seq = ++searchSeq.current;
       try {
-        const found = await api.search(query, filter, itemLimit + 1, 0);
+        const found = await api.search(query, filter, itemLimit + 1, 0, tag);
         if (seq === searchSeq.current) {
           setItems(found.slice(0, itemLimit));
           setHasMore(found.length > itemLimit);
@@ -96,7 +97,7 @@ export default function App() {
         }
       }
     }
-  }, [query, filter, itemLimit]);
+  }, [query, filter, itemLimit, tag]);
 
   // Switch the UI language as soon as the Rust side reports a different one.
   useEffect(() => {
@@ -276,6 +277,8 @@ export default function App() {
             onLoadMore={() => setItemLimit((value) => value + PAGE_SIZE)}
             query={query}
             filter={filter}
+            tag={tag}
+            onTag={(value) => { ++searchSeq.current; setItemLimit(PAGE_SIZE); setTag(value); }}
             onQuery={(value) => { ++searchSeq.current; setItemLimit(PAGE_SIZE); setQuery(value); }}
             onFilter={(value) => { ++searchSeq.current; setItemLimit(PAGE_SIZE); setFilter(value); }}
             act={act}

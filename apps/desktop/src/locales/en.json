@@ -632,5 +632,23 @@
     "plain": "Plain text",
     "other": "Other",
     "adjust": "Change content type"
+  },
+  "tags": {
+    "title": "Tags",
+    "name": "Tag name",
+    "add": "Add tag",
+    "remove": "Remove tag {{tag}}",
+    "hint": "Up to 32 tags, 64 characters each. Spaces and duplicates are normalized.",
+    "saving": "Saving tags\u2026",
+    "failed": "Could not save tags. Check their length and try again.",
+    "filter": "Filter by tag",
+    "all": "All tags",
+    "clear": "Clear tag filter",
+    "find": "Find a tag",
+    "loading": "Loading tags\u2026",
+    "empty": "No matching tags.",
+    "loadFailed": "Could not load tags. Try again.",
+    "option": "{{tag}} ({{count}})",
+    "shortcut": "Alt+T: tags"
   }
 }
