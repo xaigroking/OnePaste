@@ -101,6 +101,8 @@ fn main() {
             commands::app_item_text,
             commands::app_save_image,
             commands::app_import_file,
+            commands::app_document_preview,
+            commands::app_attachment_pdf,
             commands::app_attachment_info,
             commands::app_prepare_attachment,
             commands::app_retry_attachment,

@@ -211,6 +211,8 @@ export const api = {
   itemImage: (itemId: string) => invoke<ImageData>("app_item_image", { itemId }),
   itemText: (itemId: string) => invoke<string>("app_item_text", { itemId }),
   /** Saves the picture where the user chooses; false if they cancelled the dialog. */
+  documentPreview: (itemId: string) => invoke<{ format: string; text: string }>("app_document_preview", { itemId }),
+  attachmentPdf: async (itemId: string) => new Uint8Array(await invoke<ArrayBuffer>("app_attachment_pdf", { itemId })),
   importFile: () => invoke<string | null>("app_import_file"),
   attachmentInfo: (itemId: string) => invoke<AttachmentInfo>("app_attachment_info", { itemId }),
   prepareAttachment: (itemId: string) => invoke<void>("app_prepare_attachment", { itemId }),

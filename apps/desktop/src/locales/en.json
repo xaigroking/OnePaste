@@ -107,13 +107,13 @@
     "open": "Open window",
     "quit": "Quit",
     "statusLine": "Status: {state}",
-    "tooltip": "OnePaste \u00b7 {state}",
+    "tooltip": "OnePaste · {state}",
     "quickPanel": "Quick panel",
     "pause": "Pause listening",
     "resume": "Resume listening",
     "syncNow": "Sync now",
-    "devices": "Devices\u2026",
-    "settings": "Settings\u2026",
+    "devices": "Devices…",
+    "settings": "Settings…",
     "devicesCount": "{count} devices",
     "diagnostics": "Copy diagnostics"
   },
@@ -151,12 +151,12 @@
   "results": {
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
     "noMatch": "Nothing matches.",
-    "loading": "Loading your history\u2026",
+    "loading": "Loading your history…",
     "error": "The history could not be read ({{code}}). Your data is safe on this computer. Try again in a moment, or restart OnePaste.",
     "more": "Load more"
   },
   "item": {
-    "image": "Image {{width}}\u00d7{{height}}, {{size}}",
+    "image": "Image {{width}}×{{height}}, {{size}}",
     "copy": "Copy",
     "favorite": "Favorite",
     "unfavorite": "Unfavorite",
@@ -210,7 +210,7 @@
     "thisDevice": "This device",
     "thisBadge": "This device",
     "listTitle": "Devices in this vault",
-    "loading": "Loading\u2026",
+    "loading": "Loading…",
     "colName": "Name",
     "colSeen": "Last seen",
     "colState": "Status",
@@ -244,7 +244,7 @@
   "onboarding": {
     "next": "Next",
     "back": "Back",
-    "working": "Please wait\u2026",
+    "working": "Please wait…",
     "passphrase": "Passphrase",
     "deviceName": "Name of this device",
     "mode": {
@@ -266,9 +266,9 @@
       "stepsTitle": "How to connect your computers",
       "steps": {
         "code": "Get the complete onepaste1: connection code from the server, paste it here, then click Next. The server address is not an administration webpage.",
-        "first": "First computer on an empty server: choose and confirm a passphrase \u2192 Next \u2192 optionally save the recovery kit \u2192 Done.",
-        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose \u201cI forgot my passphrase, I have a recovery kit\u201d.",
-        "second": "For a second computer, get a fresh code from the connected desktop: Devices \u2192 Add a device \u2192 Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
+        "first": "First computer on an empty server: choose and confirm a passphrase → Next → optionally save the recovery kit → Done.",
+        "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose “I forgot my passphrase, I have a recovery kit”.",
+        "second": "For a second computer, get a fresh code from the connected desktop: Devices → Add a device → Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
       }
     },
     "unlock": {
@@ -336,16 +336,16 @@
   },
   "qp": {
     "keyPaste": "Copy and paste",
-    "pastePermission": "Enable Accessibility for OnePaste in System Settings \u2192 Privacy & Security \u2192 Accessibility. Without it, this shortcut only copies and closes.",
+    "pastePermission": "Enable Accessibility for OnePaste in System Settings → Privacy & Security → Accessibility. Without it, this shortcut only copies and closes.",
     "openAccessibility": "Open Accessibility Settings",
     "dismiss": "Dismiss",
     "keyNotice": "Notice controls / search",
     "manualPaste": "Copied. Could not finish restoring the previous app and sending the paste keys. Check the destination before pasting manually.",
     "copyFailed": "Could not finish copying and closing. Try again, or press Escape to close the panel.",
-    "settingsFailed": "Could not open Accessibility Settings. Open System Settings, then Privacy & Security \u2192 Accessibility. Add OnePaste there.",
+    "settingsFailed": "Could not open Accessibility Settings. Open System Settings, then Privacy & Security → Accessibility. Add OnePaste there.",
     "title": "Quick panel",
-    "placeholder": "Search your clipboard history\u2026",
-    "loading": "Searching\u2026",
+    "placeholder": "Search your clipboard history…",
+    "loading": "Searching…",
     "error": "The search did not work ({{code}}). Your data is safe. Press Esc and try again.",
     "keys": "Keyboard shortcuts",
     "keySelect": "Select",
@@ -409,7 +409,7 @@
       "stable": "Only releases that are not pre-releases. There is none yet."
     },
     "checkNow": "Check now",
-    "checking": "Checking\u2026",
+    "checking": "Checking…",
     "none": "You have the newest version.",
     "found": "A new version is available.",
     "errors": {
@@ -429,7 +429,7 @@
   },
   "image": {
     "alt": "Image, {{width}} by {{height}} pixels",
-    "loading": "Loading the picture\u2026",
+    "loading": "Loading the picture…",
     "failed": "The picture could not be shown.",
     "tools": "Picture tools",
     "viewLarger": "View larger",
@@ -441,7 +441,7 @@
     "close": "Close",
     "viewerTitle": "Picture",
     "copy": "Copy image",
-    "saveAs": "Save as\u2026",
+    "saveAs": "Save as…",
     "saved": "Saved.",
     "saveFailed": "The picture could not be saved. Check the place you chose and try again."
   },
@@ -519,7 +519,7 @@
     "pending_one": "{{count}} item scheduled for deletion.",
     "pending_other": "{{count}} items scheduled for deletion.",
     "remaining": "Undo available for {{seconds}}s.",
-    "committing": "Deleting\u2026",
+    "committing": "Deleting…",
     "undo": "Undo deletion",
     "pendingRow": "Pending deletion",
     "copied_one": "Copied {{count}} text item.",
@@ -535,7 +535,7 @@
     "cancel": "Cancel"
   },
   "startup": {
-    "reading": "Reading login startup registration\u2026",
+    "reading": "Reading login startup registration…",
     "hint": "Starts hidden in the tray or menu bar when you sign in. Moving the portable folder updates the registration the next time you open OnePaste.",
     "unstable": "Move OnePaste to a permanent folder with a shorter path and reopen it before enabling login startup. Temporary download locations or very long paths cannot be registered.",
     "failed": "Could not update login startup or read its system registration. Try again after reopening OnePaste."
@@ -552,7 +552,7 @@
     "save": "Save new passphrase",
     "cancel": "Cancel",
     "close": "Close",
-    "working": "Working\u2026",
+    "working": "Working…",
     "retry": "Confirm previous change",
     "done": "Passphrase changed. Use the new passphrase when adding a computer.",
     "devices": "This re-wraps the same master key. Existing history is not re-encrypted, and devices that already have the key stay connected. Revoke a device if you no longer trust it.",
@@ -573,7 +573,7 @@
     }
   },
   "localAccess": {
-    "loading": "Checking OnePaste access\u2026",
+    "loading": "Checking OnePaste access…",
     "readFailed": "Could not read OnePaste access information. Your existing files have been kept.",
     "retry": "Retry",
     "setupTitle": "Set a OnePaste passphrase",
@@ -589,7 +589,7 @@
     "pass": "OnePaste passphrase",
     "confirm": "Confirm OnePaste passphrase",
     "minimum": "Use at least 8 characters. Saving a recovery kit is optional.",
-    "working": "Working\u2026",
+    "working": "Working…",
     "continue": "Continue",
     "recover": "Recover existing data",
     "unlock": "Unlock",
@@ -616,18 +616,18 @@
   },
   "capture": {
     "stopped": "Clipboard listener stopped",
-    "starting": "Starting clipboard listener\u2026",
+    "starting": "Starting clipboard listener…",
     "start_failed": "Clipboard listener unavailable",
     "read_error": "Could not read the clipboard",
     "retry": "Retry listening",
-    "retrying": "Restarting the clipboard listener\u2026",
+    "retrying": "Restarting the clipboard listener…",
     "retryFailed": "Could not restart the listener. Your history is kept. Copy diagnostics or try again."
   },
   "classification": {
     "type": "Content type",
     "language": "Code language",
     "save": "Save type",
-    "saving": "Saving type\u2026",
+    "saving": "Saving type…",
     "failed": "Could not save the type. Try again.",
     "plain": "Plain text",
     "other": "Other",
@@ -639,13 +639,13 @@
     "add": "Add tag",
     "remove": "Remove tag {{tag}}",
     "hint": "Up to 32 tags, 64 characters each. Spaces and duplicates are normalized.",
-    "saving": "Saving tags\u2026",
+    "saving": "Saving tags…",
     "failed": "Could not save tags. Check their length and try again.",
     "filter": "Filter by tag",
     "all": "All tags",
     "clear": "Clear tag filter",
     "find": "Find a tag",
-    "loading": "Loading tags\u2026",
+    "loading": "Loading tags…",
     "empty": "No matching tags.",
     "loadFailed": "Could not load tags. Try again.",
     "option": "{{tag}} ({{count}})",
@@ -653,21 +653,21 @@
   },
   "files": {
     "import": "Import file",
-    "importing": "Importing\u2026",
+    "importing": "Importing…",
     "limit": "Up to 64 MiB per file",
     "details": "File",
-    "loading": "Loading file\u2026",
+    "loading": "Loading file…",
     "cached": "Available offline",
     "needed": "Download required",
     "download": "Download",
-    "save": "Save as\u2026",
+    "save": "Save as…",
     "saved": "File saved.",
     "cancel": "Cancel transfer",
     "cancelled": "Transfer cancelled. The item was kept.",
     "retry": "Retry upload",
     "upload": "Uploading {{percent}}%",
     "downloadProgress": "Downloading {{percent}}%",
-    "previewUnavailable": "Content preview is unavailable for this file format.",
+    "previewUnavailable": "Content preview is not supported for this format. You can save the original file.",
     "sync": {
       "local": "This device only",
       "pending": "Waiting to sync",
@@ -687,7 +687,27 @@
       "attachment_unavailable": "The file is not available locally. Connect to its server and download it.",
       "attachment_transfer_failed": "File transfer failed. Check the connection and try again.",
       "attachment_cancelled": "Transfer cancelled. The item was kept.",
-      "attachment_busy": "A transfer for this file is already running."
+      "attachment_busy": "A transfer for this file is already running.",
+      "preview_unsupported": "This document format or structure is not supported. Save the original file to open it in another application.",
+      "preview_corrupt": "This document is damaged or could not be read. The original file is still available to save.",
+      "preview_encrypted": "Password-protected or encrypted documents cannot be previewed. Save the original file to open it in another application.",
+      "preview_limit": "This document exceeds the preview limits. You can still save the original file.",
+      "preview_encoding": "The text encoding is invalid or unsupported. Use UTF-8 or UTF-16 with a BOM."
+    },
+    "preview": {
+      "title": "Content preview",
+      "open": "Preview content",
+      "close": "Close preview",
+      "retry": "Retry preview",
+      "loading": "Loading preview…",
+      "empty": "This document has no body text.",
+      "previous": "Previous page",
+      "next": "Next page",
+      "page": "Page {{page}} of {{total}}",
+      "zoom": "Zoom",
+      "pdfLimit": "Read-only PDF. Up to 500 pages, 50%–200% zoom; oversized pages are rejected.",
+      "textLimit": "UTF-8 or UTF-16 with BOM. Up to 8 MiB input and 2 MiB displayed text.",
+      "wordLimit": "Read-only body text. Original layout, images, headers, notes and embedded content may be omitted. Up to 2 MiB of text; DOCX body XML up to 8 MiB."
     }
   }
 }

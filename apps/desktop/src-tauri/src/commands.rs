@@ -518,3 +518,12 @@ pub async fn app_open_item(app:AppHandle,core:State<'_,App>,item_id:String)->Res
     crate::quick::hide(&app);tray::show_main_window(&app);
     app.emit_to("main","onepaste://open-item",item_id).map_err(|_|"open_failed".into())
 }
+
+#[tauri::command]
+pub async fn app_document_preview(core: State<'_, App>, item_id: String) -> Result<onepaste_app::DocumentPreview, String> {
+    core.document_preview(&item_id).await.map_err(|error| error.code())
+}
+#[tauri::command]
+pub async fn app_attachment_pdf(core: State<'_, App>, item_id: String) -> Result<tauri::ipc::Response, String> {
+    core.pdf_preview_bytes(&item_id).await.map(tauri::ipc::Response::new).map_err(|error| error.code())
+}

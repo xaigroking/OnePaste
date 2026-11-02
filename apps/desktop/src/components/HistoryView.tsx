@@ -147,6 +147,7 @@ export function HistoryView({ tag, onTag, hasMore, onLoadMore, items, query, fil
       } else if (event.key === "Enter" && selected) {
         event.preventDefault();
         if (selection.ids.length > 1) void run(api.copyItems(selection.ids), true);
+        else if (selected.kind === "file") void api.openItem(selected.itemId);
         else void act(api.copy(selected.itemId));
       } else if (event.key === "Delete" && selected) {
         event.preventDefault(); askDelete(selection.ids.length ? selection.ids : [selected.itemId]);

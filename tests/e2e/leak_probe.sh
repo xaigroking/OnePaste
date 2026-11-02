@@ -259,6 +259,18 @@ hd harness_copy copy "desktop copy $M_TEXT"
 hd harness_sync2 sync
 hd harness_image copy-image
 hd harness_sync3 sync
+# A real multi-chunk attachment crosses the recorder; its name and contents remain private.
+mkdir -p "$ROOT/input"
+FILE_INPUT="$ROOT/input/$M_NOTE.txt"
+python3 - "$FILE_INPUT" "$M_TEXT" << 'PYFILE'
+import sys
+with open(sys.argv[1], "wb") as output:
+    output.write(sys.argv[2].encode() + bytes(600000))
+PYFILE
+hd harness_file_import import "$FILE_INPUT"
+grep -q '^id ' "$OUT/harness_file_import.out" || die "the file was not imported"
+hd harness_file_sync sync
+test "$(sqlite3 "$ROOT/srv/onepaste.db" 'SELECT count(*) FROM blob_chunks')" -eq 3 || die "the attachment chunks did not reach the server"
 # search, clipboard and list print content to the user on purpose
 hd harness_list search "$M_TEXT"
 grep -q "$M_TEXT" "$OUT/harness_list.out" || die "the desktop search should find the planted text"
@@ -359,7 +371,7 @@ test -f "$ROOT/A/history.db" || die "client A has no history database to scan"
 step "1.2.4 everything the client commands printed"
 CLIENT_OUT="$ROOT/client_out"
 mkdir -p "$CLIENT_OUT"
-for f in join_a invite join_b add set sync_b sync_a add2 sync_b2 rm sync_a2 status revoke sync_b3 invite_h sync_a3 harness0_probe harness0_confirm harness_join harness_sync1 harness_sync2 harness_sync3 harness_status harnessl_status; do cp "$OUT/$f.out" "$CLIENT_OUT/"; done
+for f in join_a invite join_b add set sync_b sync_a add2 sync_b2 rm sync_a2 status revoke sync_b3 invite_h sync_a3 harness0_probe harness0_confirm harness_join harness_sync1 harness_sync2 harness_sync3 harness_file_import harness_file_sync harness_status harnessl_status; do cp "$OUT/$f.out" "$CLIENT_OUT/"; done
 test "$(find "$CLIENT_OUT" -type f -size +0 | wc -l)" -ge 10 || die "the client printed almost nothing"
 scan_for_markers "client output" "$CLIENT_OUT"
 scan_for_markers "client output, server-held secrets" -p "$EXTRA" "$CLIENT_OUT"
@@ -391,7 +403,13 @@ printf 'placeholder\n' > "$ROOT/tmp/.scanned"
 scan_for_markers "TMPDIR" "$ROOT/tmp"
 
 step "1.2.8 what the server can see"
-EXPECTED_SCHEMA='devices|id
+EXPECTED_SCHEMA='blob_chunks|blob_id
+blob_chunks|chunk_index
+blob_chunks|sealed
+blobs|id
+blobs|chunks
+blobs|updated_at
+devices|id
 devices|token_hash
 devices|sealed_name
 devices|created_at
@@ -403,6 +421,8 @@ idempotency|req_hash
 idempotency|status
 idempotency|body
 idempotency|created_at
+item_blobs|item_id
+item_blobs|blob_id
 items|id
 items|seq
 items|deleted

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, onChanged } from "../api";
 import type { AttachmentInfo } from "../api";
+import { DocumentPreview } from "./DocumentPreview";
 import { formatSize } from "../format";
 import { Badge, Button } from "./ui";
 
@@ -46,7 +47,7 @@ export function FileDetail({ itemId }: { itemId: string }) {
         {busy && <Button onClick={() => void api.cancelAttachment(itemId)}>{t("files.cancel")}</Button>}
         {info.transfer.direction === "upload" && ["failed", "cancelled"].includes(info.transfer.state) && <Button disabled={acting} onClick={() => void act(() => api.retryAttachment(itemId))}>{t("files.retry")}</Button>}
       </div>
-      <p className="muted small">{t("files.previewUnavailable")}</p>
+      <DocumentPreview key={itemId} itemId={itemId} fileName={info.fileName} />
     </>}
     {saved && <p role="status">{t("files.saved")}</p>}
     {error && <p role="alert" className="notice notice-danger">{message(error)}</p>}

@@ -44,3 +44,6 @@ pub use key_storage::{EncryptedKeyStore, KeyState, KEY_FILE};
 
 mod session_clock;
 pub use session_clock::AutoLockClock;
+
+mod preview;
+pub use preview::{preview_document, DocumentPreview};

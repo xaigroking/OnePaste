@@ -1,3 +1,7 @@
+import protectedPdfUrl from "../../../crates/onepaste-app/tests/samples/protected.pdf?url";
+import oversizedPdfUrl from "../../../crates/onepaste-app/tests/samples/oversized.pdf?url";
+import manyPagesPdfUrl from "../../../crates/onepaste-app/tests/samples/many-pages.pdf?url";
+import pdfSampleUrl from "../../../crates/onepaste-app/tests/samples/body.pdf?url";
 // A stand-in for ./api used only by the screenshot and keyboard tests (vite build --mode mock). It serves fixed data, so
 // every screen looks the same on every run. The scene comes from the address: ?lang=zh|en&state=base|empty|loading|error
 // &screen=main|dev|set|qp|tray|state|ob1|ob2.
@@ -65,9 +69,10 @@ if (q.get("manyCodes") === "yes") {
   for (let i = 0; i < 62; i++) ITEMS.push({ ...ITEMS[2], itemId: `code-page-${i}`, preview: `const page${i} = ${i};` });
 }
 
+const fileName = `sample.${q.get("fileFormat") ?? "txt"}`;
 let fileCached = q.get("fileCached") !== "no";
 let fileState = q.get("fileState") ?? "idle";
-const fileItem = (): ItemView => ({ itemId: "file-1", kind: "file", preview: "sample.txt", size: 1024, width: 0, height: 0, favorite: false, pinned: false, note: "", tags: [], syncState: "synced" });
+const fileItem = (): ItemView => ({ itemId: "file-1", kind: "file", preview: fileName, size: 1024, width: 0, height: 0, favorite: false, pinned: false, note: "", tags: [], syncState: "synced" });
 if (q.get("attachment") === "yes") ITEMS.unshift(fileItem());
 let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.get("hotkey") === "custom" && STATE !== "error" ? "Control+Shift+KeyK" : "Control+Alt+KeyV";
 let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
@@ -181,9 +186,20 @@ export const api = {
     if (!ITEMS.some((item) => item.itemId === "file-1")) ITEMS.unshift(fileItem());
     changed(); return "file-1";
   },
+  documentPreview: async (_itemId: string) => {
+    called("documentPreview");
+    if (q.get("previewError")) throw q.get("previewError");
+    return { format: q.get("fileFormat") ?? "txt", text: "Actual document body: Alpha & Beta.\nUnicode: λ Ω.\nTable cell one\tTable cell two\nSecond page content." + (q.get("unsafeText") === "yes" ? "\n<script>window.attachmentExecuted = true</script>" : "") };
+  },
+  attachmentPdf: async (_itemId: string) => {
+    called("attachmentPdf");
+    if (q.get("previewError")) throw q.get("previewError");
+    if (q.get("badPdf") === "yes") return new Uint8Array([1,2,3]);
+    return new Uint8Array(await (await fetch(({ protected: protectedPdfUrl, oversized: oversizedPdfUrl, many: manyPagesPdfUrl } as Record<string, string>)[q.get("pdfVariant") ?? ""] ?? pdfSampleUrl)).arrayBuffer());
+  },
   attachmentInfo: async (_itemId: string): Promise<AttachmentInfo> => {
     if (q.get("fileInfo") === "error") throw "attachment_unavailable";
-    return { fileName: "sample.txt", mime: "text/plain", size: 1024, cached: fileCached, syncState: "synced", transfer: { state: fileState, direction: q.get("fileDirection") === "upload" ? "upload" : "download", completed: 2, total: 4, error: fileState === "failed" ? "attachment_transfer_failed" : null } };
+    return { fileName, mime: fileName.endsWith("pdf") ? "application/pdf" : fileName.endsWith("doc") ? "application/msword" : fileName.endsWith("docx") ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/plain", size: fileName.endsWith("pdf") ? 23330 : 1024, cached: fileCached, syncState: "synced", transfer: { state: fileState, direction: q.get("fileDirection") === "upload" ? "upload" : "download", completed: 2, total: 4, error: fileState === "failed" ? "attachment_transfer_failed" : null } };
   },
   prepareAttachment: async (_itemId: string) => { called("prepareAttachment"); if (q.get("fileDownload") === "error") throw "attachment_transfer_failed"; fileCached = true; fileState = "ready"; changed(); },
   retryAttachment: async (_itemId: string) => { called("retryAttachment"); fileState = "ready"; changed(); },
