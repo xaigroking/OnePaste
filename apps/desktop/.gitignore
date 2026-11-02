@@ -4,3 +4,4 @@ src-tauri/gen/
 dist-mock/
 test-results/
 playwright-report/
+licenses.txt
