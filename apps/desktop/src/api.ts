@@ -20,6 +20,7 @@ export type Page = "history" | "devices" | "settings";
 /** What the application reports about the vault and the sync. */
 export interface AppStatus {
   joined: boolean;
+  locked: boolean;
   mode: Mode;
   tray: TrayState;
   /** "revoked" or "server_rollback" when syncing is stopped. */
@@ -88,6 +89,7 @@ export interface ImageData {
 }
 
 export interface AppSettings {
+  autoLockMinutes: number;
   autoApplyRemote: boolean;
   recordClipboard: boolean;
   maxItemMiB: number;
@@ -148,6 +150,8 @@ export interface TrayTexts {
 export type KeyState = "new" | "prepared" | "locked" | "unlocked" | "recovery";
 
 export const api = {
+  lockSession: () => invoke<void>("app_lock_session"),
+  userActivity: () => invoke<void>("app_user_activity"),
   keyState: () => invoke<KeyState>("app_key_state"),
   prepareLocalPassphrase: (passphrase: string) => invoke<void>("app_prepare_local_passphrase", { passphrase }),
   unlockLocal: (passphrase: string) => invoke<void>("app_unlock_local", { passphrase }),
@@ -240,3 +244,5 @@ export function onUpdateAvailable(handler: (info: UpdateInfo) => void): Promise<
 export function onCloseNotice(handler: () => void): Promise<() => void> {
   return listen("onepaste://close-notice", handler);
 }
+
+export function onLocked(handler: () => void): Promise<() => void> { return listen("onepaste://locked", handler); }

@@ -591,5 +591,16 @@
     "wrongKit": "该恢复套件无法解锁这些资料，原有文件未改变。",
     "failed": "无法打开已有资料，原有文件已保留。请核对独立恢复凭据后重试。",
     "vaultChangeHint": "此处修改添加电脑时使用的保险库口令；这台电脑的 OnePaste 本机解锁口令是独立的。"
+  },
+  "autoLock": {
+    "saving": "正在保存…",
+    "off": "关闭",
+    "minutes_other": "{{count}} 分钟",
+    "hint": "在 OnePaste 内无操作达到此时间后锁定，包含托盘和休眠时间。其他应用的操作不会重置计时。",
+    "now": "立即锁定",
+    "working": "正在锁定…",
+    "failed": "保存或锁定失败，请重试。",
+    "paused": "OnePaste 已锁定。解锁前暂停剪贴板采集与同步。",
+    "minutes_one": "{{count}} 分钟"
   }
 }

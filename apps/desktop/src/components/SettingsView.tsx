@@ -1,3 +1,4 @@
+import { AutoLock } from "./AutoLock";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useTranslation } from "react-i18next";
@@ -209,13 +210,10 @@ export function SettingsView(p: Props) {
 
       {p.settings && <UpdatesCard settings={p.settings} onSettings={p.onSettings} version={p.version} />}
 
-      <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped}>{p.status?.mode === "synced" && <ChangePassphraseButton />}</SecurityCard>
+      <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped}>{p.settings && p.status?.joined && <AutoLock settings={p.settings} onSettings={p.onSettings} />}{p.status?.mode === "synced" && <ChangePassphraseButton />}</SecurityCard>
 
       <Card title={t("settingsMore.advanced")}>
-        <div className="setting setting-soon">
-          <span>{t("settingsMore.autoLock")}</span>
-          <Badge>{t("settingsMore.soon")}</Badge>
-        </div>
+
         <div className="setting">
           <span>{t("settingsMore.telemetry")}</span>
           <span className="muted">{t("settingsMore.telemetryOff")}</span>

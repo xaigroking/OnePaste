@@ -591,5 +591,16 @@
     "wrongKit": "This recovery kit does not open these files. Your files are unchanged.",
     "failed": "Could not open the existing data. Your files have been kept. Check your independent recovery credentials and try again.",
     "vaultChangeHint": "This changes the vault passphrase used when adding a computer. Your OnePaste unlock passphrase on this computer is independent."
+  },
+  "autoLock": {
+    "saving": "Saving...",
+    "off": "Off",
+    "minutes_one": "{{count}} minute",
+    "minutes_other": "{{count}} minutes",
+    "hint": "Locks after no interaction inside OnePaste, including time in the tray or asleep. Other applications do not reset this timer.",
+    "now": "Lock now",
+    "working": "Locking...",
+    "failed": "Could not save or lock. Please try again.",
+    "paused": "OnePaste is locked. Clipboard recording and synchronization are paused until you unlock."
   }
 }

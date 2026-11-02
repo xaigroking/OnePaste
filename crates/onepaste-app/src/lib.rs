@@ -35,3 +35,6 @@ pub fn parse_filter(name: &str) -> Filter {
 mod key_storage;
 mod unlock;
 pub use key_storage::{EncryptedKeyStore, KeyState, KEY_FILE};
+
+mod session_clock;
+pub use session_clock::AutoLockClock;

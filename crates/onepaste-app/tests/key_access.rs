@@ -352,3 +352,7 @@ fn concurrent_initial_key_saves_cannot_replace_each_other() {
         assert_eq!(check.load().unwrap(), b.load().unwrap());
     }
 }
+
+// The native packaging jobs run this target on both supported desktop platforms.
+#[path = "key_access/auto_lock.rs"]
+mod auto_lock;

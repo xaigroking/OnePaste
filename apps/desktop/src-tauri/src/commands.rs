@@ -192,12 +192,10 @@ pub async fn app_item_text(core: State<'_, App>, item_id: String) -> Result<Stri
 /// cancelled the dialog. The default file name is given by the page (`OnePaste-<time>.png`).
 #[tauri::command]
 pub async fn app_save_image(core: State<'_, App>, item_id: String, file_name: String) -> Result<bool, String> {
-    use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    let image = core.item_image(&item_id).await.map_err(|e| e.code())?;
-    let bytes = B64.decode(image.data).map_err(|_| "save_failed".to_string())?;
+    let epoch = core.session_epoch();
     let chosen = rfd::AsyncFileDialog::new().set_file_name(&file_name).add_filter("PNG image", &["png"]).save_file().await;
     let Some(file) = chosen else { return Ok(false) };
-    file.write(&bytes).await.map_err(|_| "save_failed".to_string())?;
+    core.save_image_at(&item_id, file.path(), epoch).await.map_err(|e| e.code())?;
     Ok(true)
 }
 
@@ -297,8 +295,8 @@ pub fn app_version() -> String {
 
 /// Puts a secret (the recovery kit) on the clipboard with the origin marker, so it is not recorded as a history item.
 #[tauri::command]
-pub fn app_copy_secret(text: String) -> ActionResult {
-    ActionResult::from(clipboard::write(&Content::Text(text)))
+pub async fn app_copy_secret(core: State<'_, App>, text: String) -> Result<(), String> {
+    core.copy_secret(text).await.map_err(|e| e.code())
 }
 
 /// The recovery kit of the joined vault, computed from the key in the application key storage.
@@ -451,4 +449,13 @@ pub async fn app_recover_local(app: AppHandle, core: State<'_, App>, credential:
     }).await.map_err(|_| "key_storage_file".to_string())?;
     if result.is_ok() { tray::notify_changed(&app); }
     result
+}
+
+#[tauri::command]
+pub async fn app_lock_session(core: State<'_, App>) -> Result<(), String> {
+    core.lock_session().await.map_err(|e| e.code())
+}
+#[tauri::command]
+pub async fn app_user_activity(core: State<'_, App>) -> Result<(), String> {
+    core.user_activity().await.map_err(|e| e.code())
 }

@@ -82,6 +82,8 @@ fn open_page(app: &AppHandle, page: &str) {
 }
 
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
+    let core = app.state::<App>().inner().clone();
+    tauri::async_runtime::spawn(async move { let _ = core.user_activity().await; });
     match event.id().as_ref() {
         "open" => show_main_window(app),
         "quick" => quick::show(app),
