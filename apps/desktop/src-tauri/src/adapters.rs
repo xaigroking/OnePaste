@@ -28,7 +28,20 @@ fn map_event(e: PlatformEvent) -> ClipEvent {
 }
 
 /// Dropping this stops the monitor thread.
-struct StopOnDrop(#[allow(dead_code)] std::sync::mpsc::Sender<()>);
+struct StopOnDrop {
+    stop: Option<std::sync::mpsc::Sender<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for StopOnDrop {
+    fn drop(&mut self) {
+        // Close the channel before joining: the worker drops and joins the native monitor in turn.
+        self.stop.take();
+        if let Some(thread) = self.thread.take() {
+            if thread.join().is_err() { eprintln!("Clipboard monitor worker failed during shutdown"); }
+        }
+    }
+}
 
 impl ClipboardPort for PlatformClipboard {
     fn write(&self, content: &Content, origin_marker: bool) -> Result<(), AppError> {
@@ -45,7 +58,7 @@ impl ClipboardPort for PlatformClipboard {
         // The monitor lives on a thread of its own, so it never has to be moved between threads
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), AppError>>();
         let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
-        std::thread::spawn(move || match clipboard::Monitor::start(move |ev| on_event(map_event(ev))) {
+        let thread = std::thread::spawn(move || match clipboard::Monitor::start(move |ev| on_event(map_event(ev))) {
             Ok(monitor) => {
                 let _ = ready_tx.send(Ok(()));
                 // Returns when the guard is dropped
@@ -56,8 +69,9 @@ impl ClipboardPort for PlatformClipboard {
                 let _ = ready_tx.send(Err(AppError::Clipboard(e.code())));
             }
         });
+        let guard = StopOnDrop { stop: Some(stop_tx), thread: Some(thread) };
         ready_rx.recv().map_err(|_| AppError::Clipboard("monitor_thread".into()))??;
-        Ok(MonitorGuard::new(StopOnDrop(stop_tx)))
+        Ok(MonitorGuard::new(guard))
     }
 }
 
@@ -107,6 +121,22 @@ mod tests {
         port.write(&Content::Text("written by onepaste".into()), true).unwrap();
         let got = next_event(&rx, |e| matches!(e, ClipEvent::Captured(_) | ClipEvent::SkippedSelf));
         assert_eq!(got, Some(ClipEvent::SkippedSelf));
+    }
+
+    #[test]
+    fn stopping_the_native_monitor_releases_its_callback_before_returning() {
+        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+        struct Released(Arc<AtomicBool>);
+        impl Drop for Released {
+            fn drop(&mut self) { self.0.store(true, Ordering::SeqCst); }
+        }
+        let _g = exclusive();
+        let released = Arc::new(AtomicBool::new(false));
+        let owned = Released(released.clone());
+        let guard = PlatformClipboard.start_monitor(Box::new(move |_| { let _ = &owned; })).unwrap();
+        assert!(!released.load(Ordering::SeqCst));
+        drop(guard);
+        assert!(released.load(Ordering::SeqCst), "a stopped monitor must not retain a callback into a future session");
     }
 
 }
