@@ -487,3 +487,37 @@ fn an_item_that_has_not_been_sent_yet_is_searchable_at_once() {
     takes_source(&mut src);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn legacy_index_reclassification_is_idempotent_preserves_metadata_and_filters_before_paging() {
+    let dir = temp_dir("classify-upgrade");
+    let key = Key::random().unwrap();
+    let mut src = MemStore::new();
+    let mut p = text("https://example.org/kept");
+    p.favorite = true; p.pinned = true; p.note = Some("kept note".into()); p.tags = vec!["kept tag".into()]; p.device = Some("kept device".into());
+    put(&mut src, &key, "url-kept", 10, 100, &p);
+    let mut h = HistoryStore::open(&dir, &key).unwrap();
+    h.refresh(&mut src, &key).unwrap(); drop(h);
+    // Reproduce a pre-upgrade encrypted index with an advanced checkpoint, without deleting source items.
+    let conn = Connection::open(dir.join("history.db")).unwrap();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key(&derive_subkey(&key, PURPOSE_HISTORY_DB)))).unwrap();
+    conn.execute_batch("ALTER TABLE history DROP COLUMN language; UPDATE history SET kind='text'; DELETE FROM state WHERE key='classification_version';").unwrap();
+    drop(conn);
+    let mut h = HistoryStore::open(&dir, &key).unwrap();
+    assert_eq!(h.refresh(&mut src, &key).unwrap().upserted, 1);
+    let hits = h.search("kept tag", Filter::Links, 1, 0).unwrap();
+    assert_eq!(hits.len(), 1); assert_eq!(hits[0].item_id, "url-kept");
+    assert!(hits[0].favorite && hits[0].pinned); assert_eq!(hits[0].note, "kept note");
+    assert!(h.search("", Filter::Text, 10, 0).unwrap().is_empty());
+    assert_eq!(h.refresh(&mut src, &key).unwrap().upserted, 0);
+    for i in 0..7 { put(&mut src, &key, &format!("code-{i}"), 11+i, 200+i, &text("[package]\nname = \"demo\"")); }
+    put(&mut src, &key, "plain", 30, 300, &text("ordinary words"));
+    h.refresh(&mut src, &key).unwrap();
+    let first = h.search("demo", Filter::Code, 3, 0).unwrap();
+    let second = h.search("demo", Filter::Code, 3, 3).unwrap();
+    assert_eq!((first.len(), second.len()), (3, 3));
+    assert!(first.iter().all(|a| second.iter().all(|b| a.item_id != b.item_id)));
+    assert!(first.iter().all(|a| a.language.as_deref() == Some("toml")));
+    assert_eq!(h.search("", Filter::Text, 10, 0).unwrap().len(), 1);
+    drop(h); let _ = std::fs::remove_dir_all(dir);
+}

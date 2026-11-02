@@ -10,6 +10,9 @@ pub enum Filter {
     Favorites,
     Text,
     Images,
+    Links,
+    Code,
+    Files,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,6 +24,7 @@ pub struct Hit {
     pub favorite: bool,
     pub pinned: bool,
     pub note: String,
+    pub language: Option<String>,
     /// The type and size in bytes of an image (empty and 0 for text).
     pub mime: String,
     pub size: i64,
@@ -46,6 +50,9 @@ impl HistoryStore {
             Filter::All => {}
             Filter::Favorites => conds.push("favorite = 1".into()),
             Filter::Text => conds.push("kind = 'text'".into()),
+            Filter::Links => conds.push("kind = 'link'".into()),
+            Filter::Code => conds.push("kind = 'code'".into()),
+            Filter::Files => conds.push("kind = 'file'".into()),
             Filter::Images => conds.push("kind = 'image'".into()),
         }
         let terms: Vec<&str> = query.split_whitespace().collect();
@@ -66,7 +73,7 @@ impl HistoryStore {
         args.push(Value::Integer(limit as i64));
         args.push(Value::Integer(offset as i64));
         let sql = format!(
-            "SELECT item_id, kind, text, favorite, pinned, note, mime, size FROM history {where_clause}
+            "SELECT item_id, kind, text, favorite, pinned, note, mime, size, language FROM history {where_clause}
              ORDER BY pinned DESC, created_at DESC, item_id LIMIT ?{} OFFSET ?{}",
             args.len() - 1,
             args.len()
@@ -74,11 +81,11 @@ impl HistoryStore {
         let first = terms.first().map(|t| t.to_ascii_lowercase());
         let mut st = self.conn.prepare(&sql)?;
         let rows = st.query_map(params_from_iter(args.iter()), |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, i64>(4)? != 0, r.get::<_, String>(5)?, r.get::<_, String>(6)?, r.get::<_, i64>(7)?))
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, i64>(4)? != 0, r.get::<_, String>(5)?, r.get::<_, String>(6)?, r.get::<_, i64>(7)?, r.get::<_, Option<String>>(8)?))
         })?;
         let mut hits = Vec::new();
         for row in rows {
-            let (item_id, kind, text, favorite, pinned, note, mime, size) = row?;
+            let (item_id, kind, text, favorite, pinned, note, mime, size, language) = row?;
             let (match_start, match_len) = match &first {
                 Some(t) => match text.to_ascii_lowercase().find(t.as_str()) {
                     Some(byte) => (Some(text[..byte].chars().count()), t.chars().count()),
@@ -86,7 +93,7 @@ impl HistoryStore {
                 },
                 None => (None, 0),
             };
-            hits.push(Hit { item_id, kind, text: text.chars().take(PREFIX_CHARS).collect(), favorite, pinned, note, mime, size, match_start, match_len });
+            hits.push(Hit { item_id, kind, text: text.chars().take(PREFIX_CHARS).collect(), favorite, pinned, note, language, mime, size, match_start, match_len });
         }
         Ok(hits)
     }

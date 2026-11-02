@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS history (
   item_id TEXT PRIMARY KEY,
   seq INTEGER NOT NULL,
   kind TEXT NOT NULL,
+  language TEXT,
   text TEXT NOT NULL DEFAULT '',
   mime TEXT NOT NULL DEFAULT '',
   size INTEGER NOT NULL DEFAULT 0,
@@ -115,6 +116,8 @@ impl HistoryStore {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         // An empty file has no header yet and would open with any key, so the schema is written right away
         conn.execute_batch(SCHEMA)?;
+        let has_language = conn.prepare("PRAGMA table_info(history)")?.query_map([], |r| r.get::<_, String>(1))?.collect::<Result<Vec<_>, _>>()?.iter().any(|n| n == "language");
+        if !has_language { conn.execute_batch("ALTER TABLE history ADD COLUMN language TEXT;")?; }
         Ok(HistoryStore { conn })
     }
 

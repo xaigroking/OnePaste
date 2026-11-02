@@ -24,13 +24,18 @@ pub use settings::{hotkeys, Settings};
 pub use update::{Channel, UpdateInfo};
 
 /// Parses the filter names the interface uses.
-pub fn parse_filter(name: &str) -> Filter {
+pub fn parse_filter(name: &str) -> Result<Filter, AppError> {
+    Ok(
     match name {
+        "all" => Filter::All,
         "favorites" => Filter::Favorites,
         "text" => Filter::Text,
         "images" => Filter::Images,
-        _ => Filter::All,
-    }
+        "links" => Filter::Links,
+        "code" => Filter::Code,
+        "files" => Filter::Files,
+        _ => return Err(AppError::InvalidFilter),
+    })
 }
 
 mod key_storage;

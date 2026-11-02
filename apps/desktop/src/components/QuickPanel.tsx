@@ -8,10 +8,9 @@ import { Icon } from "./Icon";
 import { Badge, Button, Chip } from "./ui";
 import { formatHotkey } from "../hotkeys";
 
-/** The types the panel offers. Links, files and code have no type of their own in the history yet, so they show nothing. */
+/** Main and quick views use the same backend filters. */
 export type PanelFilter = Filter | "links" | "files" | "code";
 export const PANEL_FILTERS: PanelFilter[] = ["all", "text", "links", "images", "files", "code", "favorites"];
-const BACKED: PanelFilter[] = ["all", "text", "images", "favorites"];
 
 /** The quick panel: search, type chips, a numbered list, and a bar that lists the keys. */
 export function QuickPanel() {
@@ -36,11 +35,6 @@ export function QuickPanel() {
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
-    if (!BACKED.includes(filter)) {
-      setItems([]);
-      setState("ready");
-      return;
-    }
     setState("loading");
     try {
       const found = await api.search(query, filter as Filter, 50, 0);

@@ -55,7 +55,7 @@ if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && [ -
 import sys, json
 d = json.load(sys.stdin)
 allow = {
-    "onepaste-core": {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2"},
+    "onepaste-core": {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2","url","toml","serde_yaml_ng"},
     "onepaste-sync": {"onepaste-core","serde","serde_json","base64","thiserror","zeroize"},
 }
 seen = set()

@@ -118,6 +118,7 @@ fn main() {
             commands::app_search,
             commands::app_copy,
             commands::app_set_flags,
+            commands::app_set_text_classification,
             commands::app_delete,
             commands::app_copy_items,
             commands::app_favorite_items,

@@ -320,7 +320,7 @@ pub async fn app_status(core: State<'_, App>) -> Result<Status, String> {
 
 #[tauri::command]
 pub async fn app_search(core: State<'_, App>, query: String, filter: String, limit: usize, offset: usize) -> Result<Vec<ItemView>, String> {
-    core.search(&query, parse_filter(&filter), limit, offset).await.map_err(|e| e.code())
+    core.search(&query, parse_filter(&filter).map_err(|e| e.code())?, limit, offset).await.map_err(|e| e.code())
 }
 
 /// Puts an item back on the clipboard. The write carries the origin marker, so no new item appears.
@@ -470,4 +470,9 @@ pub async fn app_user_activity(core: State<'_, App>) -> Result<(), String> {
 #[tauri::command]
 pub async fn app_retry_clipboard_monitor(core: State<'_, App>) -> Result<(), String> {
     core.retry_clipboard_monitor().await.map_err(|error| error.code())
+}
+
+#[tauri::command]
+pub async fn app_set_text_classification(core: State<'_, App>, item_id: String, kind: String, language: Option<String>) -> Result<(), String> {
+    core.set_text_classification(&item_id, &kind, language.as_deref()).await.map_err(|e| e.code())
 }

@@ -212,3 +212,6 @@ button.link { all: initial; font: inherit; color: var(--accent); cursor: pointer
 
 .local-access { height: 100vh; overflow: auto; align-items: flex-start; }
 .local-access .join-card { margin: auto; }
+
+.text-box .mono { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.classification-fields { display: grid; gap: 8px; }

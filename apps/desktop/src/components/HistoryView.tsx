@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import type { DeletionStatus, Filter, ItemView } from "../api";
-import { formatRelative, formatSize, isLink } from "../format";
+import { formatRelative, formatSize } from "../format";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { Badge, Button, Chip } from "./ui";
@@ -11,16 +11,16 @@ import { retainSelection, selectRow } from "../selection";
 import type { Selection } from "../selection";
 import { ImageDetail } from "./ImageDetail";
 import { ImageThumb } from "./ImageThumb";
+import { TextClassification } from "./TextClassification";
 import { TextDetail } from "./TextDetail";
 
-// Links, files and code have no type of their own in the history yet: their chips are there and show nothing
 const FILTERS: Filter[] = ["all", "favorites", "text", "links", "images", "files", "code"];
 
 export function kindIcon(it: ItemView): IconName {
   if (it.kind === "image") return "image";
   // A masked item (a secret the clipboard marked as sensitive) shows as a row of dots
   if (/^[\u2022\u25cf*]+$/.test(it.preview)) return "lock";
-  return isLink(it.preview) ? "link" : "text";
+  return it.kind === "link" ? "link" : it.kind === "code" ? "code" : "text";
 }
 
 function itemTitle(it: ItemView, t: (k: string, o?: Record<string, unknown>) => string): string {
@@ -31,6 +31,8 @@ function itemTitle(it: ItemView, t: (k: string, o?: Record<string, unknown>) => 
 
 interface Props {
   localOnly?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   items: ItemView[];
   query: string;
   filter: Filter;
@@ -44,7 +46,7 @@ interface Props {
   onPreviewHeight: (px: number) => void;
 }
 
-export function HistoryView({ items, query, filter, onQuery, onFilter, act, loadState, loadError, previewHeight, onPreviewHeight, localOnly = false }: Props) {
+export function HistoryView({ hasMore, onLoadMore, items, query, filter, onQuery, onFilter, act, loadState, loadError, previewHeight, onPreviewHeight, localOnly = false }: Props) {
   const { t, i18n } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>({ ids: [], anchor: null });
@@ -63,7 +65,7 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
   const selected = useMemo(() => items.find((item) => item.itemId === selectedId) ?? items[0] ?? null, [items, selectedId]);
   const selectedItems = items.filter((item) => selection.ids.includes(item.itemId));
   const pendingIds = new Set(deletions.pending.flatMap((entry) => entry.itemIds));
-  const selectedTextCount = selectedItems.filter((item) => item.kind === "text").length;
+  const selectedTextCount = selectedItems.filter((item) => (["text", "link", "code"].includes(item.kind))).length;
 
   useLayoutEffect(() => {
     if (!initialized.current && order.length) { initialized.current = true; setSelection({ ids: [order[0]], anchor: order[0] }); }
@@ -192,6 +194,7 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
             </li>;
           })}
         </ul>}
+      {hasMore && loadState === "ready" && <Button onClick={onLoadMore}>{t("results.more")}</Button>}
     </div>
     <aside className="detail" aria-label={t("detail.title")}>
       <div className="detail-head"><h2>{t("detail.title")}</h2>{selected?.syncState === "synced" && <Badge tone="ok">{t("sync.synced")}</Badge>}{selected?.syncState === "pending" && <Badge tone="warn">{t("sync.pending")}</Badge>}{selected?.syncState === "local" && <Badge>{t("sync.localOnly")}</Badge>}</div>
@@ -204,6 +207,7 @@ export function HistoryView({ items, query, filter, onQuery, onFilter, act, load
           <Button aria-pressed={selected.pinned} onClick={() => void act(api.setFlags(selected.itemId, { pinned: !selected.pinned }))}><Icon name="pin" size={15} filled={selected.pinned} />{selected.pinned ? t("item.unpin") : t("item.pin")}</Button>
         </div>
         <label className="field"><span>{t("detail.note")}</span><input key={selected.itemId} defaultValue={selected.note} placeholder={t("detail.notePlaceholder")} onBlur={(event) => { if (event.target.value !== selected.note) void act(api.setFlags(selected.itemId, { note: event.target.value })); }} /></label>
+        {["text", "link", "code"].includes(selected.kind) && <TextClassification key={`${selected.itemId}:${selected.kind}:${selected.language}`} item={selected} act={act} />}
         <div className="detail-spacer" />
         <Button variant="ghost" className="wide delete" disabled={pendingIds.has(selected.itemId)} onClick={(event) => askDelete([selected.itemId], event.currentTarget)}><Icon name="trash" size={15} />{t(localOnly ? "batch.singleDeleteLocal" : "detail.delete")}</Button>
       </> : <p className="muted">{t("detail.none")}</p>}

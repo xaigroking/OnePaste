@@ -3,6 +3,8 @@
 mod session_lock;
 #[path = "restart.rs"]
 mod restart;
+#[path = "text_classification.rs"]
+mod text_classification;
 #[path = "capture_health.rs"]
 mod capture_health;
 pub use capture_health::{CaptureHealth, CaptureState};
@@ -90,6 +92,7 @@ pub struct ItemView {
     pub favorite: bool,
     pub pinned: bool,
     pub note: String,
+    pub language: Option<String>,
     pub width: u32,
     pub height: u32,
     /// Size in bytes of an image.
@@ -772,7 +775,11 @@ impl App {
         }
         let device = Some(lock(&self.0.shared).device_id.clone()).filter(|d| !d.is_empty());
         let (payload, kind, size) = match &content {
-            Content::Text(t) => (ItemPayload { kind: "text".into(), content: Some(t.clone()), device, ..Default::default() }, "text", t.len()),
+            Content::Text(t) => {
+                let mut payload = ItemPayload { kind: "text".into(), content: Some(t.clone()), device, ..Default::default() };
+                onepaste_core::classification::set_classification(&mut payload, onepaste_core::classification::classify(t)).map_err(|e| AppError::Other(e.code().into()))?;
+                (payload, "text", t.len())
+            },
             Content::Image { png, width, height } => {
                 let encoded = B64.encode(png);
                 let mut p = ItemPayload { kind: "image".into(), content: Some(encoded), device, ..Default::default() };
@@ -1111,6 +1118,7 @@ impl App {
                 favorite: hit.favorite,
                 pinned: hit.pinned,
                 note: hit.note,
+                language: hit.language,
                 width,
                 height,
                 size: hit.size,

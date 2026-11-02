@@ -436,3 +436,23 @@ fn a_server_that_keeps_expiring_the_cursor_of_a_full_pull_does_not_make_the_clie
     assert_eq!(last, vec![Event::PullFailed { code: "cursor_expired".into() }]);
     assert_eq!(e.next_action(T0).unwrap(), Action::Idle, "it stops until the next sync is asked for");
 }
+
+#[test]
+fn private_type_corrections_survive_two_device_sync_and_unrelated_old_client_edits() {
+    use onepaste_core::classification::{classification, Classification};
+    let mk = Key::random().unwrap(); let mut a = engine(&mk); let mut b = engine(&mk); let mut server = Fake::default(); let mut now = T0;
+    let mut p = text("  https://example.org/private-type  \n");
+    p.tags = vec!["preserved".into()]; p.extra.insert("future_feature".into(), json!({"private":"kept"}));
+    let id = a.enqueue_create(now, &p).unwrap(); pump(&mut a, &mut server, &mut now); pull(&mut b, &mut server, &mut now);
+    a.enqueue_edit(now, &id, Edit::TextClassification(Classification::corrected(p.content.as_deref().unwrap(), "code", Some("other")).unwrap())).unwrap();
+    pump(&mut a, &mut server, &mut now); pull(&mut b, &mut server, &mut now);
+    b.enqueue_edit(now, &id, Edit::Favorite(true)).unwrap(); b.enqueue_edit(now, &id, Edit::Note(Some("independent note".into()))).unwrap();
+    pump(&mut b, &mut server, &mut now); pull(&mut a, &mut server, &mut now);
+    let back = payload_of(&mut a, &id);
+    assert_eq!(classification(&back).kind, "code"); assert!(classification(&back).manual);
+    assert_eq!(back.content, p.content); assert_eq!(back.tags, p.tags); assert_eq!(back.extra["future_feature"], p.extra["future_feature"]);
+    assert!(back.favorite); assert_eq!(back.note.as_deref(), Some("independent note"));
+    let public = server.items[&id].env.as_ref().unwrap();
+    assert!(public.get("text_classification").is_none() && public.get("language").is_none() && public.get("kind").is_none());
+    assert!(!public.to_string().contains("private-type"));
+}

@@ -36,6 +36,8 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [items, setItems] = useState<ItemView[]>([]);
+  const [itemLimit, setItemLimit] = useState(PAGE_SIZE);
+  const [hasMore, setHasMore] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [view, setView] = useState<View>("history");
@@ -79,16 +81,11 @@ export default function App() {
     setSettings(se);
     if (st.joined) {
       const seq = ++searchSeq.current;
-      // Links, files and code have no type of their own in the history yet: those chips show nothing
-      if (filter === "links" || filter === "files" || filter === "code") {
-        setItems([]);
-        setItemsState("ready");
-        return;
-      }
       try {
-        const found = await api.search(query, filter, PAGE_SIZE, 0);
+        const found = await api.search(query, filter, itemLimit + 1, 0);
         if (seq === searchSeq.current) {
-          setItems(found);
+          setItems(found.slice(0, itemLimit));
+          setHasMore(found.length > itemLimit);
           setItemsState("ready");
         }
       } catch (e) {
@@ -99,7 +96,7 @@ export default function App() {
         }
       }
     }
-  }, [query, filter]);
+  }, [query, filter, itemLimit]);
 
   // Switch the UI language as soon as the Rust side reports a different one.
   useEffect(() => {
@@ -275,10 +272,12 @@ export default function App() {
           <HistoryView
             localOnly={status?.mode === "local_only"}
             items={items}
+            hasMore={hasMore}
+            onLoadMore={() => setItemLimit((value) => value + PAGE_SIZE)}
             query={query}
             filter={filter}
-            onQuery={setQuery}
-            onFilter={setFilter}
+            onQuery={(value) => { ++searchSeq.current; setItemLimit(PAGE_SIZE); setQuery(value); }}
+            onFilter={(value) => { ++searchSeq.current; setItemLimit(PAGE_SIZE); setFilter(value); }}
             act={act}
             loadState={itemsState}
             loadError={itemsError}

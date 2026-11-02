@@ -45,7 +45,8 @@ export interface AppStatus {
 
 export interface ItemView {
   itemId: string;
-  kind: "text" | "image";
+  kind: "text" | "link" | "code" | "image" | "file";
+  language?: string | null;
   /** First line of a text item. */
   preview: string;
   favorite: boolean;
@@ -207,6 +208,7 @@ export const api = {
   search: (query: string, filter: Filter, limit: number, offset: number) =>
     invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
   copy: (itemId: string) => invoke<void>("app_copy", { itemId }),
+  setTextClassification: (itemId: string, kind: string, language: string | null) => invoke<void>("app_set_text_classification", { itemId, kind, language }),
   setFlags: (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) =>
     invoke<void>("app_set_flags", { itemId, favorite: flags.favorite ?? null, pinned: flags.pinned ?? null, note: flags.note ?? null }),
   copyItems: (itemIds: string[]) => invoke<number>("app_copy_items", { itemIds }),

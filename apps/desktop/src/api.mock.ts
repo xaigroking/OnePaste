@@ -46,12 +46,16 @@ const deviceAction = <T,>(value: T): Promise<T> => {
 
 const ITEMS: ItemView[] = [
   { itemId: "i1", kind: "text", preview: "Review moved to 3 pm Friday, room B2 \u5468\u4e94\u8bc4\u5ba1\u4f1a\u6539\u5230\u4e0b\u5348\u4e09\u70b9", favorite: false, pinned: true, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Chat", createdAtMs: NOW - 1 * MIN, syncState: "synced" },
-  { itemId: "i2", kind: "text", preview: "https://example.org/help/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
-  { itemId: "i3", kind: "text", preview: "docker run -d -p 8787:8787 -v onepaste-data:/data onepaste/server", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Terminal", createdAtMs: NOW - 8 * MIN, syncState: "synced" },
+  { itemId: "i2", kind: "link", preview: "https://example.org/help/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
+  { itemId: "i3", kind: "code", language: "shell", preview: "docker run -d -p 8787:8787 -v onepaste-data:/data onepaste/server", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Terminal", createdAtMs: NOW - 8 * MIN, syncState: "synced" },
   { itemId: "i4", kind: "text", preview: "••••••••••••", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Password manager", createdAtMs: NOW - 15 * MIN, syncState: "local" },
   { itemId: "i5", kind: "image", preview: "", favorite: false, pinned: false, note: "", width: 1280, height: 720, size: 86016, sourceDevice: "Office Mac", sourceApp: "Screenshot", createdAtMs: NOW - 60 * MIN, syncState: "synced" },
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
+
+if (q.get("manyCodes") === "yes") {
+  for (let i = 0; i < 62; i++) ITEMS.push({ ...ITEMS[2], itemId: `code-page-${i}`, preview: `const page${i} = ${i};` });
+}
 
 let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.get("hotkey") === "custom" && STATE !== "error" ? "Control+Shift+KeyK" : "Control+Alt+KeyV";
 let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
@@ -188,9 +192,9 @@ export const api = {
     if (STATE === "empty") return Promise.resolve([]);
     const text = query.trim().toLowerCase();
     return Promise.resolve(
-      ITEMS.filter((i) => (filter === "favorites" ? i.favorite : filter === "text" ? i.kind === "text" : filter === "images" ? i.kind === "image" : true)).filter(
+      ITEMS.filter((i) => (filter === "favorites" ? i.favorite : filter === "text" ? i.kind === "text" : filter === "images" ? i.kind === "image" : filter === "links" ? i.kind === "link" : filter === "code" ? i.kind === "code" : filter === "files" ? i.kind === "file" : filter === "all")).filter(
         (i) => !text || i.preview.toLowerCase().includes(text),
-      ),
+      ).slice(_offset, _offset + _limit),
     );
   },
   copy: async (itemId: string) => {
@@ -208,12 +212,18 @@ export const api = {
   hideQuickPanel: async () => {
     (window as unknown as { __hidden: boolean }).__hidden = true;
   },
+  setTextClassification: async (itemId: string, kind: string, language: string | null) => {
+    if (q.get("classificationSave") === "error") throw "invalid_classification";
+    const item = ITEMS.find((value) => value.itemId === itemId);
+    if (item) { item.kind = kind as ItemView["kind"]; item.language = language; }
+    changed();
+  },
   setFlags: async (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) => {
     const item = ITEMS.find((value) => value.itemId === itemId); if (item) Object.assign(item, flags); changed();
   },
   copyItems: async (ids: string[]) => {
     const w = window as unknown as { __batchCopies?: string[][] }; w.__batchCopies = [...(w.__batchCopies ?? []), [...ids]];
-    return ITEMS.filter((item) => ids.includes(item.itemId) && item.kind === "text").length;
+    return ITEMS.filter((item) => ids.includes(item.itemId) && (["text", "link", "code"].includes(item.kind))).length;
   },
   favoriteItems: async (ids: string[], favorite: boolean) => {
     for (const item of ITEMS) if (ids.includes(item.itemId)) item.favorite = favorite; changed();

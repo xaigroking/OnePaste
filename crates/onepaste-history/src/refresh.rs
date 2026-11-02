@@ -53,6 +53,7 @@ struct Entry {
     item_id: String,
     seq: i64,
     kind: String,
+    language: Option<String>,
     text: String,
     mime: String,
     size: i64,
@@ -77,13 +78,15 @@ fn read_row(row: &ItemRow, mk: &Key) -> Result<Change, &'static str> {
     let json = row.envelope_json.as_deref().ok_or("malformed_envelope")?;
     let env: Envelope = serde_json::from_str(json).map_err(|_| "malformed_envelope")?;
     let payload = open_item(mk, &env).map_err(|e| e.code())?;
+    let classified = onepaste_core::classification::classification(&payload);
     let is_image = payload.kind == "image";
     let mime = payload.extra.get("mime").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let size = payload.extra.get("size").and_then(|v| v.as_i64()).unwrap_or(env.size as i64);
     Ok(Change::Upsert(Entry {
         item_id: row.id.clone(),
         seq: row.seq,
-        kind: if is_image { "image".to_string() } else { "text".to_string() },
+        kind: classified.kind,
+        language: classified.language,
         text: if is_image { String::new() } else { payload.content.unwrap_or_default() },
         mime,
         size,
@@ -100,11 +103,12 @@ impl HistoryStore {
     /// Brings the history up to date with the source: decrypts what changed, then updates rows, index and the
     /// processed sequence number in one transaction, so a failure leaves everything as it was.
     pub fn refresh<S: ItemSource + ?Sized>(&mut self, source: &mut S, mk: &Key) -> Result<RefreshReport, HistoryError> {
-        let indexed = self.indexed_seq()?;
+        let version = self.conn.query_row("SELECT value FROM state WHERE key = 'classification_version'", [], |r| r.get::<_, i64>(0)).unwrap_or(0);
+        let indexed = if version < 1 { -1 } else { self.indexed_seq()? };
         let items = source.changed_since(indexed)?;
         let mut changes = Vec::new();
         let mut skipped = Vec::new();
-        let mut top = indexed;
+        let mut top = indexed.max(0);
         for row in &items.rows {
             top = top.max(row.seq);
             match read_row(row, mk) {
@@ -123,18 +127,18 @@ impl HistoryStore {
                 removed += tx.execute("DELETE FROM history WHERE item_id = ?1", [id])?;
             }
             let mut upsert = tx.prepare(
-                "INSERT INTO history (item_id, seq, kind, text, mime, size, favorite, pinned, note, tags, source_device, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                "INSERT INTO history (item_id, seq, kind, text, mime, size, favorite, pinned, note, tags, source_device, created_at, language)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                  ON CONFLICT(item_id) DO UPDATE SET seq = excluded.seq, kind = excluded.kind, text = excluded.text, mime = excluded.mime,
                    size = excluded.size, favorite = excluded.favorite, pinned = excluded.pinned, note = excluded.note, tags = excluded.tags,
-                   source_device = excluded.source_device, created_at = excluded.created_at",
+                   source_device = excluded.source_device, created_at = excluded.created_at, language = excluded.language",
             )?;
             for change in &changes {
                 match change {
                     Change::Delete(id) => removed += tx.execute("DELETE FROM history WHERE item_id = ?1", [id])?,
                     Change::Upsert(e) => {
                         upsert.execute(params![
-                            e.item_id, e.seq, e.kind, e.text, e.mime, e.size, e.favorite, e.pinned, e.note, e.tags, e.source_device, e.created_at
+                            e.item_id, e.seq, e.kind, e.text, e.mime, e.size, e.favorite, e.pinned, e.note, e.tags, e.source_device, e.created_at, e.language
                         ])?;
                         upserted += 1;
                     }
@@ -145,6 +149,7 @@ impl HistoryStore {
             "INSERT INTO state (key, value) VALUES ('indexed_seq', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             [top],
         )?;
+        tx.execute("INSERT INTO state (key, value) VALUES ('classification_version', 1) ON CONFLICT(key) DO UPDATE SET value = 1", [])?;
         tx.commit()?;
         Ok(RefreshReport { upserted, removed, skipped, indexed_seq: top })
     }
