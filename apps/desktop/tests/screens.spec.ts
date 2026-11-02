@@ -37,13 +37,22 @@ for (const mode of ["mac-ready", "mac-permission"] as const) {
   }
 }
 
-for (const mode of ["new", "locked", "recovery", "recover-form", "read-error"] as const) {
+for (const mode of ["new", "locked", "recovery", "recover-form", "read-error", "start-fresh", "restart-error", "restart-pending"] as const) {
   for (const theme of THEMES) for (const lang of LANGS) {
     test(`local-access ${mode} ${theme} ${lang}`, async ({ page }) => {
       const l = locale(lang);
       await page.setViewportSize(WINDOW);
       await page.addInitScript((value) => localStorage.setItem("onepaste.theme", value), theme);
-      await page.goto(`/?screen=main&lang=${lang}&${mode === "read-error" ? "keyRead=error" : `keyState=${mode === "recover-form" ? "recovery" : mode}`}`);
+      const restartMode = ["start-fresh", "restart-error", "restart-pending"].includes(mode);
+      await page.goto(`/?screen=main&lang=${lang}&restart=${mode === "restart-error" ? "error" : mode === "restart-pending" ? "pending" : "ok"}&${mode === "read-error" ? "keyRead=error" : `keyState=${mode === "recover-form" || restartMode ? "recovery" : mode}`}`);
+      if (restartMode) {
+        await page.getByRole("button", { name: l.localAccess.startFresh, exact: true }).click();
+        if (mode !== "start-fresh") {
+          await page.getByRole("button", { name: l.localAccess.startFresh, exact: true }).click();
+          if (mode === "restart-error") await page.getByRole("alert").waitFor();
+          else await expect(page.getByRole("button", { name: l.localAccess.working, exact: true })).toBeDisabled();
+        }
+      }
       if (mode === "recover-form") await page.getByRole("button", { name: l.localAccess.recover, exact: true }).click();
       if (mode === "read-error") await page.getByRole("alert").waitFor();
       else await page.getByRole("heading", { level: 1 }).waitFor();

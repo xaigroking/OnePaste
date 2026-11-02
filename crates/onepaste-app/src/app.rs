@@ -1,6 +1,8 @@
 //! The application object: one place that owns the vault session, the history and the background work.
 #[path = "session_lock.rs"]
 mod session_lock;
+#[path = "restart.rs"]
+mod restart;
 
 use crate::error::AppError;
 use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, KeyStore};
@@ -542,7 +544,7 @@ impl App {
         Ok(kit)
     }
 
-    /// The user has saved the recovery kit: only now is the vault registered on the server.
+    /// Completes setup when the user continues. Saving the recovery kit is optional.
     pub async fn confirm_kit_saved(&self) -> Result<(), AppError> {
         let _connection = self.0.connection.write().await;
         self.require_unset().await?;

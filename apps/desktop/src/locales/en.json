@@ -79,7 +79,8 @@
     "delete_failed": "Deletion could not be completed",
     "startup_repair_failed": "Login startup registration could not be updated",
     "passphrase_changed": "Passphrase changed",
-    "passphrase_change_failed": "Passphrase change could not be confirmed"
+    "passphrase_change_failed": "Passphrase change could not be confirmed",
+    "local_setup_restarted": "Local setup restarted"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -261,7 +262,7 @@
       "stepsTitle": "How to connect your computers",
       "steps": {
         "code": "Get the complete onepaste1: connection code from the server, paste it here, then click Next. The server address is not an administration webpage.",
-        "first": "First computer on an empty server: choose and confirm a passphrase → Next → save the recovery kit offline → check the saved confirmation → Done.",
+        "first": "First computer on an empty server: choose and confirm a passphrase → Next → optionally save the recovery kit → Done.",
         "existing": "If a vault already exists, enter its original passphrase to Join. If you forgot it, choose “I forgot my passphrase, I have a recovery kit”.",
         "second": "For a second computer, get a fresh code from the connected desktop: Devices → Add a device → Make a connection code. On the second desktop, choose Connect to my own server, paste the new code and join with the same passphrase."
       }
@@ -298,7 +299,9 @@
       "print": "Print",
       "copied": "Copied. Paste it somewhere safe, then clear your clipboard.",
       "saved": "I have saved it somewhere offline",
-      "done": "Done"
+      "done": "Done",
+      "optional": "Saving this kit is optional. You can continue without saving it.",
+      "skip": "Continue without a recovery kit"
     },
     "errors": {
       "wrong_passphrase": "The passphrase is wrong. Nothing was changed.",
@@ -574,14 +577,14 @@
     "recoveryTitle": "Recover existing OnePaste data",
     "scope": "Use a separate OnePaste passphrase for this computer. It stays on this device and is independent of the vault passphrase. OnePaste does not ask for your system login or credential-store password.",
     "legacy": "Existing encrypted data was found without a local unlock record. The files have been kept.",
-    "limit": "Use a recovery kit or the vault passphrase for this computer’s saved vault record. Old local-only data cannot be unlocked if its only key was in system storage and no independent copy is available. OnePaste will not read that storage.",
+    "limit": "To keep existing history, use its recovery kit or saved vault passphrase. If you do not have these or do not need the old history, choose Start fresh. OnePaste will not read system credential storage.",
     "credentialType": "Recover using",
     "kit": "Recovery kit",
     "vaultPass": "Saved vault passphrase",
     "newPass": "New OnePaste passphrase",
     "pass": "OnePaste passphrase",
     "confirm": "Confirm OnePaste passphrase",
-    "minimum": "Use at least 8 characters. Save a recovery kit after setup.",
+    "minimum": "Use at least 8 characters. Saving a recovery kit is optional.",
     "working": "Working…",
     "continue": "Continue",
     "recover": "Recover existing data",
@@ -589,8 +592,12 @@
     "cancel": "Cancel",
     "wrong": "This passphrase could not unlock OnePaste. Check it or use recovery. Your files are unchanged.",
     "wrongKit": "This recovery kit does not open these files. Your files are unchanged.",
-    "failed": "Could not open the existing data. Your files have been kept. Check your independent recovery credentials and try again.",
-    "vaultChangeHint": "This changes the vault passphrase used when adding a computer. Your OnePaste unlock passphrase on this computer is independent."
+    "failed": "Could not open the existing data. Your files have been kept. Try again, recover them if you have the credentials, or start fresh.",
+    "vaultChangeHint": "This changes the vault passphrase used when adding a computer. Your OnePaste unlock passphrase on this computer is independent.",
+    "startFresh": "Start fresh",
+    "startFreshTitle": "Start fresh on this computer?",
+    "startFreshBody": "Set up new OnePaste data without an old passphrase or recovery kit. Previous local files will be set aside on this computer and will not appear in your new history. Your server and other devices are unchanged. Cancel to keep using or recover the previous data.",
+    "startFreshFailed": "Could not start fresh. The previous files have been kept. Check available disk space and folder permissions, then try again."
   },
   "autoLock": {
     "saving": "Saving...",

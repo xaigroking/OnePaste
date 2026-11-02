@@ -215,7 +215,7 @@ for (const vault of ["empty", "existing"]) {
       await page.getByLabel("Type it again").fill("test-only-new-passphrase");
       await page.getByRole("button", { name: "Next", exact: true }).click();
       await expect(page.getByTestId("kit")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Done", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Done", exact: true })).toBeEnabled();
       expect(await page.evaluate(() => window.__called)).toEqual(["probeServer", "createVault"]);
       const download = page.waitForEvent("download");
       await page.getByRole("button", { name: "Save as file" }).click();

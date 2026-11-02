@@ -72,6 +72,7 @@ fn main() {
         .manage(core.clone())
         .invoke_handler(tauri::generate_handler![
             commands::app_key_state,
+            commands::app_restart_local_setup,
             commands::app_lock_session,
             commands::app_user_activity,
             commands::app_prepare_local_passphrase,

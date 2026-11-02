@@ -140,6 +140,20 @@ mod key_access_tests {
             again.unlock_local("native independent application passphrase").await.unwrap();
             assert_eq!(again.search("native encrypted",Filter::All,10,0).await.unwrap().len(),1); assert_eq!(again.show_kit().unwrap(),kit);
             again.wipe_local_data().await.unwrap(); assert!(!dir.join(KEY_FILE).exists()); assert_eq!(again.key_state().unwrap(),KeyState::New);
+            // Missing old credentials must not block an explicit fresh start on the native clipboard path.
+            again.prepare_local_passphrase("another native application passphrase").unwrap();
+            again.choose_local_only().await.unwrap();
+            PlatformClipboard.write(&Content::Text("previous profile before fresh start".into()),false).unwrap();
+            wait_for_history(&again,"previous profile").await;
+            again.lock_session().await.unwrap();
+            std::fs::write(dir.join(KEY_FILE), "corrupt previous unlock record").unwrap();
+            again.restart_local_setup().await.unwrap();
+            assert_eq!(again.key_state().unwrap(),KeyState::New);
+            again.prepare_local_passphrase("fresh native application passphrase").unwrap();
+            again.choose_local_only().await.unwrap();
+            assert!(again.search("previous profile",Filter::All,10,0).await.unwrap().is_empty());
+            PlatformClipboard.write(&Content::Text("fresh profile remains usable".into()),false).unwrap();
+            wait_for_history(&again,"fresh profile").await;
             again.shutdown();
         });
     }

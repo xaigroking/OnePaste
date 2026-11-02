@@ -420,6 +420,13 @@ pub async fn set_autostart(enabled: bool) -> Result<crate::autostart::Info, Stri
 pub fn app_key_state(core: State<App>) -> Result<onepaste_app::KeyState, String> { core.key_state().map_err(|e| e.code()) }
 
 #[tauri::command]
+pub async fn app_restart_local_setup(app: AppHandle, core: State<'_, App>) -> Result<(), String> {
+    core.restart_local_setup().await.map_err(|e| e.code())?;
+    tray::notify_changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn app_prepare_local_passphrase(core: State<'_, App>, passphrase: String) -> Result<(), String> {
     let core = core.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {

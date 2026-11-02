@@ -105,7 +105,7 @@ impl App {
         Ok(())
     }
 
-    async fn close_session(&self) {
+    pub(super) async fn close_session(&self) {
         self.0.generation.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.0.locked.store(true, std::sync::atomic::Ordering::Release);
         // Prevent monitor callbacks from registering more tasks before dropping their guard.

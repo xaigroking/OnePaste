@@ -59,3 +59,84 @@ test("vault recovery preserves every passphrase character, including surrounding
   await page.getByRole("button", { name: "Recover existing data", exact: true }).click();
   await expect(page.getByRole("option")).toHaveCount(6);
 });
+
+for (const entry of ["keyState=recovery", "keyState=locked", "keyRead=error"]) {
+  test(`starting over needs no old credentials (${entry})`, async ({ page }) => {
+    await page.goto(`/?screen=main&lang=en&${entry}`);
+    const restart = page.getByRole("button", { name: "Start fresh", exact: true });
+    await expect(restart).toBeVisible({ timeout: 5000 });
+    await restart.click();
+    await expect(page.getByRole("heading", { name: "Start fresh on this computer?" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await page.evaluate(() => window.__called ?? [])).not.toContain("restartLocalSetup");
+    await restart.click();
+    await page.getByRole("button", { name: "Start fresh", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Set a OnePaste passphrase" })).toBeVisible();
+    await page.getByLabel("New OnePaste passphrase", { exact: true }).fill("new independent passphrase");
+    await page.getByLabel("Confirm OnePaste passphrase", { exact: true }).fill("new independent passphrase");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("radio", { name: /Only on this computer/ }).check();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.__called ?? [])).toContain("chooseLocalOnly");
+    const calls = await page.evaluate(() => window.__called ?? []);
+    expect(calls).toContain("restartLocalSetup");
+    expect(calls).not.toContain("recoverLocal");
+    expect(calls).not.toContain("unlockLocal");
+  });
+}
+
+test("a restart error remains actionable and cancellation leaves the access state unchanged", async ({ page }) => {
+  await page.goto("/?screen=main&lang=en&keyState=recovery&restart=error");
+  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Start fresh", exact: true })).toBeFocused();
+  expect(await page.evaluate(() => window.__called ?? [])).not.toContain("restartLocalSetup");
+  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
+  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Could not start fresh");
+  await expect(page.getByRole("button", { name: "Start fresh", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recover existing OnePaste data" })).toBeVisible();
+  await page.reload();
+  expect(await page.evaluate(() => window.__called ?? [])).not.toContain("restartLocalSetup");
+});
+
+test("starting over is submitted once and reports progress", async ({ page }) => {
+  await page.goto("/?screen=main&lang=en&keyState=locked&restart=pending");
+  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
+  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Working…", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  expect((await page.evaluate(() => window.__called ?? [])).filter((c) => c === "restartLocalSetup")).toHaveLength(1);
+  await page.evaluate(() => (window as any).__finishRestart());
+  await expect(page.getByRole("heading", { name: "Set a OnePaste passphrase" })).toBeVisible();
+});
+
+test("new synced setup can continue without displaying or saving a recovery kit", async ({ page }) => {
+  await page.goto("/?screen=ob1&lang=en");
+  await page.getByRole("radio", { name: /Connect to my own server/ }).check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByLabel("Connection code", { exact: true }).fill("onepaste1:fixture");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByLabel("Passphrase", { exact: true }).fill("new separate vault passphrase");
+  await page.getByLabel("Type it again", { exact: true }).fill("new separate vault passphrase");
+  await page.getByRole("button", { name: "Continue without a recovery kit", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__called ?? [])).toEqual(["probeServer", "createVault", "confirmKitSaved"]);
+  await expect(page.getByTestId("kit")).toHaveCount(0);
+});
+
+test("displaying a kit does not require saving it to finish", async ({ page }) => {
+  await page.goto("/?screen=ob1&lang=en");
+  await page.getByRole("radio", { name: /Connect to my own server/ }).check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByLabel("Connection code", { exact: true }).fill("onepaste1:fixture");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByLabel("Passphrase", { exact: true }).fill("new separate vault passphrase");
+  await page.getByLabel("Type it again", { exact: true }).fill("new separate vault passphrase");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__called ?? [])).toEqual(["probeServer", "createVault", "confirmKitSaved"]);
+});
