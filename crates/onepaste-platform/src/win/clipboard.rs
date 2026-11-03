@@ -5,7 +5,7 @@ use crate::clipboard::{classify, Content, Event, Image, Snapshot, WriteOptions};
 use crate::error::PlatformError;
 use std::ffi::c_void;
 use std::time::Duration;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL};
 use windows::Win32::System::DataExchange::{
@@ -23,6 +23,9 @@ const FMT_PNG: &str = "PNG";
 const FMT_ORIGIN: &str = "OnePaste.Origin";
 const FMT_EXCLUDE_MONITOR: &str = "ExcludeClipboardContentFromMonitorProcessing";
 const FMT_HISTORY: &str = "CanIncludeInClipboardHistory";
+
+// Keep the clipboard owner alive between writes and serialize writers in this process.
+static WRITER: Mutex<Option<MessageWindow>> = Mutex::new(None);
 
 fn format_id(name: &str) -> u32 {
     let w = wide(name);
@@ -140,7 +143,11 @@ fn read_content() -> Result<Option<Content>, PlatformError> {
 
 pub(crate) fn write(content: &Content, opts: WriteOptions) -> Result<(), PlatformError> {
     // EmptyClipboard and SetClipboardData require a real owner window, including on Windows 10.
-    let owner = MessageWindow::spawn("OnePasteClipboardWriter", true, |_| Ok(()), |_, _, _| {})?;
+    let mut writer = WRITER.lock().unwrap_or_else(|error| error.into_inner());
+    if writer.is_none() {
+        *writer = Some(MessageWindow::spawn("OnePasteClipboardWriter", true, |_| Ok(()), |_, _, _| {})?);
+    }
+    let owner = writer.as_ref().unwrap();
     let _open = Opened::with_owner(Some(owner.hwnd()))?;
     unsafe { EmptyClipboard() }.map_err(os_err)?;
     match content {
