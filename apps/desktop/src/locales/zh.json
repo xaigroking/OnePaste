@@ -185,7 +185,7 @@
     "privacy": "隐私与诊断",
     "privacyBody": "剪贴板内容不会写入日志或诊断信息。诊断只列出事件类型、大小和错误码。",
     "about": "关于",
-    "aboutBody": "你的所有数据都经过端到端加密。OnePaste 不发送任何遥测数据。"
+    "aboutBody": "剪贴板历史与设备间可选的加密同步。"
   },
   "nav": {
     "history": "历史",
@@ -372,10 +372,7 @@
     "sizeLimitNotice": "本次复制超过单条大小上限，未保存，也未同步。请复制较小的内容，或在设置中调高上限。已有历史不受影响。",
     "dismissSizeNotice": "关闭大小提示",
     "autoLock": "一段时间后自动锁定",
-    "telemetry": "使用统计与崩溃报告",
-    "telemetryOff": "已关闭。OnePaste 从不发送。",
     "changePassphrase": "修改口令",
-    "advanced": "高级",
     "hotkeyHint": "保存后立即生效。注册失败时会保留已有可用的快捷键。",
     "syncMethod": "方式",
     "syncLocal": "仅本机",

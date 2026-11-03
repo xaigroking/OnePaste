@@ -185,7 +185,7 @@
     "privacy": "Privacy and diagnostics",
     "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
     "about": "About",
-    "aboutBody": "All your data is encrypted from end to end. OnePaste sends no telemetry."
+    "aboutBody": "Clipboard history with optional encrypted sync between your devices."
   },
   "nav": {
     "history": "History",
@@ -372,10 +372,7 @@
     "sizeLimitNotice": "This copy exceeded the item size limit and was not saved or synced. Copy a smaller item, or increase the limit in Settings. Your existing history is unchanged.",
     "dismissSizeNotice": "Dismiss size notice",
     "autoLock": "Lock automatically after a while",
-    "telemetry": "Usage statistics and crash reports",
-    "telemetryOff": "Off. OnePaste never sends any.",
     "changePassphrase": "Change passphrase",
-    "advanced": "Advanced",
     "hotkeyHint": "Saved changes take effect immediately. If registration fails, an existing working shortcut is kept.",
     "syncMethod": "Method",
     "syncLocal": "Only on this computer",
