@@ -24,8 +24,9 @@ const FMT_ORIGIN: &str = "OnePaste.Origin";
 const FMT_EXCLUDE_MONITOR: &str = "ExcludeClipboardContentFromMonitorProcessing";
 const FMT_HISTORY: &str = "CanIncludeInClipboardHistory";
 
-// Keep the clipboard owner alive between writes and serialize writers in this process.
-static WRITER: Mutex<Option<MessageWindow>> = Mutex::new(None);
+// Keep the owner alive and serialize the entire open/read-or-write/close transaction.
+// A concurrent reader must not close the clipboard while another caller is copying its data.
+static CLIPBOARD: Mutex<Option<MessageWindow>> = Mutex::new(None);
 
 fn format_id(name: &str) -> u32 {
     let w = wide(name);
@@ -110,6 +111,7 @@ fn is_sensitive() -> Result<bool, PlatformError> {
 }
 
 pub(crate) fn read() -> Result<Snapshot, PlatformError> {
+    let _access = CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
     let _open = Opened::new()?;
     let from_self = available(format_id(FMT_ORIGIN));
     if is_sensitive()? { return Ok(Snapshot { content: None, sensitive: true, from_self }); }
@@ -143,7 +145,7 @@ fn read_content() -> Result<Option<Content>, PlatformError> {
 
 pub(crate) fn write(content: &Content, opts: WriteOptions) -> Result<(), PlatformError> {
     // EmptyClipboard and SetClipboardData require a real owner window, including on Windows 10.
-    let mut writer = WRITER.lock().unwrap_or_else(|error| error.into_inner());
+    let mut writer = CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
     if writer.is_none() {
         *writer = Some(MessageWindow::spawn("OnePasteClipboardWriter", true, |_| Ok(()), |_, _, _| {})?);
     }
@@ -317,8 +319,11 @@ impl Monitor {
 mod tests {
     use super::*;
 
+    static TEST_CLIPBOARD: Mutex<()> = Mutex::new(());
+
     #[test]
     fn a_busy_clipboard_reports_failure_then_recovers_without_another_copy() {
+        let _exclusive = TEST_CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
         use std::sync::mpsc::channel;
         use windows::Win32::Foundation::{WPARAM, LPARAM};
         use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
@@ -340,6 +345,28 @@ mod tests {
             }
         }
         drop(monitor);
+    }
+
+    #[test]
+    fn concurrent_reads_keep_the_clipboard_open_until_the_snapshot_is_complete() {
+        let _exclusive = TEST_CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
+        let expected = Content::Text("concurrent clipboard reader fixture".into());
+        write(&expected, WriteOptions { origin_marker: false, sensitive_marker: false }).unwrap();
+        let ready = Arc::new(std::sync::Barrier::new(8));
+        let readers: Vec<_> = (0..8).map(|_| {
+            let ready = ready.clone();
+            let expected = expected.clone();
+            std::thread::spawn(move || {
+                ready.wait();
+                for _ in 0..100 {
+                    let snapshot = read().expect("another local reader must not close this transaction");
+                    assert_eq!(snapshot.content.as_ref(), Some(&expected));
+                    assert!(!snapshot.sensitive);
+                    assert!(!snapshot.from_self);
+                }
+            })
+        }).collect();
+        for reader in readers { reader.join().unwrap(); }
     }
 
     #[test]
