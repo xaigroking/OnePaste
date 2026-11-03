@@ -5,13 +5,15 @@ use crate::clipboard::{classify, Content, Event, Image, Snapshot, WriteOptions};
 use crate::error::PlatformError;
 use std::ffi::c_void;
 use std::time::Duration;
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL};
 use windows::Win32::System::DataExchange::{
     AddClipboardFormatListener, CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
-    OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
+    OpenClipboard, RegisterClipboardFormatW, SetClipboardData, RemoveClipboardFormatListener,
 };
 use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE};
+use windows::Win32::UI::WindowsAndMessaging::{SetTimer, KillTimer, WM_TIMER, WM_DESTROY};
 
 const CF_DIB: u32 = 8;
 const CF_UNICODETEXT: u32 = 13;
@@ -21,6 +23,10 @@ const FMT_PNG: &str = "PNG";
 const FMT_ORIGIN: &str = "OnePaste.Origin";
 const FMT_EXCLUDE_MONITOR: &str = "ExcludeClipboardContentFromMonitorProcessing";
 const FMT_HISTORY: &str = "CanIncludeInClipboardHistory";
+
+// Keep the owner alive and serialize the entire open/read-or-write/close transaction.
+// A concurrent reader must not close the clipboard while another caller is copying its data.
+static CLIPBOARD: Mutex<Option<MessageWindow>> = Mutex::new(None);
 
 fn format_id(name: &str) -> u32 {
     let w = wide(name);
@@ -36,8 +42,12 @@ struct Opened;
 
 impl Opened {
     fn new() -> Result<Opened, PlatformError> {
+        Self::with_owner(None)
+    }
+
+    fn with_owner(owner: Option<windows::Win32::Foundation::HWND>) -> Result<Opened, PlatformError> {
         for _ in 0..20 {
-            if unsafe { OpenClipboard(None) }.is_ok() {
+            if unsafe { OpenClipboard(owner) }.is_ok() {
                 return Ok(Opened);
             }
             std::thread::sleep(Duration::from_millis(25));
@@ -55,18 +65,17 @@ impl Drop for Opened {
 }
 
 /// Must be called while the clipboard is open.
-fn get_bytes(format: u32) -> Option<Vec<u8>> {
+fn get_bytes(format: u32) -> Result<Vec<u8>, PlatformError> {
     unsafe {
-        let h = GetClipboardData(format).ok()?;
+        let h = GetClipboardData(format).map_err(os_err)?;
         let g = HGLOBAL(h.0);
         let size = GlobalSize(g);
+        if size == 0 { return Ok(Vec::new()); }
         let p = GlobalLock(g);
-        if p.is_null() {
-            return None;
-        }
+        if p.is_null() { return Err(os_err(windows::core::Error::from_thread())); }
         let out = std::slice::from_raw_parts(p as *const u8, size).to_vec();
         let _ = GlobalUnlock(g);
-        Some(out)
+        Ok(out)
     }
 }
 
@@ -90,56 +99,58 @@ fn set_bytes(format: u32, data: &[u8]) -> Result<(), PlatformError> {
     }
 }
 
-fn is_sensitive() -> bool {
-    if available(format_id(FMT_EXCLUDE_MONITOR)) {
-        return true;
-    }
+fn is_sensitive() -> Result<bool, PlatformError> {
+    if available(format_id(FMT_EXCLUDE_MONITOR)) { return Ok(true); }
     let history = format_id(FMT_HISTORY);
     if available(history) {
-        if let Some(b) = get_bytes(history) {
-            if b.len() >= 4 && u32::from_le_bytes([b[0], b[1], b[2], b[3]]) == 0 {
-                return true;
-            }
-        }
+        let bytes = get_bytes(history)?;
+        let value: [u8; 4] = bytes.get(..4).ok_or(PlatformError::BadFormat)?.try_into().map_err(|_| PlatformError::BadFormat)?;
+        return Ok(u32::from_le_bytes(value) == 0);
     }
-    false
+    Ok(false)
 }
 
 pub(crate) fn read() -> Result<Snapshot, PlatformError> {
+    let _access = CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
     let _open = Opened::new()?;
     let from_self = available(format_id(FMT_ORIGIN));
-    if is_sensitive() {
-        return Ok(Snapshot { content: None, sensitive: true, from_self });
-    }
-    Ok(Snapshot { content: read_content(), sensitive: false, from_self })
+    if is_sensitive()? { return Ok(Snapshot { content: None, sensitive: true, from_self }); }
+    Ok(Snapshot { content: read_content()?, sensitive: false, from_self })
 }
 
-fn read_content() -> Option<Content> {
+fn read_content() -> Result<Option<Content>, PlatformError> {
     if available(CF_UNICODETEXT) {
         let bytes = get_bytes(CF_UNICODETEXT)?;
+        if bytes.len() % 2 != 0 { return Err(PlatformError::BadFormat); }
         let units: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
         let end = units.iter().position(|&u| u == 0).unwrap_or(units.len());
         let text = String::from_utf16_lossy(&units[..end]);
-        return if text.is_empty() { None } else { Some(Content::Text(text)) };
+        return Ok(if text.is_empty() { None } else { Some(Content::Text(text)) });
     }
     let png_fmt = format_id(FMT_PNG);
     if available(png_fmt) {
-        if let Some(png) = get_bytes(png_fmt) {
-            if let Some((width, height)) = crate::png_info::dimensions(&png) {
-                return Some(Content::Image(Image { png, width, height }));
-            }
+        let png = get_bytes(png_fmt)?;
+        if let Some((width, height)) = crate::png_info::dimensions(&png) {
+            return Ok(Some(Content::Image(Image { png, width, height })));
         }
+        if !available(CF_DIB) { return Err(PlatformError::BadFormat); }
     }
     if available(CF_DIB) {
         let dib = get_bytes(CF_DIB)?;
-        let (png, width, height) = dib_to_png(&dib)?;
-        return Some(Content::Image(Image { png, width, height }));
+        let (png, width, height) = dib_to_png(&dib).ok_or(PlatformError::BadFormat)?;
+        return Ok(Some(Content::Image(Image { png, width, height })));
     }
-    None
+    Ok(None)
 }
 
 pub(crate) fn write(content: &Content, opts: WriteOptions) -> Result<(), PlatformError> {
-    let _open = Opened::new()?;
+    // EmptyClipboard and SetClipboardData require a real owner window, including on Windows 10.
+    let mut writer = CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
+    if writer.is_none() {
+        *writer = Some(MessageWindow::spawn("OnePasteClipboardWriter", true, |_| Ok(()), |_, _, _| {})?);
+    }
+    let owner = writer.as_ref().unwrap();
+    let _open = Opened::with_owner(Some(owner.hwnd()))?;
     unsafe { EmptyClipboard() }.map_err(os_err)?;
     match content {
         Content::Text(s) => {
@@ -256,14 +267,46 @@ pub(crate) struct Monitor {
 
 impl Monitor {
     pub(crate) fn start(on_event: Box<dyn Fn(Event) + Send>) -> Result<Monitor, PlatformError> {
+        let hwnd = Arc::new(AtomicUsize::new(0));
+        let initialized = hwnd.clone();
+        let mut retries = 0u8;
         let win = MessageWindow::spawn(
             "OnePasteClipboardMonitor",
             true,
-            |hwnd| unsafe { AddClipboardFormatListener(hwnd) }.map_err(os_err),
-            move |msg, _, _| {
-                if msg == WM_CLIPBOARDUPDATE {
-                    if let Some(ev) = read().ok().and_then(classify) {
-                        on_event(ev);
+            move |hwnd| {
+                unsafe { AddClipboardFormatListener(hwnd) }.map_err(os_err)?;
+                initialized.store(hwnd.0 as usize, Ordering::Release);
+                Ok(())
+            },
+            move |msg, wp, _| {
+                if msg == WM_DESTROY {
+                    let handle = hwnd.load(Ordering::Acquire);
+                    if handle != 0 {
+                        unsafe { let _ = RemoveClipboardFormatListener(windows::Win32::Foundation::HWND(handle as *mut c_void)); }
+                        on_event(Event::MonitorStopped);
+                    }
+                    return;
+                }
+                let timer = msg == WM_TIMER && wp.0 == 1;
+                if msg == WM_CLIPBOARDUPDATE || timer {
+                    if !timer { retries = 3; }
+                    let owner = windows::Win32::Foundation::HWND(hwnd.load(Ordering::Acquire) as *mut c_void);
+                    match read() {
+                        Ok(snapshot) => {
+                            retries = 0;
+                            unsafe { let _ = KillTimer(Some(owner), 1); }
+                            on_event(classify(snapshot).unwrap_or(Event::SkippedUnsupported));
+                        }
+                        Err(error) => {
+                            on_event(Event::ReadFailed(error.code()));
+                            if retries > 0 {
+                                retries -= 1;
+                                if unsafe { SetTimer(Some(owner), 1, 250, None) } == 0 {
+                                    retries = 0;
+                                    on_event(Event::MonitorStopped);
+                                }
+                            } else { unsafe { let _ = KillTimer(Some(owner), 1); } }
+                        }
                     }
                 }
             },
@@ -275,6 +318,56 @@ impl Monitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static TEST_CLIPBOARD: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn a_busy_clipboard_reports_failure_then_recovers_without_another_copy() {
+        let _exclusive = TEST_CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
+        use std::sync::mpsc::channel;
+        use windows::Win32::Foundation::{WPARAM, LPARAM};
+        use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
+        let (tx,rx)=channel();
+        let monitor=Monitor::start(Box::new(move |event| { let _=tx.send(event); })).unwrap();
+        let owner=MessageWindow::spawn("OnePasteBusyClipboardProbe",true,|_|Ok(()),|_,_,_|{}).unwrap();
+        let opened=Opened::with_owner(Some(owner.hwnd())).unwrap();
+        unsafe { EmptyClipboard().unwrap(); }
+        let bytes:Vec<u8>="recoverable clipboard contention probe".encode_utf16().chain(std::iter::once(0)).flat_map(u16::to_le_bytes).collect();
+        set_bytes(CF_UNICODETEXT,&bytes).unwrap();
+        unsafe { PostMessageW(Some(monitor._win.hwnd()),WM_CLIPBOARDUPDATE,WPARAM(0),LPARAM(0)).unwrap(); }
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(),Event::ReadFailed("clipboard_busy".into()));
+        drop(opened);
+        let deadline=std::time::Instant::now()+Duration::from_secs(5);
+        loop {
+            let event=rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())).unwrap();
+            if let Event::Captured(content)=event {
+                assert_eq!(content,Content::Text("recoverable clipboard contention probe".into()));break;
+            }
+        }
+        drop(monitor);
+    }
+
+    #[test]
+    fn concurrent_reads_keep_the_clipboard_open_until_the_snapshot_is_complete() {
+        let _exclusive = TEST_CLIPBOARD.lock().unwrap_or_else(|error| error.into_inner());
+        let expected = Content::Text("concurrent clipboard reader fixture".into());
+        write(&expected, WriteOptions { origin_marker: false, sensitive_marker: false }).unwrap();
+        let ready = Arc::new(std::sync::Barrier::new(8));
+        let readers: Vec<_> = (0..8).map(|_| {
+            let ready = ready.clone();
+            let expected = expected.clone();
+            std::thread::spawn(move || {
+                ready.wait();
+                for _ in 0..100 {
+                    let snapshot = read().expect("another local reader must not close this transaction");
+                    assert_eq!(snapshot.content.as_ref(), Some(&expected));
+                    assert!(!snapshot.sensitive);
+                    assert!(!snapshot.from_self);
+                }
+            })
+        }).collect();
+        for reader in readers { reader.join().unwrap(); }
+    }
 
     #[test]
     fn png_dib_roundtrip_keeps_pixels() {

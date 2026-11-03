@@ -80,7 +80,10 @@
     "startup_repair_failed": "Login startup registration could not be updated",
     "passphrase_changed": "Passphrase changed",
     "passphrase_change_failed": "Passphrase change could not be confirmed",
-    "local_setup_restarted": "Local setup restarted"
+    "local_setup_restarted": "Local setup restarted",
+    "clipboard_read_failed": "Could not read the clipboard",
+    "clipboard_monitor_stopped": "Clipboard listener stopped unexpectedly",
+    "clipboard_unsupported": "Skipped an unsupported clipboard format"
   },
   "status": {
     "label": "Tray status: {{state}}",
@@ -149,7 +152,8 @@
     "empty": "Nothing yet. Copy some text or an image and it will appear here.",
     "noMatch": "Nothing matches.",
     "loading": "Loading your history…",
-    "error": "The history could not be read ({{code}}). Your data is safe on this computer. Try again in a moment, or restart OnePaste."
+    "error": "The history could not be read ({{code}}). Your data is safe on this computer. Try again in a moment, or restart OnePaste.",
+    "more": "Load more"
   },
   "item": {
     "image": "Image {{width}}×{{height}}, {{size}}",
@@ -181,7 +185,7 @@
     "privacy": "Privacy and diagnostics",
     "privacyBody": "Clipboard content never goes into logs or diagnostics. Diagnostics only list event kinds, sizes and error codes.",
     "about": "About",
-    "aboutBody": "All your data is encrypted from end to end. OnePaste sends no telemetry."
+    "aboutBody": "Clipboard history with optional encrypted sync between your devices."
   },
   "nav": {
     "history": "History",
@@ -368,10 +372,7 @@
     "sizeLimitNotice": "This copy exceeded the item size limit and was not saved or synced. Copy a smaller item, or increase the limit in Settings. Your existing history is unchanged.",
     "dismissSizeNotice": "Dismiss size notice",
     "autoLock": "Lock automatically after a while",
-    "telemetry": "Usage statistics and crash reports",
-    "telemetryOff": "Off. OnePaste never sends any.",
     "changePassphrase": "Change passphrase",
-    "advanced": "Advanced",
     "hotkeyHint": "Saved changes take effect immediately. If registration fails, an existing working shortcut is kept.",
     "syncMethod": "Method",
     "syncLocal": "Only on this computer",
@@ -609,5 +610,101 @@
     "working": "Locking...",
     "failed": "Could not save or lock. Please try again.",
     "paused": "OnePaste is locked. Clipboard recording and synchronization are paused until you unlock."
+  },
+  "capture": {
+    "stopped": "Clipboard listener stopped",
+    "starting": "Starting clipboard listener…",
+    "start_failed": "Clipboard listener unavailable",
+    "read_error": "Could not read the clipboard",
+    "retry": "Retry listening",
+    "retrying": "Restarting the clipboard listener…",
+    "retryFailed": "Could not restart the listener. Your history is kept. Copy diagnostics or try again."
+  },
+  "classification": {
+    "type": "Content type",
+    "language": "Code language",
+    "save": "Save type",
+    "saving": "Saving type…",
+    "failed": "Could not save the type. Try again.",
+    "plain": "Plain text",
+    "other": "Other",
+    "adjust": "Change content type"
+  },
+  "tags": {
+    "title": "Tags",
+    "name": "Tag name",
+    "add": "Add tag",
+    "remove": "Remove tag {{tag}}",
+    "hint": "Up to 32 tags, 64 characters each. Spaces and duplicates are normalized.",
+    "saving": "Saving tags…",
+    "failed": "Could not save tags. Check their length and try again.",
+    "filter": "Filter by tag",
+    "all": "All tags",
+    "clear": "Clear tag filter",
+    "find": "Find a tag",
+    "loading": "Loading tags…",
+    "empty": "No matching tags.",
+    "loadFailed": "Could not load tags. Try again.",
+    "option": "{{tag}} ({{count}})",
+    "shortcut": "Alt+T: tags"
+  },
+  "files": {
+    "import": "Import file",
+    "importing": "Importing…",
+    "limit": "Up to 64 MiB per file",
+    "details": "File",
+    "loading": "Loading file…",
+    "cached": "Available offline",
+    "needed": "Download required",
+    "download": "Download",
+    "save": "Save as…",
+    "saved": "File saved.",
+    "cancel": "Cancel transfer",
+    "cancelled": "Transfer cancelled. The item was kept.",
+    "retry": "Retry upload",
+    "upload": "Uploading {{percent}}%",
+    "downloadProgress": "Downloading {{percent}}%",
+    "previewUnavailable": "Content preview is not supported for this format. You can save the original file.",
+    "sync": {
+      "local": "This device only",
+      "pending": "Waiting to sync",
+      "synced": "Synced",
+      "failed": "Sync failed"
+    },
+    "errors": {
+      "generic": "Could not complete the file operation. Try again.",
+      "attachment_too_large": "This file exceeds the 64 MiB limit.",
+      "attachment_read_failed": "Could not read the selected file.",
+      "attachment_write_failed": "Could not save the file. Choose a writable location and retry.",
+      "attachment_changed": "The file changed during import. Close it and try again.",
+      "attachment_integrity": "The file could not be verified. Download it again before opening or saving.",
+      "attachment_metadata": "This file has invalid metadata.",
+      "attachment_unsupported": "This server or attachment version does not support file transfer. Update the server and retry.",
+      "attachment_storage": "Could not access the encrypted file cache.",
+      "attachment_unavailable": "The file is not available locally. Connect to its server and download it.",
+      "attachment_transfer_failed": "File transfer failed. Check the connection and try again.",
+      "attachment_cancelled": "Transfer cancelled. The item was kept.",
+      "attachment_busy": "A transfer for this file is already running.",
+      "preview_unsupported": "This document format or structure is not supported. Save the original file to open it in another application.",
+      "preview_corrupt": "This document is damaged or could not be read. The original file is still available to save.",
+      "preview_encrypted": "Password-protected or encrypted documents cannot be previewed. Save the original file to open it in another application.",
+      "preview_limit": "This document exceeds the preview limits. You can still save the original file.",
+      "preview_encoding": "The text encoding is invalid or unsupported. Use UTF-8 or UTF-16 with a BOM."
+    },
+    "preview": {
+      "title": "Content preview",
+      "open": "Preview content",
+      "close": "Close preview",
+      "retry": "Retry preview",
+      "loading": "Loading preview…",
+      "empty": "This document has no body text.",
+      "previous": "Previous page",
+      "next": "Next page",
+      "page": "Page {{page}} of {{total}}",
+      "zoom": "Zoom",
+      "pdfLimit": "Read-only PDF. Up to 500 pages, 50%–200% zoom; oversized pages are rejected.",
+      "textLimit": "UTF-8 or UTF-16 with BOM. Up to 8 MiB input and 2 MiB displayed text.",
+      "wordLimit": "Read-only body text. Original layout, images, headers, notes and embedded content may be omitted. Up to 2 MiB of text; DOCX body XML up to 8 MiB."
+    }
   }
 }

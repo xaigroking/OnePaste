@@ -23,6 +23,12 @@ impl core::fmt::Debug for Content {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClipEvent {
+    /// A native update could not be read after retrying. Only a stable category is carried.
+    ReadFailed(String),
+    /// The native event worker exited while the session was active.
+    MonitorStopped,
+    /// The clipboard changed but did not contain a supported text or image format.
+    SkippedUnsupported,
     /// Another program copied this.
     Captured(Content),
     /// Carries a sensitive marker; the content was not read.

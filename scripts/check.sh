@@ -55,7 +55,7 @@ if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && [ -
 import sys, json
 d = json.load(sys.stdin)
 allow = {
-    "onepaste-core": {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2"},
+    "onepaste-core": {"argon2","chacha20poly1305","rand_core","zeroize","serde","serde_json","base64","thiserror","getrandom","sha2","url","toml","serde_yaml_ng"},
     "onepaste-sync": {"onepaste-core","serde","serde_json","base64","thiserror","zeroize"},
 }
 seen = set()
@@ -236,6 +236,8 @@ expect_jobs() {  # expect_jobs "<jobs that must run, sorted, space separated>" <
 }
 expect_jobs "" "only documents" README.md docs/notes.txt
 expect_jobs "docker" "only the Dockerfile" Dockerfile
+expect_jobs "docker" "only Compose configuration" docker/compose.yaml
+expect_jobs "docker" "only Compose regression" tests/e2e/docker_compose.sh
 expect_jobs "docker" "only a docker workflow" .github/workflows/docker-image.yml
 expect_jobs "desktop_windows macos ui_screens windows_test" "only the desktop front end" apps/desktop/src/App.tsx
 expect_jobs "desktop_windows macos windows_test" "only the platform crate" crates/onepaste-platform/src/lib.rs

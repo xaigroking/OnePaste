@@ -59,6 +59,10 @@ impl Default for WriteOptions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// Only a stable platform error code is exposed; no clipboard bytes are included.
+    ReadFailed(String),
+    MonitorStopped,
+    SkippedUnsupported,
     /// Another program copied new content.
     Captured(Content),
     /// Carries a sensitive marker; the content was not read.

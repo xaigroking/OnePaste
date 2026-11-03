@@ -15,21 +15,27 @@ mod server_change;
 pub mod update;
 
 pub use app::{App, AppConfig, ImageData, UpdateSetup, DeviceList, DeviceView, ItemView, LogEntry, Mode, ServerVault, Status, TrayState};
+pub use app::{CaptureHealth, CaptureState, AttachmentInfo, TransferProgress};
 pub use error::AppError;
 pub use deletions::{DeletionClock, DeletionStatus, PendingDeletion, DELETE_GRACE};
-pub use onepaste_history::Filter;
+pub use onepaste_history::{Filter, TagOption};
 pub use ports::{ClipEvent, ClipboardPort, Content, FakeClipboard, MemoryKeyStore, MonitorGuard, KeyStore};
 pub use settings::{hotkeys, Settings};
 pub use update::{Channel, UpdateInfo};
 
 /// Parses the filter names the interface uses.
-pub fn parse_filter(name: &str) -> Filter {
+pub fn parse_filter(name: &str) -> Result<Filter, AppError> {
+    Ok(
     match name {
+        "all" => Filter::All,
         "favorites" => Filter::Favorites,
         "text" => Filter::Text,
         "images" => Filter::Images,
-        _ => Filter::All,
-    }
+        "links" => Filter::Links,
+        "code" => Filter::Code,
+        "files" => Filter::Files,
+        _ => return Err(AppError::InvalidFilter),
+    })
 }
 
 mod key_storage;
@@ -38,3 +44,6 @@ pub use key_storage::{EncryptedKeyStore, KeyState, KEY_FILE};
 
 mod session_clock;
 pub use session_clock::AutoLockClock;
+
+mod preview;
+pub use preview::{preview_document, DocumentPreview};

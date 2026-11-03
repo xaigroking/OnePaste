@@ -65,6 +65,17 @@ For LAN-only use, use the server's LAN address instead. Both computers must stay
 - **Upgrade**: `docker pull ghcr.io/xaigroking/onepaste-server:edge`, then `docker stop onepaste`, `docker rm onepaste` and the same `docker run` command again. The volume, and with it the data and the certificate, stays.
 - **Health**: the image reports itself healthy while the server accepts connections (`docker ps` shows it).
 
+### With Docker Compose
+
+Download `docker/compose.yaml` and `docker/.env.example` into the same directory (or use the repository's `docker/` directory). Copy `.env.example` to `.env`, set `ONEPASTE_PUBLIC_URL` to the HTTPS address and host port reachable by your desktops, and set `HOST_PORT` to that same host port. `IMAGE` selects a release tag or `edge`; `HOST_PORT` and `IMAGE` are Compose variables, not server settings. Then run from that directory:
+
+```sh
+docker compose --env-file .env up -d --wait
+docker compose --env-file .env exec server /onepaste-server connect-code
+```
+
+Use each connection code once with the desktop joining steps above. The named volume preserves the vault, certificate and encrypted attachments. Upgrade by choosing the new `IMAGE` in `.env`, then running `docker compose --env-file .env pull` and `docker compose --env-file .env up -d --wait`. Keep the same project name and volume; `down -v` deletes the data. The health check uses the server's own command because the image has no shell or curl. If you replace the named volume with a host directory, prepare it as writable by UID/GID 65532 before starting.
+
 ## 简体中文
 
 ### 首次启动

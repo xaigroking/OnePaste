@@ -104,9 +104,7 @@ impl Monitor {
                 let now = pb.changeCount();
                 if now != last {
                     last = now;
-                    if let Some(ev) = classify(snapshot(&pb)) {
-                        on_event(ev);
-                    }
+                    on_event(classify(snapshot(&pb)).unwrap_or(Event::SkippedUnsupported));
                 }
             }
         });

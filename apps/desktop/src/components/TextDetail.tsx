@@ -54,7 +54,7 @@ export function TextDetail({
           if (h && h >= MIN_HEIGHT && h !== height) onHeight(h);
         }}
       >
-        <p>{shown}</p>
+        <pre className={item.kind === "code" ? "mono" : ""} style={{ whiteSpace: "pre-wrap", margin: 0, fontFamily: item.kind === "code" ? undefined : "inherit" }}>{shown}</pre>
       </div>
       {long && (
         <div className="row">
@@ -62,15 +62,15 @@ export function TextDetail({
           <span className="muted small">{t("text.lines", { count: lines.length })}</span>
         </div>
       )}
-      {expanded && <TextViewer text={text ?? ""} onCopy={() => void act(api.copy(item.itemId))} onClose={() => setExpanded(false)} />}
+      {expanded && <TextViewer text={text ?? ""} code={item.kind === "code"} onCopy={() => void act(api.copy(item.itemId))} onClose={() => setExpanded(false)} />}
     </>
   );
 }
 
 /** The whole text: scrollable, selectable, with a button that copies all of it. Escape closes. */
-export function TextViewer({ text, onCopy, onClose }: { text: string; onCopy: () => void; onClose: () => void }) {
+export function TextViewer({ text, onCopy, onClose, code = false }: { code?: boolean; text: string; onCopy: () => void; onClose: () => void }) {
   const { t } = useTranslation();
-  const [mono, setMono] = useState(false);
+  const [mono, setMono] = useState(code);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

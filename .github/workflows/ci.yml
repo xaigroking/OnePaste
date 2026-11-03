@@ -263,6 +263,8 @@ jobs:
         run: cargo build -p onepaste-cli
       - name: Container image end-to-end test
         run: bash tests/e2e/docker.sh target/debug
+      - name: Compose deployment and image upgrade
+        run: SKIP_BUILD=1 bash tests/e2e/docker_compose.sh target/debug
 
   # The front end alone, built with a stand-in for the api module: screenshots of every screen, theme and language, the
   # empty, loading and error states, and the keyboard walkthroughs. No desktop program is needed.

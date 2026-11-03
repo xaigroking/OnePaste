@@ -31,8 +31,12 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-
 sha2 = "0.10"
 thiserror = "1"
 zeroize = "1"
+cfb = "=0.16.0"
+quick-xml = "=0.42.0"
+zip = { version = "=9.2.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 onepaste-server = { path = "../onepaste-server" }
 minisign = "0.7"
 axum = "0.8"

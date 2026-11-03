@@ -4,7 +4,7 @@
 use onepaste_platform::clipboard::{self, Content, Event, Image, Monitor, WriteOptions};
 use onepaste_platform::network::{NetworkState, NetworkWatcher};
 use onepaste_platform::power::WakeWatcher;
-use onepaste_platform::{system, PlatformError};
+use onepaste_platform::system;
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -93,11 +93,27 @@ fn own_write_does_not_trigger_capture() {
 #[test]
 fn foreign_write_is_captured() {
     let _g = lock();
-    let (_monitor, rx) = start_monitor();
-    let opts = WriteOptions { origin_marker: false, sensitive_marker: false };
-    clipboard::write_with(&Content::Text("copied elsewhere".into()), opts).unwrap();
-    let got = wait_for(&rx, WAIT, |e| matches!(e, Event::Captured(_)));
-    assert_eq!(got, Some(Event::Captured(Content::Text("copied elsewhere".into()))));
+    for iteration in 0..16 {
+        let (_monitor, rx) = start_monitor();
+        let expected = Content::Text(format!("copied elsewhere {iteration}"));
+        let opts = WriteOptions { origin_marker: false, sensitive_marker: false };
+        clipboard::write_with(&expected, opts).unwrap();
+        let deadline = Instant::now() + WAIT;
+        let mut observed = Vec::new();
+        let mut got = None;
+        while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+            match rx.recv_timeout(left) {
+                Ok(event) => {
+                    let captured = matches!(event, Event::Captured(_));
+                    observed.push(event.clone());
+                    if captured { got = Some(event); break; }
+                }
+                Err(_) => break,
+            }
+        }
+        assert_eq!(got, Some(Event::Captured(expected)),
+            "iteration {iteration}; observed: {observed:?}; final clipboard: {:?}", clipboard::read());
+    }
 }
 
 #[test]

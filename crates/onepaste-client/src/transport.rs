@@ -27,7 +27,7 @@ impl Transport {
         Transport { http: pinned_client(fingerprint), base: base_url.trim_end_matches('/').to_string() }
     }
 
-    async fn send_inner(&self, req: &HttpRequest) -> Result<HttpResponse, ClientError> {
+    async fn send_inner(&self, req: &HttpRequest, max_bytes: Option<usize>) -> Result<HttpResponse, ClientError> {
         REQUESTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let method = match req.method {
             Method::Get => reqwest::Method::GET,
@@ -42,10 +42,18 @@ impl Transport {
         if !req.body.is_empty() {
             rb = rb.body(req.body.clone());
         }
-        let resp = rb.send().await.map_err(transport_error)?;
+        let mut resp = rb.send().await.map_err(transport_error)?;
         let status = resp.status().as_u16();
         let headers = resp.headers().iter().filter_map(|(k, v)| Some((k.to_string(), v.to_str().ok()?.to_string()))).collect();
-        let body = resp.bytes().await.map_err(transport_error)?.to_vec();
+        let body = if let Some(limit) = max_bytes {
+            if resp.content_length().is_some_and(|len| len > limit as u64) { return Err(ClientError::Transport("response_too_large".into())); }
+            let mut body=Vec::new();
+            while let Some(chunk)=resp.chunk().await.map_err(transport_error)? {
+                if body.len().saturating_add(chunk.len()) > limit { return Err(ClientError::Transport("response_too_large".into())); }
+                body.extend_from_slice(&chunk);
+            }
+            body
+        } else { resp.bytes().await.map_err(transport_error)?.to_vec() };
         Ok(HttpResponse { status, headers, body })
     }
 
@@ -57,11 +65,16 @@ impl Transport {
             let armed = std::env::var("ONEPASTE_FAULT").as_deref() == Ok("drop_response_once");
             if armed && req.method == Method::Put && req.path_and_query.starts_with("/v1/items/") && !FAULT_FIRED.swap(true, Ordering::SeqCst) {
                 // The server handles the request, but the answer is thrown away
-                let _ = self.send_inner(req).await;
+                let _ = self.send_inner(req, None).await;
                 return Err(ClientError::Transport("injected fault".into()));
             }
         }
-        self.send_inner(req).await
+        self.send_inner(req, None).await
+    }
+
+    /// Bounded attachment/control responses, including peers without a Content-Length header.
+    pub async fn send_bounded(&self, req: &HttpRequest, max_bytes: usize) -> Result<HttpResponse, ClientError> {
+        self.send_inner(req, Some(max_bytes)).await
     }
 
     pub async fn open_events(&self, token: &str) -> Result<reqwest::Response, ClientError> {

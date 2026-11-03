@@ -5,6 +5,7 @@
 //! [`Store`] trait, and randomness comes from `onepaste-core`.
 
 mod engine;
+mod attachments;
 mod error;
 mod intent;
 mod pull;

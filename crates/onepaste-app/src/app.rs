@@ -3,6 +3,18 @@
 mod session_lock;
 #[path = "restart.rs"]
 mod restart;
+#[path = "attachments.rs"]
+mod attachments;
+pub use attachments::{AttachmentInfo, TransferProgress};
+#[path = "items.rs"]
+mod items;
+#[path = "tags.rs"]
+mod tags;
+#[path = "text_classification.rs"]
+mod text_classification;
+#[path = "capture_health.rs"]
+mod capture_health;
+pub use capture_health::{CaptureHealth, CaptureState};
 
 use crate::error::AppError;
 use crate::ports::{ClipEvent, ClipboardPort, Content, MonitorGuard, KeyStore};
@@ -62,6 +74,7 @@ pub enum ServerVault {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
+    pub capture: CaptureHealth,
     pub joined: bool,
     pub locked: bool,
     pub mode: Mode,
@@ -86,6 +99,8 @@ pub struct ItemView {
     pub favorite: bool,
     pub pinned: bool,
     pub note: String,
+    pub tags: Vec<String>,
+    pub language: Option<String>,
     pub width: u32,
     pub height: u32,
     /// Size in bytes of an image.
@@ -175,6 +190,7 @@ impl Default for AppConfig {
 type Listener = Arc<dyn Fn(&Status) + Send + Sync>;
 
 struct Shared {
+    capture: CaptureHealth,
     settings: Settings,
     tray: TrayState,
     paused: Option<PauseReason>,
@@ -210,6 +226,9 @@ pub(crate) struct Inner {
     /// A new vault whose recovery kit is on screen. Nothing of it is on the server or on disk until it is confirmed.
     pending: StdMutex<Option<NewVault>>,
     history: StdMutex<Option<HistoryStore>>,
+    attachment_transfers: StdMutex<std::collections::HashMap<String, attachments::TransferEntry>>,
+    attachment_sequence: std::sync::atomic::AtomicU64,
+    attachment_io: Mutex<()>,
     deletions: StdMutex<crate::deletions::Queue>,
     shared: StdMutex<Shared>,
     wake: Notify,
@@ -218,6 +237,9 @@ pub(crate) struct Inner {
     update_listener: StdMutex<Option<Arc<dyn Fn(&UpdateInfo) + Send + Sync>>>,
     tasks: StdMutex<Vec<JoinHandle<()>>>,
     monitor: StdMutex<Option<MonitorGuard>>,
+    monitor_epoch: std::sync::atomic::AtomicU64,
+    capture_active: std::sync::atomic::AtomicBool,
+    capture_retry: StdMutex<Option<JoinHandle<()>>>,
 }
 
 #[derive(Clone)]
@@ -280,8 +302,12 @@ impl App {
             local: Mutex::new(None),
             pending: StdMutex::new(None),
             history: StdMutex::new(None),
+            attachment_transfers: StdMutex::new(Default::default()),
+            attachment_sequence: std::sync::atomic::AtomicU64::new(0),
+            attachment_io: Mutex::new(()),
             deletions: StdMutex::new(crate::deletions::Queue::default()),
             shared: StdMutex::new(Shared {
+                capture: CaptureHealth::default(),
                 settings,
                 tray: TrayState::Synced,
                 paused: None,
@@ -300,6 +326,9 @@ impl App {
             update_listener: StdMutex::new(None),
             tasks: StdMutex::new(Vec::new()),
             monitor: StdMutex::new(None),
+            monitor_epoch: std::sync::atomic::AtomicU64::new(0),
+            capture_active: std::sync::atomic::AtomicBool::new(false),
+            capture_retry: StdMutex::new(None),
         }))
     }
 
@@ -340,6 +369,7 @@ impl App {
 
     fn quick_status(&self, g: &Shared) -> Status {
         Status {
+            capture: g.capture.clone(),
             joined: g.joined,
             locked: self.0.locked.load(std::sync::atomic::Ordering::Acquire) || (g.joined && g.settings.auto_lock_minutes != 0 && self.0.cfg.auto_lock_clock.now().saturating_sub(*lock(&self.0.idle)) >= Duration::from_secs(u64::from(g.settings.auto_lock_minutes) * 60)),
             mode: g.mode,
@@ -415,6 +445,7 @@ impl App {
     }
 
     fn remove_local_files(&self) {
+        let _ = std::fs::remove_dir_all(self.0.dir.join(attachments::DIRECTORY));
         for name in [DB_FILE, "history.db", crate::settings::FILE_NAME, STATE_FILE_NAME] {
             for suffix in ["", "-wal", "-shm", "-journal", ".tmp"] {
                 let _ = std::fs::remove_file(self.0.dir.join(format!("{name}{suffix}")));
@@ -437,10 +468,17 @@ impl App {
 
     /// Reconnects an existing synced setup without discarding its history.
     pub async fn change_server(&self, code: &str, passphrase: Option<&str>, kit: Option<&str>) -> Result<(), AppError> {
+        let epoch=self.cache_attachments_for_server_change().await?;
+        self.cancel_attachment_transfers();
         let _connection = self.session_write_access().await?;
         if self.mode() != Mode::Synced { return Err(AppError::NotJoined); }
+        if epoch!=self.session_epoch(){return Err(AppError::Locked);}
         let mut session = self.0.session.lock().await;
         let current = session.as_mut().ok_or(AppError::NotJoined)?;
+        for item in current.engine.list_items().map_err(AppError::from)?.into_iter().filter(|item|!item.deleted && item.kind=="file") {
+            let descriptor=current.engine.attachment(&item.id).map_err(|_|AppError::Attachment("attachment_metadata"))?;
+            if !self.attachment_cached(&descriptor){return Err(AppError::Attachment("attachment_unavailable"));}
+        }
         if let Err(error) = current.change_server(code, passphrase, kit).await {
             let error = crate::server_change::safe_error(error);
             self.log("server_change_failed", Some(error.code()));
@@ -593,8 +631,10 @@ impl App {
     /// Deletes everything this program keeps on this computer: both databases, the two small files and the key in the
     /// application key storage. The server is not touched. Afterwards the program is as on the first run.
     pub async fn wipe_local_data(&self) -> Result<(), AppError> {
+        self.cancel_attachment_transfers();
         let _connection = self.0.connection.write().await;
         if matches!(self.key_state()?, crate::KeyState::Locked | crate::KeyState::Recovery) { return Err(AppError::Locked); }
+        self.close_session().await;
         self.shutdown();
         *self.0.session.lock().await = None;
         *self.0.local.lock().await = None;
@@ -614,6 +654,7 @@ impl App {
             g.tray = TrayState::Synced;
             g.initial_sync_done = false;
         }
+        self.0.locked.store(false,std::sync::atomic::Ordering::Release);
         self.log("local_data_wiped", None);
         self.notify_status();
         Ok(())
@@ -714,34 +755,20 @@ impl App {
         }
     }
 
-    /// The monitor always runs; whether a copy is recorded is decided per event, so switching listening back on needs
-    /// no restart.
-    fn start_monitor(&self) {
-        let app = self.clone();
-        let handle = tokio::runtime::Handle::current();
-        let started = self.0.clipboard.start_monitor(Box::new(move |ev| {
-            let app = app.clone();
-            let mut tasks = lock(&app.0.tasks);
-            if !app.is_joined() { return; }
-            tasks.retain(|task| !task.is_finished());
-            let captured = app.clone();
-            tasks.push(handle.spawn(async move { captured.on_clip_event(ev).await }));
-        }));
-        match started {
-            Ok(guard) => *lock(&self.0.monitor) = Some(guard),
-            Err(e) => self.log("clipboard_monitor_failed", Some(e.code())),
-        }
-    }
-
     // ---- capturing -------------------------------------------------------------------------------------------------
 
     /// Handles one clipboard event.
     pub async fn on_clip_event(&self, ev: ClipEvent) {
+        self.record_capture_event(&ev);
         match ev {
+            ClipEvent::ReadFailed(code) => self.log("clipboard_read_failed", Some(capture_health::safe_code(&code))),
+            ClipEvent::MonitorStopped => { self.log("clipboard_monitor_stopped", None); self.schedule_capture_retry(); },
+            ClipEvent::SkippedUnsupported => self.log("clipboard_unsupported", None),
             ClipEvent::SkippedSensitive => self.log("skipped_sensitive", None),
             ClipEvent::SkippedSelf => self.log("skipped_self", None),
             ClipEvent::Captured(content) => {
                 if !self.settings().record_clipboard {
+                    lock(&self.0.shared).capture.filtered += 1;
                     return;
                 }
                 if let Err(e) = self.capture(content).await {
@@ -750,6 +777,7 @@ impl App {
                 }
             }
         }
+        self.notify_status();
     }
 
     async fn capture(&self, content: Content) -> Result<(), AppError> {
@@ -758,6 +786,7 @@ impl App {
         if settings.skip_suspected_secrets {
             if let Content::Text(text) = &content {
                 if let Some(reason) = crate::secrets::detect(text) {
+                    lock(&self.0.shared).capture.filtered += 1;
                     self.log("skipped_suspected_secret", Some(reason.code().into()));
                     return Ok(());
                 }
@@ -765,12 +794,17 @@ impl App {
         }
         let fp = fingerprint(&content);
         if lock(&self.0.shared).last_fp == Some(fp) {
+            lock(&self.0.shared).capture.filtered += 1;
             self.log("skipped_duplicate", None);
             return Ok(());
         }
         let device = Some(lock(&self.0.shared).device_id.clone()).filter(|d| !d.is_empty());
         let (payload, kind, size) = match &content {
-            Content::Text(t) => (ItemPayload { kind: "text".into(), content: Some(t.clone()), device, ..Default::default() }, "text", t.len()),
+            Content::Text(t) => {
+                let mut payload = ItemPayload { kind: "text".into(), content: Some(t.clone()), device, ..Default::default() };
+                onepaste_core::classification::set_classification(&mut payload, onepaste_core::classification::classify(t)).map_err(|e| AppError::Other(e.code().into()))?;
+                (payload, "text", t.len())
+            },
             Content::Image { png, width, height } => {
                 let encoded = B64.encode(png);
                 let mut p = ItemPayload { kind: "image".into(), content: Some(encoded), device, ..Default::default() };
@@ -782,11 +816,13 @@ impl App {
             }
         };
         if !crate::settings::item_within_limit(payload.content.as_deref().unwrap_or_default(), settings.max_item_mib) {
+            lock(&self.0.shared).capture.filtered += 1;
             self.log(if kind == "image" { "image_too_large" } else { "item_too_large" }, Some(format!("{size} bytes")));
             return Err(AppError::ItemTooLarge);
         }
         self.with_engine(|e| e.enqueue_create(now_ms(), &payload)).await?.map_err(AppError::from)?;
         lock(&self.0.shared).last_fp = Some(fp);
+        lock(&self.0.shared).capture.recorded += 1;
         self.log("captured", Some(format!("{kind}, {size} bytes")));
         self.0.wake.notify_one();
         Ok(())
@@ -858,6 +894,24 @@ impl App {
                     break;
                 }
                 Ok(Action::Send(req)) => {
+                    let attachment = if req.method == onepaste_sync::Method::Put && req.path_and_query.starts_with("/v1/items/") {
+                        serde_json::from_slice::<serde_json::Value>(&req.body).ok().filter(|body| body["base_seq"].as_i64()==Some(0) && body["envelope"]["blob_id"].is_string()).and_then(|body|body["envelope"]["id"].as_str().map(str::to_owned))
+                    } else { None };
+                    if let Some(id) = attachment {
+                        if self.with_engine(|engine|engine.begin_attachment_preparation()).await.ok().and_then(Result::ok).is_none() { return RoundEnd::Offline; }
+                        let prepared = self.upload_attachment(&id).await;
+                        if self.require_access().is_err() { return RoundEnd::Idle; }
+                        let mut session=self.0.session.lock().await;
+                        let Some(session)=session.as_mut() else {return RoundEnd::Idle;};
+                        match prepared {
+                            Ok(()) => if !session.engine.finish_attachment_preparation().unwrap_or(false) {continue;},
+                            Err(error) => {
+                                let code = match error { AppError::Attachment(code)=>code,_=>"attachment_transfer_failed" };
+                                if let Ok(events)=session.engine.fail_attachment_push(code) { for event in events {self.note_event(&event);} }
+                                continue;
+                            }
+                        }
+                    }
                     let answer = transport.send(&req).await;
                     if self.expired() { return RoundEnd::Idle; }
                     let mut g = self.0.session.lock().await;
@@ -1054,7 +1108,7 @@ impl App {
             })
             .await;
         match r {
-            Ok(r) => Ok(r?),
+            Ok(r) => { r?; self.prune_attachment_cache().await; Ok(()) },
             Err(AppError::NotJoined) => Ok(()),
             Err(e) => Err(e),
         }
@@ -1082,97 +1136,9 @@ impl App {
         st
     }
 
-    /// Searches the local history; an empty query lists the most recent items. Brings the history up to date first, so
-    /// something copied a moment ago is found at once.
-    pub async fn search(&self, query: &str, filter: Filter, limit: usize, offset: usize) -> Result<Vec<ItemView>, AppError> {
-        let _connection = self.session_access().await?;
-        self.refresh_history().await?;
-        let hits = {
-            let h = lock(&self.0.history);
-            h.as_ref().ok_or(AppError::NotJoined)?.search(query, filter, limit, offset)?
-        };
-        let mut out = Vec::with_capacity(hits.len());
-        for hit in hits {
-            let (mut width, mut height) = (0, 0);
-            if hit.kind == "image" {
-                if let Ok(Ok(p)) = self.with_engine(|e| e.get_item(&hit.item_id)).await {
-                    width = p.extra.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                    height = p.extra.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                }
-            }
-            out.push(ItemView {
-                item_id: hit.item_id,
-                kind: hit.kind,
-                preview: hit.text.lines().next().unwrap_or("").chars().take(PREVIEW_CHARS).collect(),
-                favorite: hit.favorite,
-                pinned: hit.pinned,
-                note: hit.note,
-                width,
-                height,
-                size: hit.size,
-            });
-        }
-        Ok(out)
-    }
-
-    /// The picture of an image item. It is read from the history store and passed on: it is never logged, never put in the
-    /// diagnostics and never written anywhere. A text item is `NotAnImage`.
-    pub async fn item_image(&self, item_id: &str) -> Result<ImageData, AppError> {
-        let _connection = self.session_access().await?;
-        self.image_unlocked(item_id).await
-    }
-
-    async fn image_unlocked(&self, item_id: &str) -> Result<ImageData, AppError> {
-        let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
-        if payload.kind != "image" {
-            return Err(AppError::NotAnImage);
-        }
-        let data = payload.content.clone().ok_or(AppError::NotFound)?;
-        let dim = |k: &str| payload.extra.get(k).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-        let size = payload.extra.get("size").and_then(|v| v.as_u64()).map(|n| n as usize).unwrap_or_else(|| B64.decode(&data).map(|b| b.len()).unwrap_or(0));
-        Ok(ImageData { data, width: dim("width"), height: dim("height"), size, format: "png".into() })
-    }
-
-    /// The whole text of a text item (the list shows only its first line). Never logged. An image is `NotText`.
-    pub async fn item_text(&self, item_id: &str) -> Result<String, AppError> {
-        let _connection = self.session_access().await?;
-        let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
-        if payload.kind == "image" {
-            return Err(AppError::NotText);
-        }
-        payload.content.ok_or(AppError::NotFound)
-    }
-
-    /// Puts an item back on the clipboard. The write carries the origin marker, so it does not become a new item.
-    pub async fn copy(&self, item_id: &str) -> Result<(), AppError> {
-        let _connection = self.session_access().await?;
-        let payload = self.with_engine(|e| e.get_item(item_id)).await?.map_err(|_| AppError::NotFound)?;
-        let content = content_of(&payload).ok_or(AppError::NotFound)?;
-        self.0.clipboard.write(&content, true)
-    }
-
-    pub async fn set_flags(&self, item_id: &str, favorite: Option<bool>, pinned: Option<bool>, note: Option<String>) -> Result<(), AppError> {
-        let _connection = self.session_access().await?;
-        self.with_engine(|e| -> Result<(), onepaste_sync::Error> {
-            if let Some(v) = favorite {
-                e.enqueue_edit(now_ms(), item_id, Edit::Favorite(v))?;
-            }
-            if let Some(v) = pinned {
-                e.enqueue_edit(now_ms(), item_id, Edit::Pinned(v))?;
-            }
-            if let Some(n) = note {
-                e.enqueue_edit(now_ms(), item_id, Edit::Note(if n.is_empty() { None } else { Some(n) }))?;
-            }
-            Ok(())
-        })
-        .await?
-        .map_err(AppError::from)?;
-        self.0.wake.notify_one();
-        Ok(())
-    }
-
     pub async fn delete(&self, item_id: &str) -> Result<(), AppError> {
         let _connection = self.session_access().await?;
+        self.cancel_attachment(item_id);
         self.with_engine(|e| e.enqueue_delete(now_ms(), item_id)).await?.map_err(AppError::from)?;
         self.0.wake.notify_one();
         Ok(())
@@ -1236,6 +1202,7 @@ impl App {
         let Ok(_connection) = self.session_access().await else { return; };
         let ids = { lock(&self.0.deletions).mark_committing(token, self.0.cfg.deletion_clock.now()) };
         let Some(ids) = ids else { return; };
+        for id in &ids {self.cancel_attachment(id);}
         let result = self.with_engine(|engine| -> Result<(), AppError> {
             let queue = lock(&self.0.deletions);
             if !queue.is_committing(token) { return Ok(()); }
@@ -1261,6 +1228,9 @@ impl App {
         out.push_str(&format!("items in the history: {}\n", st.items));
         let settings = self.settings();
         out.push_str(&format!("auto apply remote: {}, record clipboard: {}\n", settings.auto_apply_remote, settings.record_clipboard));
+        out.push_str(&format!("clipboard capture: {}\n", st.capture.state.as_str()));
+        out.push_str(&format!("clipboard events: {}, read failures: {}, recorded: {}, filtered: {}, retries: {}\n", st.capture.events, st.capture.read_failures, st.capture.recorded, st.capture.filtered, st.capture.retries));
+        if let Some(code) = &st.capture.error { out.push_str(&format!("clipboard error: {code}\n")); }
         out.push_str("recent events:\n");
         for e in log.iter().rev().take(20).rev() {
             out.push_str(&format!("  {} {}{}\n", e.ts_ms, e.kind, e.detail.as_ref().map(|d| format!(" ({d})")).unwrap_or_default()));
@@ -1406,6 +1376,7 @@ impl App {
 
     /// Stops the background work.
     pub fn shutdown(&self) {
+        self.cancel_attachment_transfers();
         self.0.secrets.clear_session();
         if let Some(timer) = lock(&self.0.lock_timer).take() { timer.abort(); }
         if let Some(task) = lock(&self.0.update_task).take() { task.abort(); }
@@ -1414,7 +1385,7 @@ impl App {
         for t in lock(&self.0.tasks).drain(..) {
             t.abort();
         }
-        *lock(&self.0.monitor) = None;
+        self.stop_capture_monitor();
     }
 }
 

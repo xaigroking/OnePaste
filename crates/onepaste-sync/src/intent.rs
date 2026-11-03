@@ -13,6 +13,7 @@ pub enum Edit {
     Pinned(bool),
     Note(Option<String>),
     Tags(Vec<String>),
+    TextClassification(onepaste_core::classification::Classification),
     Kind(String),
     Content(Option<String>),
 }
@@ -24,7 +25,8 @@ impl Edit {
             Edit::Favorite(v) => p.favorite = *v,
             Edit::Pinned(v) => p.pinned = *v,
             Edit::Note(v) => p.note = v.clone(),
-            Edit::Tags(v) => p.tags = v.clone(),
+            Edit::Tags(v) => p.tags = onepaste_core::tags::normalize(v)?,
+            Edit::TextClassification(v) => onepaste_core::classification::set_classification(p, v.clone())?,
             Edit::Kind(_) | Edit::Content(_) => return Err(Error::BodyImmutable),
         }
         Ok(())

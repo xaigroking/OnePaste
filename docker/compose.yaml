@@ -1,0 +1,24 @@
+name: onepaste
+services:
+  server:
+    image: ${IMAGE:-ghcr.io/xaigroking/onepaste-server:edge}
+    user: "65532:65532"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      ONEPASTE_DATA_DIR: /data
+      ONEPASTE_LISTEN: 0.0.0.0:8443
+      ONEPASTE_PUBLIC_URL: ${ONEPASTE_PUBLIC_URL:?Set ONEPASTE_PUBLIC_URL to the HTTPS address and host port your clients can reach}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "${HOST_PORT:-8443}:8443"
+    volumes:
+      - onepaste-data:/data
+    healthcheck:
+      test: ["CMD", "/onepaste-server", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+volumes:
+  onepaste-data:

@@ -18,7 +18,17 @@ export type Filter = "all" | "favorites" | "text" | "images" | "links" | "files"
 export type Page = "history" | "devices" | "settings";
 
 /** What the application reports about the vault and the sync. */
+export interface CaptureHealth {
+  state: "stopped" | "starting" | "listening" | "read_error" | "start_failed";
+  error: string | null;
+  events: number;
+  readFailures: number;
+  recorded: number;
+  filtered: number;
+  retries: number;
+}
 export interface AppStatus {
+  capture?: CaptureHealth;
   joined: boolean;
   locked: boolean;
   mode: Mode;
@@ -33,14 +43,23 @@ export interface AppStatus {
   deviceId: string;
 }
 
+export interface TagOption { label: string; count: number }
+
+export interface AttachmentInfo {
+  fileName: string; mime: string; size: number; cached: boolean; syncState: "local" | "pending" | "synced" | "failed";
+  transfer: { state: string; direction: "upload" | "download"; completed: number; total: number; error: string | null };
+}
+
 export interface ItemView {
   itemId: string;
-  kind: "text" | "image";
+  kind: "text" | "link" | "code" | "image" | "file";
+  language?: string | null;
   /** First line of a text item. */
   preview: string;
   favorite: boolean;
   pinned: boolean;
   note: string;
+  tags?: string[];
   width: number;
   height: number;
   /** Size in bytes of an image. */
@@ -150,6 +169,7 @@ export interface TrayTexts {
 export type KeyState = "new" | "prepared" | "locked" | "unlocked" | "recovery";
 
 export const api = {
+  retryClipboardMonitor: () => invoke<void>("app_retry_clipboard_monitor"),
   lockSession: () => invoke<void>("app_lock_session"),
   userActivity: () => invoke<void>("app_user_activity"),
   keyState: () => invoke<KeyState>("app_key_state"),
@@ -191,11 +211,23 @@ export const api = {
   itemImage: (itemId: string) => invoke<ImageData>("app_item_image", { itemId }),
   itemText: (itemId: string) => invoke<string>("app_item_text", { itemId }),
   /** Saves the picture where the user chooses; false if they cancelled the dialog. */
+  documentPreview: (itemId: string) => invoke<{ format: string; text: string }>("app_document_preview", { itemId }),
+  attachmentPdf: async (itemId: string) => new Uint8Array(await invoke<ArrayBuffer>("app_attachment_pdf", { itemId })),
+  importFile: () => invoke<string | null>("app_import_file"),
+  attachmentInfo: (itemId: string) => invoke<AttachmentInfo>("app_attachment_info", { itemId }),
+  prepareAttachment: (itemId: string) => invoke<void>("app_prepare_attachment", { itemId }),
+  retryAttachment: (itemId: string) => invoke<void>("app_retry_attachment", { itemId }),
+  cancelAttachment: (itemId: string) => invoke<void>("app_cancel_attachment", { itemId }),
+  saveAttachment: (itemId: string) => invoke<boolean>("app_save_attachment", { itemId }),
+  openItem: (itemId: string) => invoke<void>("app_open_item", { itemId }),
   saveImage: (itemId: string, fileName: string) => invoke<boolean>("app_save_image", { itemId, fileName }),
   status: () => invoke<AppStatus>("app_status"),
-  search: (query: string, filter: Filter, limit: number, offset: number) =>
-    invoke<ItemView[]>("app_search", { query, filter, limit, offset }),
+  search: (query: string, filter: Filter, limit: number, offset: number, tag: string | null = null) =>
+    invoke<ItemView[]>("app_search", { query, filter, limit, offset, tag }),
   copy: (itemId: string) => invoke<void>("app_copy", { itemId }),
+  setTextClassification: (itemId: string, kind: string, language: string | null) => invoke<void>("app_set_text_classification", { itemId, kind, language }),
+  tagOptions: (query: string) => invoke<TagOption[]>("app_tag_options", { query }),
+  setTags: (itemId: string, tags: string[]) => invoke<string[]>("app_set_tags", { itemId, tags }),
   setFlags: (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) =>
     invoke<void>("app_set_flags", { itemId, favorite: flags.favorite ?? null, pinned: flags.pinned ?? null, note: flags.note ?? null }),
   copyItems: (itemIds: string[]) => invoke<number>("app_copy_items", { itemIds }),
@@ -247,3 +279,5 @@ export function onCloseNotice(handler: () => void): Promise<() => void> {
 }
 
 export function onLocked(handler: () => void): Promise<() => void> { return listen("onepaste://locked", handler); }
+
+export function onOpenItem(handler: (itemId: string) => void): Promise<() => void> { return listen<string>("onepaste://open-item", (event) => handler(event.payload)); }

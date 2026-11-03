@@ -80,7 +80,10 @@
     "startup_repair_failed": "无法更新登录自启登记",
     "passphrase_changed": "口令已修改",
     "passphrase_change_failed": "无法确认口令更改",
-    "local_setup_restarted": "已重新开始本机设置"
+    "local_setup_restarted": "已重新开始本机设置",
+    "clipboard_read_failed": "无法读取剪贴板",
+    "clipboard_monitor_stopped": "剪贴板监听意外停止",
+    "clipboard_unsupported": "已跳过暂不支持的剪贴板格式"
   },
   "status": {
     "label": "托盘状态：{{state}}",
@@ -149,7 +152,8 @@
     "empty": "还没有内容。复制一段文字或一张图片，它就会出现在这里。",
     "noMatch": "没有匹配的内容。",
     "loading": "正在读取历史…",
-    "error": "读不出历史（{{code}}）。你的数据在这台电脑上是安全的。请稍后再试，或重启 OnePaste。"
+    "error": "读不出历史（{{code}}）。你的数据在这台电脑上是安全的。请稍后再试，或重启 OnePaste。",
+    "more": "加载更多"
   },
   "item": {
     "image": "图片 {{width}}×{{height}}，{{size}}",
@@ -181,7 +185,7 @@
     "privacy": "隐私与诊断",
     "privacyBody": "剪贴板内容不会写入日志或诊断信息。诊断只列出事件类型、大小和错误码。",
     "about": "关于",
-    "aboutBody": "你的所有数据都经过端到端加密。OnePaste 不发送任何遥测数据。"
+    "aboutBody": "剪贴板历史与设备间可选的加密同步。"
   },
   "nav": {
     "history": "历史",
@@ -368,10 +372,7 @@
     "sizeLimitNotice": "本次复制超过单条大小上限，未保存，也未同步。请复制较小的内容，或在设置中调高上限。已有历史不受影响。",
     "dismissSizeNotice": "关闭大小提示",
     "autoLock": "一段时间后自动锁定",
-    "telemetry": "使用统计与崩溃报告",
-    "telemetryOff": "已关闭。OnePaste 从不发送。",
     "changePassphrase": "修改口令",
-    "advanced": "高级",
     "hotkeyHint": "保存后立即生效。注册失败时会保留已有可用的快捷键。",
     "syncMethod": "方式",
     "syncLocal": "仅本机",
@@ -609,5 +610,101 @@
     "failed": "保存或锁定失败，请重试。",
     "paused": "OnePaste 已锁定。解锁前暂停剪贴板采集与同步。",
     "minutes_one": "{{count}} 分钟"
+  },
+  "capture": {
+    "stopped": "剪贴板监听已停止",
+    "starting": "正在启动剪贴板监听…",
+    "start_failed": "剪贴板监听不可用",
+    "read_error": "无法读取剪贴板",
+    "retry": "重试监听",
+    "retrying": "正在重新启动剪贴板监听…",
+    "retryFailed": "无法重新启动监听，历史记录已保留。可复制诊断信息或重试。"
+  },
+  "classification": {
+    "type": "内容类型",
+    "language": "代码语言",
+    "save": "保存类型",
+    "saving": "正在保存类型…",
+    "failed": "无法保存类型，请重试。",
+    "plain": "纯文本",
+    "other": "其他",
+    "adjust": "修改内容类型"
+  },
+  "tags": {
+    "title": "标签",
+    "name": "标签名称",
+    "add": "添加标签",
+    "remove": "移除标签 {{tag}}",
+    "hint": "最多 32 个标签，每个 64 字符；空白和重复项会自动整理。",
+    "saving": "正在保存标签…",
+    "failed": "无法保存标签，请检查长度后重试。",
+    "filter": "按标签筛选",
+    "all": "全部标签",
+    "clear": "清除标签筛选",
+    "find": "查找标签",
+    "loading": "正在加载标签…",
+    "empty": "没有匹配的标签。",
+    "loadFailed": "无法加载标签，请重试。",
+    "option": "{{tag}}（{{count}}）",
+    "shortcut": "Alt+T：标签"
+  },
+  "files": {
+    "import": "导入文件",
+    "importing": "正在导入…",
+    "limit": "每个文件最多 64 MiB",
+    "details": "文件",
+    "loading": "正在加载文件…",
+    "cached": "可离线使用",
+    "needed": "需要下载",
+    "download": "下载",
+    "save": "另存为…",
+    "saved": "文件已保存。",
+    "cancel": "取消传输",
+    "cancelled": "传输已取消，条目已保留。",
+    "retry": "重试上传",
+    "upload": "正在上传 {{percent}}%",
+    "downloadProgress": "正在下载 {{percent}}%",
+    "previewUnavailable": "此格式不支持内容预览，可另存原文件。",
+    "sync": {
+      "local": "仅本机",
+      "pending": "等待同步",
+      "synced": "已同步",
+      "failed": "同步失败"
+    },
+    "errors": {
+      "generic": "无法完成文件操作，请重试。",
+      "attachment_too_large": "此文件超过 64 MiB 限制。",
+      "attachment_read_failed": "无法读取所选文件。",
+      "attachment_write_failed": "无法保存文件，请选择可写入的位置后重试。",
+      "attachment_changed": "文件在导入时发生变化，请关闭文件后重试。",
+      "attachment_integrity": "文件完整性校验失败，请重新下载后再浏览或保存。",
+      "attachment_metadata": "文件元信息无效。",
+      "attachment_unsupported": "此服务器或附件版本不支持文件传输，请更新服务器后重试。",
+      "attachment_storage": "无法访问加密文件缓存。",
+      "attachment_unavailable": "此文件尚未保存在本机，请连接服务器后下载。",
+      "attachment_transfer_failed": "文件传输失败，请检查连接后重试。",
+      "attachment_cancelled": "传输已取消，条目已保留。",
+      "attachment_busy": "此文件已有正在进行的传输。",
+      "preview_unsupported": "不支持此文档格式或结构，可另存原文件后使用其他应用打开。",
+      "preview_corrupt": "此文档已损坏或无法读取，仍可另存原文件。",
+      "preview_encrypted": "无法预览有密码保护或加密的文档，可另存原文件后使用其他应用打开。",
+      "preview_limit": "此文档超过预览限制，仍可另存原文件。",
+      "preview_encoding": "文本编码无效或不受支持，请使用 UTF-8 或带 BOM 的 UTF-16。"
+    },
+    "preview": {
+      "title": "内容预览",
+      "open": "预览内容",
+      "close": "关闭预览",
+      "retry": "重试预览",
+      "loading": "正在加载预览…",
+      "empty": "此文档没有正文文字。",
+      "previous": "上一页",
+      "next": "下一页",
+      "page": "第 {{page}} 页，共 {{total}} 页",
+      "zoom": "缩放",
+      "pdfLimit": "只读 PDF。最多 500 页，支持 50%–200% 缩放；过大页面将被拒绝。",
+      "textLimit": "支持 UTF-8 或带 BOM 的 UTF-16。原文件最多 8 MiB，显示正文最多 2 MiB。",
+      "wordLimit": "只读正文。可能省略原排版、图片、页眉、批注和嵌入内容。正文最多 2 MiB；DOCX 正文 XML 最多 8 MiB。"
+    }
   }
 }

@@ -16,6 +16,8 @@ pub enum HistoryError {
     WrongKey,
     #[error("the key is not valid")]
     InvalidKey,
+    #[error("the tag filter is not valid")]
+    InvalidTag,
     #[error("history storage failed: {0}")]
     Storage(String),
 }
@@ -40,6 +42,7 @@ CREATE TABLE IF NOT EXISTS history (
   item_id TEXT PRIMARY KEY,
   seq INTEGER NOT NULL,
   kind TEXT NOT NULL,
+  language TEXT,
   text TEXT NOT NULL DEFAULT '',
   mime TEXT NOT NULL DEFAULT '',
   size INTEGER NOT NULL DEFAULT 0,
@@ -47,9 +50,20 @@ CREATE TABLE IF NOT EXISTS history (
   pinned INTEGER NOT NULL DEFAULT 0,
   note TEXT NOT NULL DEFAULT '',
   tags TEXT NOT NULL DEFAULT '',
+  tags_json TEXT NOT NULL DEFAULT '[]',
   source_device TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS history_tags (
+  item_id TEXT NOT NULL,
+  tag_key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  PRIMARY KEY(item_id, tag_key)
+);
+CREATE INDEX IF NOT EXISTS history_tag_key ON history_tags(tag_key);
+CREATE TRIGGER IF NOT EXISTS history_tags_ad AFTER DELETE ON history BEGIN
+  DELETE FROM history_tags WHERE item_id = old.item_id;
+END;
 CREATE INDEX IF NOT EXISTS history_order ON history (pinned DESC, created_at DESC);
 CREATE VIRTUAL TABLE IF NOT EXISTS history_fts USING fts5(text, note, tags, content='history', content_rowid='rowid', tokenize='trigram');
 CREATE TRIGGER IF NOT EXISTS history_ai AFTER INSERT ON history BEGIN
@@ -115,6 +129,10 @@ impl HistoryStore {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         // An empty file has no header yet and would open with any key, so the schema is written right away
         conn.execute_batch(SCHEMA)?;
+        let has_language = conn.prepare("PRAGMA table_info(history)")?.query_map([], |r| r.get::<_, String>(1))?.collect::<Result<Vec<_>, _>>()?.iter().any(|n| n == "language");
+        if !has_language { conn.execute_batch("ALTER TABLE history ADD COLUMN language TEXT;")?; }
+        let has_tags = conn.prepare("PRAGMA table_info(history)")?.query_map([], |r| r.get::<_, String>(1))?.collect::<Result<Vec<_>, _>>()?.iter().any(|n| n == "tags_json");
+        if !has_tags { conn.execute_batch("ALTER TABLE history ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]';")?; }
         Ok(HistoryStore { conn })
     }
 

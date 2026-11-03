@@ -212,14 +212,6 @@ export function SettingsView(p: Props) {
 
       <SecurityCard localOnly={p.localOnly} onWiped={p.onWiped}>{p.settings && p.status?.joined && <AutoLock settings={p.settings} onSettings={p.onSettings} />}{p.status?.mode === "synced" && <ChangePassphraseButton />}</SecurityCard>
 
-      <Card title={t("settingsMore.advanced")}>
-
-        <div className="setting">
-          <span>{t("settingsMore.telemetry")}</span>
-          <span className="muted">{t("settingsMore.telemetryOff")}</span>
-        </div>
-      </Card>
-
       <Card title={t("settings.privacy")}>
         <p className="muted">{t("settings.privacyBody")}</p>
         <div className="setting">

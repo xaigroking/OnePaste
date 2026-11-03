@@ -1,6 +1,7 @@
 //! SQLite storage. Only code under this module executes SQL that writes to the database.
 
 mod items;
+mod blobs;
 mod vault;
 
 pub use items::ItemWrite;
@@ -42,6 +43,10 @@ CREATE TABLE IF NOT EXISTS items (
   envelope TEXT,
   deleted_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS blobs (id TEXT PRIMARY KEY, chunks INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS blob_chunks (blob_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, sealed BLOB NOT NULL, PRIMARY KEY(blob_id,chunk_index));
+CREATE TABLE IF NOT EXISTS item_blobs (item_id TEXT PRIMARY KEY, blob_id TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS item_blob_reference ON item_blobs(blob_id);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS pull_state (device_id TEXT PRIMARY KEY, next_after INTEGER NOT NULL, generation INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS idempotency (
@@ -243,6 +248,7 @@ impl Store {
     /// Daily maintenance: purge old tombstones, raise the cursor floor, drop expired idempotency records and credentials.
     pub fn cleanup(&self, now: i64, tombstone_retention: i64, idempotency_ttl: i64) -> Result<(), ApiError> {
         self.write(|tx| {
+            Self::cleanup_blobs_tx(tx, now)?;
             let cutoff = now.saturating_sub(tombstone_retention);
             let max_purged: Option<i64> = tx.query_row(
                 "SELECT MAX(seq) FROM items WHERE deleted = 1 AND deleted_at < ?1",

@@ -1,14 +1,21 @@
+import protectedPdfUrl from "../../../crates/onepaste-app/tests/samples/protected.pdf?url";
+import oversizedPdfUrl from "../../../crates/onepaste-app/tests/samples/oversized.pdf?url";
+import manyPagesPdfUrl from "../../../crates/onepaste-app/tests/samples/many-pages.pdf?url";
+import pdfSampleUrl from "../../../crates/onepaste-app/tests/samples/body.pdf?url";
 // A stand-in for ./api used only by the screenshot and keyboard tests (vite build --mode mock). It serves fixed data, so
 // every screen looks the same on every run. The scene comes from the address: ?lang=zh|en&state=base|empty|loading|error
 // &screen=main|dev|set|qp|tray|state|ob1|ob2.
 import type {
   ActionResult,
+  AttachmentInfo,
   AppSettings,
+  CaptureHealth,
   AppStatus,
   DeviceList,
   DeletionStatus,
   PendingDeletion,
   Filter,
+  TagOption,
   HotkeyInfo,
   ImageData,
   ItemView,
@@ -45,24 +52,40 @@ const deviceAction = <T,>(value: T): Promise<T> => {
 
 const ITEMS: ItemView[] = [
   { itemId: "i1", kind: "text", preview: "Review moved to 3 pm Friday, room B2 \u5468\u4e94\u8bc4\u5ba1\u4f1a\u6539\u5230\u4e0b\u5348\u4e09\u70b9", favorite: false, pinned: true, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Chat", createdAtMs: NOW - 1 * MIN, syncState: "synced" },
-  { itemId: "i2", kind: "text", preview: "https://example.org/help/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
-  { itemId: "i3", kind: "text", preview: "docker run -d -p 8787:8787 -v onepaste-data:/data onepaste/server", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Terminal", createdAtMs: NOW - 8 * MIN, syncState: "synced" },
+  { itemId: "i2", kind: "link", preview: "https://example.org/help/clipboard-api", favorite: true, pinned: false, note: "read later", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Browser", createdAtMs: NOW - 2 * MIN, syncState: "synced" },
+  { itemId: "i3", kind: "code", language: "shell", preview: "docker run -d -p 8787:8787 -v onepaste-data:/data onepaste/server", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Terminal", createdAtMs: NOW - 8 * MIN, syncState: "synced" },
   { itemId: "i4", kind: "text", preview: "••••••••••••", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "My laptop", sourceApp: "Password manager", createdAtMs: NOW - 15 * MIN, syncState: "local" },
   { itemId: "i5", kind: "image", preview: "", favorite: false, pinned: false, note: "", width: 1280, height: 720, size: 86016, sourceDevice: "Office Mac", sourceApp: "Screenshot", createdAtMs: NOW - 60 * MIN, syncState: "synced" },
   { itemId: "i6", kind: "text", preview: "Quarterly report, final draft", favorite: false, pinned: false, note: "", width: 0, height: 0, size: 0, sourceDevice: "Office Mac", sourceApp: "Reader", createdAtMs: NOW - 90 * MIN, syncState: "pending" },
 ];
 
+if (q.get("tagFixture") === "yes") {
+  ITEMS[0].tags = ["Work", "Project Alpha"];
+  ITEMS[1].tags = ["Work"];
+  ITEMS[2].tags = ["Engineering"];
+}
+
+if (q.get("manyCodes") === "yes") {
+  for (let i = 0; i < 62; i++) ITEMS.push({ ...ITEMS[2], itemId: `code-page-${i}`, preview: `const page${i} = ${i};` });
+}
+
+const fileName = `sample.${q.get("fileFormat") ?? "txt"}`;
+let fileCached = q.get("fileCached") !== "no";
+let fileState = q.get("fileState") ?? "idle";
+const fileItem = (): ItemView => ({ itemId: "file-1", kind: "file", preview: fileName, size: 1024, width: 0, height: 0, favorite: false, pinned: false, note: "", tags: [], syncState: "synced" });
+if (q.get("attachment") === "yes") ITEMS.unshift(fileItem());
 let activeHotkey: string | null = q.get("hotkey") === "unavailable" ? null : q.get("hotkey") === "custom" && STATE !== "error" ? "Control+Shift+KeyK" : "Control+Alt+KeyV";
 let hotkeyWarning: HotkeyInfo["warning"] = !activeHotkey || SCREEN === "set" && STATE === "error" ? "fallback" : null;
 const hotkeyInfo = (): HotkeyInfo => ({ state: hotkeyWarning ? "busy" : "registered", current: activeHotkey, warning: hotkeyWarning });
 const settings: AppSettings = { autoLockMinutes: 0, autoApplyRemote: true, recordClipboard: true, maxItemMiB: 8, quickHotkey: q.get("hotkey") === "custom" || hotkeyWarning ? "Control+Shift+KeyK" : null, skipSuspectedSecrets: true, checkUpdates: true, updateChannel: null, skippedUpdate: null, trayNoticeDismissed: false, textPreviewHeight: null };
+let captureState = (q.get("capture") ?? "listening") as CaptureHealth["state"];
 let serverUrl = "https://192.168.1.20:8443";
 
 const status = (): AppStatus => {
   const joined = restartedMode !== null ? restartedMode !== "unset" : SCREEN !== "ob1" && SCREEN !== "ob2";
   const mode: Mode = restartedMode ?? (joined ? q.get("mode") === "local" ? "local_only" : "synced" : "unset");
   const paused = SCREEN === "state" ? "revoked" : null;
-  return { joined, locked: localKeyState === "locked", mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
+  return { capture: { state: captureState, error: captureState === "read_error" ? "clipboard_busy" : null, events: 0, readFailures: 0, recorded: 0, filtered: 0, retries: 0 }, joined, locked: localKeyState === "locked", mode, tray: SCREEN === "state" ? "error" : "synced", paused, pending: SCREEN === "state" ? 3 : 0, conflict: 0, failed: SCREEN === "state" ? 1 : 0, items: ITEMS.length, deviceId: "d1" };
 };
 
 const devices = (): DeviceList => ({
@@ -134,6 +157,7 @@ let accessReadFailed = q.get("keyRead") === "error";
 let localKeyState = new URLSearchParams(location.search).get("keyState") ?? "unlocked";
 (window as any).__lockFixture = () => { localKeyState = "locked"; window.dispatchEvent(new Event("onepaste-mock-locked")); };
 export const api = {
+  retryClipboardMonitor: async () => { called("retryClipboardMonitor"); if (q.get("captureRetry") === "error") throw "clipboard_unavailable"; captureState = "listening"; changed(); },
   lockSession: async () => { localKeyState = "locked"; window.dispatchEvent(new Event("onepaste-mock-locked")); },
   userActivity: async () => undefined,
   keyState: async () => { if (accessReadFailed) throw "storage"; return localKeyState; },
@@ -154,6 +178,34 @@ export const api = {
     if (SCREEN === "longtext" || SCREEN === "textview") return LONG_TEXT;
     return ITEMS.find((i) => i.itemId === itemId)?.preview ?? "";
   },
+  importFile: async (): Promise<string | null> => {
+    called("importFile");
+    if (q.get("fileImport") === "error") throw "attachment_too_large";
+    if (q.get("fileImport") === "cancel") return null;
+    if (q.get("fileImport") === "pending") return never();
+    if (!ITEMS.some((item) => item.itemId === "file-1")) ITEMS.unshift(fileItem());
+    changed(); return "file-1";
+  },
+  documentPreview: async (_itemId: string) => {
+    called("documentPreview");
+    if (q.get("previewError")) throw q.get("previewError");
+    return { format: q.get("fileFormat") ?? "txt", text: "Actual document body: Alpha & Beta.\nUnicode: λ Ω.\nTable cell one\tTable cell two\nSecond page content." + (q.get("unsafeText") === "yes" ? "\n<script>window.attachmentExecuted = true</script>" : "") };
+  },
+  attachmentPdf: async (_itemId: string) => {
+    called("attachmentPdf");
+    if (q.get("previewError")) throw q.get("previewError");
+    if (q.get("badPdf") === "yes") return new Uint8Array([1,2,3]);
+    return new Uint8Array(await (await fetch(({ protected: protectedPdfUrl, oversized: oversizedPdfUrl, many: manyPagesPdfUrl } as Record<string, string>)[q.get("pdfVariant") ?? ""] ?? pdfSampleUrl)).arrayBuffer());
+  },
+  attachmentInfo: async (_itemId: string): Promise<AttachmentInfo> => {
+    if (q.get("fileInfo") === "error") throw "attachment_unavailable";
+    return { fileName, mime: fileName.endsWith("pdf") ? "application/pdf" : fileName.endsWith("doc") ? "application/msword" : fileName.endsWith("docx") ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/plain", size: fileName.endsWith("pdf") ? 23330 : 1024, cached: fileCached, syncState: "synced", transfer: { state: fileState, direction: q.get("fileDirection") === "upload" ? "upload" : "download", completed: 2, total: 4, error: fileState === "failed" ? "attachment_transfer_failed" : null } };
+  },
+  prepareAttachment: async (_itemId: string) => { called("prepareAttachment"); if (q.get("fileDownload") === "error") throw "attachment_transfer_failed"; fileCached = true; fileState = "ready"; changed(); },
+  retryAttachment: async (_itemId: string) => { called("retryAttachment"); fileState = "ready"; changed(); },
+  cancelAttachment: async (_itemId: string) => { called("cancelAttachment"); fileState = "cancelled"; changed(); },
+  saveAttachment: async (_itemId: string): Promise<boolean> => { called("saveAttachment"); if (q.get("fileSave") === "error") throw "attachment_write_failed"; return q.get("fileSave") !== "cancel"; },
+  openItem: async (itemId: string) => { called("openItem"); window.dispatchEvent(new CustomEvent("onepaste-mock-open-item", { detail: itemId })); },
   saveImage: async (_itemId: string, _fileName: string): Promise<boolean> => {
     called("saveImage");
     return true;
@@ -178,16 +230,16 @@ export const api = {
   setLanguage: async (preference: LanguagePreference): Promise<LanguageState> => ({ preference, effective: LANG, systemLocale: LANG }),
   firstRunState: async (): Promise<Mode> => status().mode,
   status: async () => status(),
-  search: (query: string, filter: Filter, _limit: number, _offset: number): Promise<ItemView[]> => {
+  search: (query: string, filter: Filter, _limit: number, _offset: number, tag: string | null = null): Promise<ItemView[]> => {
     if (q.get("autoLockTest") && query === "late fixture") return new Promise((resolve) => { (window as any).__releaseLockSearch = () => resolve(ITEMS); });
     if (STATE === "loading") return never();
     if (STATE === "error") return Promise.reject("storage");
     if (STATE === "empty") return Promise.resolve([]);
     const text = query.trim().toLowerCase();
     return Promise.resolve(
-      ITEMS.filter((i) => (filter === "favorites" ? i.favorite : filter === "text" ? i.kind === "text" : filter === "images" ? i.kind === "image" : true)).filter(
-        (i) => !text || i.preview.toLowerCase().includes(text),
-      ),
+      ITEMS.filter((i) => (filter === "favorites" ? i.favorite : filter === "text" ? i.kind === "text" : filter === "images" ? i.kind === "image" : filter === "links" ? i.kind === "link" : filter === "code" ? i.kind === "code" : filter === "files" ? i.kind === "file" : filter === "all")).filter(
+        (i) => (!text || [i.preview, i.note, ...(i.tags ?? [])].some((value) => value.toLowerCase().includes(text))) && (!tag || (i.tags ?? []).some((value) => value.toLowerCase() === tag.toLowerCase())),
+      ).slice(_offset, _offset + _limit),
     );
   },
   copy: async (itemId: string) => {
@@ -205,12 +257,39 @@ export const api = {
   hideQuickPanel: async () => {
     (window as unknown as { __hidden: boolean }).__hidden = true;
   },
+  tagOptions: async (query: string): Promise<TagOption[]> => {
+    if (q.get("tagsLoad") === "error") throw "storage";
+    const tags = new Map<string, TagOption>();
+    for (const item of ITEMS) for (const tag of item.tags ?? []) {
+      if (!tag.toLowerCase().includes(query.toLowerCase())) continue;
+      const current = tags.get(tag.toLowerCase());
+      tags.set(tag.toLowerCase(), { label: current?.label ?? tag, count: (current?.count ?? 0) + 1 });
+    }
+    return [...tags.values()].sort((a, b) => a.label.localeCompare(b.label)).slice(0, 50);
+  },
+  setTags: async (itemId: string, values: string[]): Promise<string[]> => {
+    if (q.get("tagsSave") === "error") throw "invalid_tags";
+    const tags: string[] = [];
+    for (const value of values) {
+      const label = value.trim().split(/\s+/u).join(" ");
+      if (label && !tags.some((tag) => tag.toLowerCase() === label.toLowerCase())) tags.push(label);
+    }
+    if (tags.length > 32 || tags.some((tag) => Array.from(tag).length > 64 || /[\x00-\x08\x0e-\x1f]/.test(tag))) throw "invalid_tags";
+    const item = ITEMS.find((value) => value.itemId === itemId); if (item) item.tags = tags;
+    changed(); return tags;
+  },
+  setTextClassification: async (itemId: string, kind: string, language: string | null) => {
+    if (q.get("classificationSave") === "error") throw "invalid_classification";
+    const item = ITEMS.find((value) => value.itemId === itemId);
+    if (item) { item.kind = kind as ItemView["kind"]; item.language = language; }
+    changed();
+  },
   setFlags: async (itemId: string, flags: { favorite?: boolean; pinned?: boolean; note?: string }) => {
     const item = ITEMS.find((value) => value.itemId === itemId); if (item) Object.assign(item, flags); changed();
   },
   copyItems: async (ids: string[]) => {
     const w = window as unknown as { __batchCopies?: string[][] }; w.__batchCopies = [...(w.__batchCopies ?? []), [...ids]];
-    return ITEMS.filter((item) => ids.includes(item.itemId) && item.kind === "text").length;
+    return ITEMS.filter((item) => ids.includes(item.itemId) && (["text", "link", "code"].includes(item.kind))).length;
   },
   favoriteItems: async (ids: string[], favorite: boolean) => {
     for (const item of ITEMS) if (ids.includes(item.itemId)) item.favorite = favorite; changed();
@@ -330,3 +409,9 @@ export async function onCloseNotice(handler: () => void): Promise<() => void> {
 }
 
 export async function onLocked(handler: () => void): Promise<() => void> { window.addEventListener("onepaste-mock-locked", handler); return () => window.removeEventListener("onepaste-mock-locked", handler); }
+
+export async function onOpenItem(handler: (itemId: string) => void): Promise<() => void> {
+  const listener = (event: Event) => handler((event as CustomEvent<string>).detail);
+  window.addEventListener("onepaste-mock-open-item", listener);
+  return () => window.removeEventListener("onepaste-mock-open-item", listener);
+}
